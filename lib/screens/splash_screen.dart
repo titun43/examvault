@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import 'auth/login_screen.dart';
 import 'home/main_navigation.dart';
+import '../admin/admin_dashboard.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,9 +31,13 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.isAuthenticated) {
+      // Route admins to the admin dashboard, students to the main app
+      final dest = authProvider.isAdmin
+          ? const AdminDashboard()
+          : const MainNavigation();
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
+        MaterialPageRoute(builder: (_) => dest),
       );
     } else {
       Navigator.pushReplacement(

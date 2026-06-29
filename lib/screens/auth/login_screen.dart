@@ -1,10 +1,12 @@
 // =============================================================================
-// ExamVault - Login Screen (Mobile OTP, Email, Google)
+// ExamVault - Login Screen (Email / Mobile + Password, offline)
+// =============================================================================
+// - Login works with BOTH email and mobile number + password.
+// - Admin login is HIDDEN: tap the logo 7 times to reveal the admin door.
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:pinput/pinput.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
@@ -19,30 +21,37 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final PageController _pageController = PageController();
   int _currentMethod = 0; // 0=Mobile, 1=Email
-
-  // Mobile auth
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-  String? _verificationId;
-  bool _otpSent = false;
-
-  // Email auth
-  final _emailController = TextEditingController();
+  final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
+  final _emailRegController = TextEditingController();
+  final _phoneRegController = TextEditingController();
+  final _passwordRegController = TextEditingController();
   bool _isSignUp = false;
+  bool _obscurePassword = true;
+  int _logoTapCount = 0;
 
   @override
   void dispose() {
-    _pageController.dispose();
-    _phoneController.dispose();
-    _otpController.dispose();
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _emailRegController.dispose();
+    _phoneRegController.dispose();
+    _passwordRegController.dispose();
     super.dispose();
+  }
+
+  void _onLogoTap() {
+    _logoTapCount++;
+    if (_logoTapCount == 7) {
+      _logoTapCount = 0;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
+      );
+    }
   }
 
   @override
@@ -55,19 +64,22 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              // Logo
-              Container(
-                width: 80,
-                height: 80,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(
-                  Icons.school,
-                  size: 40,
-                  color: Colors.white,
+              // Logo (secret admin entry — tap 7 times)
+              GestureDetector(
+                onTap: _onLogoTap,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    gradient: AppTheme.primaryGradient,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.school,
+                    size: 40,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const Text(
@@ -85,70 +97,60 @@ class _LoginScreenState extends State<LoginScreen> {
                   color: Colors.grey.shade600,
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // Auth Method Tabs
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildMethodTab('Mobile', 0, Icons.phone),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildMethodTab('Email', 1, Icons.email),
-                  ),
-                ],
-              ),
               const SizedBox(height: 24),
 
-              // Method Content
-              _currentMethod == 0 ? _buildMobileAuth() : _buildEmailAuth(),
-
-              const SizedBox(height: 24),
-
-              // Divider
-              Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      'OR',
+              // Demo credentials hint
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  border: Border.all(color: Colors.amber.shade200),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Demo Login',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.amber.shade900,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Email: demo@examvault.com\nMobile: 9876543210\nPassword: demo123',
                       style: TextStyle(
-                        color: Colors.grey.shade500,
                         fontSize: 12,
+                        color: Colors.amber.shade900,
+                        height: 1.4,
                       ),
                     ),
-                  ),
-                  const Expanded(child: Divider()),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Google Sign-In
-              _buildGoogleButton(),
-              const SizedBox(height: 16),
+              _isSignUp ? _buildSignUpForm() : _buildSignInForm(),
 
-              // Admin Login Link (hidden - triple tap)
-              GestureDetector(
-                onTap: _adminTapCount == 0 ? _onAdminTap : null,
-                onLongPress: _onAdminTap,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AdminLoginScreen(),
-                      ),
-                    );
-                  },
-                  child: Text(
-                    'Admin Login',
-                    style: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 12,
-                    ),
-                  ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isSignUp = !_isSignUp;
+                  });
+                },
+                child: Text(
+                  _isSignUp
+                      ? 'Already have an account? Sign In'
+                      : 'Don\'t have an account? Sign Up',
                 ),
               ),
             ],
@@ -158,9 +160,71 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  int _adminTapCount = 0;
-  void _onAdminTap() {
-    // Admin access - hidden
+  // ==================== SIGN IN ====================
+  Widget _buildSignInForm() {
+    return Column(
+      children: [
+        // Method Tabs
+        Row(
+          children: [
+            Expanded(child: _buildMethodTab('Mobile', 0, Icons.phone)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildMethodTab('Email', 1, Icons.email)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        TextField(
+          controller: _identifierController,
+          keyboardType:
+              _currentMethod == 0 ? TextInputType.phone : TextInputType.emailAddress,
+          maxLength: _currentMethod == 0 ? 10 : null,
+          decoration: InputDecoration(
+            labelText: _currentMethod == 0 ? 'Mobile Number' : 'Email Address',
+            hintText: _currentMethod == 0 ? '9876543210' : 'you@example.com',
+            prefixText: _currentMethod == 0 ? '+91 ' : null,
+            prefixIcon: Icon(_currentMethod == 0
+                ? Icons.phone_outlined
+                : Icons.email_outlined),
+            counterText: '',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            prefixIcon: const Icon(Icons.lock_outline),
+            suffixIcon: IconButton(
+              icon: Icon(_obscurePassword
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined),
+              onPressed: () {
+                setState(() => _obscurePassword = !_obscurePassword);
+              },
+            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            return ElevatedButton(
+              onPressed: auth.isLoading ? null : _signIn,
+              child: auth.isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Sign In'),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   Widget _buildMethodTab(String title, int index, IconData icon) {
@@ -169,6 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
       onTap: () {
         setState(() {
           _currentMethod = index;
+          _identifierController.clear();
         });
       },
       child: Container(
@@ -180,11 +245,9 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-            ),
+            Icon(icon,
+                size: 18,
+                color: isSelected ? Colors.white : Colors.grey.shade600),
             const SizedBox(width: 8),
             Text(
               title,
@@ -199,292 +262,42 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildMobileAuth() {
-    return Column(
-      children: [
-        TextField(
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
-          maxLength: 10,
-          decoration: InputDecoration(
-            labelText: 'Mobile Number',
-            hintText: '9876543210',
-            prefixText: '+91 ',
-            prefixIcon: const Icon(Icons.phone_outlined),
-            counterText: '',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        if (_otpSent) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Enter OTP sent to +91 ${_phoneController.text}',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          Pinput(
-            controller: _otpController,
-            length: 6,
-            defaultPinTheme: PinTheme(
-              width: 50,
-              height: 56,
-              textStyle: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onCompleted: (pin) {
-              _verifyOtp();
-            },
-          ),
-        ],
-        const SizedBox(height: 16),
-        Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            return ElevatedButton(
-              onPressed: auth.isLoading
-                  ? null
-                  : () {
-                      if (_otpSent) {
-                        _verifyOtp();
-                      } else {
-                        _sendOtp();
-                      }
-                    },
-              child: auth.isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(_otpSent ? 'Verify OTP' : 'Send OTP'),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEmailAuth() {
-    return Column(
-      children: [
-        if (_isSignUp)
-          TextField(
-            controller: _nameController,
-            decoration: InputDecoration(
-              labelText: 'Full Name',
-              prefixIcon: const Icon(Icons.person_outline),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        if (_isSignUp) const SizedBox(height: 16),
-        TextField(
-          controller: _emailController,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(
-            labelText: 'Email',
-            prefixIcon: const Icon(Icons.email_outlined),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _passwordController,
-          obscureText: true,
-          decoration: InputDecoration(
-            labelText: 'Password',
-            prefixIcon: const Icon(Icons.lock_outline),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Consumer<AuthProvider>(
-          builder: (context, auth, _) {
-            return ElevatedButton(
-              onPressed: auth.isLoading ? null : _emailAuth,
-              child: auth.isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(_isSignUp ? 'Sign Up' : 'Sign In'),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: () {
-            setState(() {
-              _isSignUp = !_isSignUp;
-            });
-          },
-          child: Text(
-            _isSignUp
-                ? 'Already have an account? Sign In'
-                : 'Don\'t have an account? Sign Up',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildGoogleButton() {
-    return OutlinedButton.icon(
-      onPressed: _googleSignIn,
-      icon: const FaIcon(FontAwesomeIcons.google, color: Colors.red),
-      label: const Text('Continue with Google'),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-    );
-  }
-
-  void _sendOtp() async {
-    final rawPhone = _phoneController.text.trim();
-    if (rawPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter phone number')),
-      );
-      return;
-    }
-
-    // Normalize: digits only
-    final digits = rawPhone.replaceAll(RegExp(r'[^\d]'), '');
-
-    // Build full phone with country code
-    String fullPhone;
-    if (rawPhone.startsWith('+')) {
-      fullPhone = rawPhone;
-    } else if (digits.length == 10) {
-      // 10-digit Indian number → prepend +91
-      fullPhone = '+91$digits';
-    } else if (digits.length > 10) {
-      // Already includes country code (e.g. 919876543210)
-      fullPhone = '+$digits';
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
-      );
-      return;
-    }
-
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    await auth.verifyPhoneNumber(
-      phoneNumber: fullPhone,
-      onCodeSent: (verificationId, _) {
-        setState(() {
-          _verificationId = verificationId;
-          _otpSent = true;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OTP sent to $fullPhone')),
-        );
-      },
-      onError: (error) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      },
-    );
-  }
-
-  void _verifyOtp() async {
-    if (_otpController.text.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter valid OTP')),
-      );
-      return;
-    }
-
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    final success = await auth.verifyOtp(
-      verificationId: _verificationId!,
-      smsCode: _otpController.text,
-    );
-
-    if (success && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-      );
-    } else if (auth.errorMessage != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.errorMessage!)),
-      );
-    }
-  }
-
-  void _emailAuth() async {
-    final email = _emailController.text.trim();
+  void _signIn() async {
+    final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
+    if (identifier.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
+        const SnackBar(content: Text('Please fill in all fields')),
       );
       return;
     }
 
-    // Basic email format validation
-    if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
-      );
-      return;
-    }
-
-    // Password length check (Firebase requires 6+)
-    if (password.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
-      );
-      return;
-    }
-
-    if (_isSignUp && _nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name')),
-      );
-      return;
+    if (_currentMethod == 0) {
+      // Mobile validation: 10 digits
+      final digits = identifier.replaceAll(RegExp(r'[^\d]'), '');
+      if (digits.length != 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Please enter a valid 10-digit mobile number')),
+        );
+        return;
+      }
+    } else {
+      // Email validation
+      if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(identifier)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter a valid email address')),
+        );
+        return;
+      }
     }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    bool success;
-    if (_isSignUp) {
-      success = await auth.signUpWithEmail(
-        email: email,
-        password: password,
-        name: _nameController.text.trim(),
-      );
-    } else {
-      success = await auth.signInWithEmail(
-        email: email,
-        password: password,
-      );
-    }
+    final success = await auth.loginWithIdentifier(
+      identifier: identifier,
+      password: password,
+    );
 
     if (success && mounted) {
       Navigator.pushReplacement(
@@ -495,15 +308,133 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.errorMessage!),
-          duration: const Duration(seconds: 5),
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }
   }
 
-  void _googleSignIn() async {
+  // ==================== SIGN UP ====================
+  Widget _buildSignUpForm() {
+    return Column(
+      children: [
+        TextField(
+          controller: _nameController,
+          decoration: InputDecoration(
+            labelText: 'Full Name',
+            prefixIcon: const Icon(Icons.person_outline),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _emailRegController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: 'Email (optional)',
+            prefixIcon: const Icon(Icons.email_outlined),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _phoneRegController,
+          keyboardType: TextInputType.phone,
+          maxLength: 10,
+          decoration: InputDecoration(
+            labelText: 'Mobile Number (optional)',
+            hintText: '9876543210',
+            prefixText: '+91 ',
+            prefixIcon: const Icon(Icons.phone_outlined),
+            counterText: '',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Provide either email or mobile number to sign up.',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _passwordRegController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Password (min 6 characters)',
+            prefixIcon: const Icon(Icons.lock_outline),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            return ElevatedButton(
+              onPressed: auth.isLoading ? null : _signUp,
+              child: auth.isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Create Account'),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  void _signUp() async {
+    final name = _nameController.text.trim();
+    final email = _emailRegController.text.trim();
+    final phone = _phoneRegController.text.trim();
+    final password = _passwordRegController.text;
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name')),
+      );
+      return;
+    }
+    if (email.isEmpty && phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please provide email or mobile number')),
+      );
+      return;
+    }
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+    if (email.isNotEmpty &&
+        !RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+    if (phone.isNotEmpty) {
+      final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+      if (digits.length != 10) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Please enter a valid 10-digit mobile number')),
+        );
+        return;
+      }
+    }
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final success = await auth.signInWithGoogle();
+    final success = await auth.register(
+      name: name,
+      password: password,
+      email: email.isEmpty ? null : email,
+      phone: phone.isEmpty ? null : phone,
+    );
 
     if (success && mounted) {
       Navigator.pushReplacement(
@@ -512,7 +443,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } else if (auth.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.errorMessage!)),
+        SnackBar(
+          content: Text(auth.errorMessage!),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
     }
   }

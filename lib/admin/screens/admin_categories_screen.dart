@@ -1,14 +1,36 @@
 // =============================================================================
-// ExamVault - Admin Categories CRUD Screen
+// ExamVault - Admin Categories CRUD Screen (offline)
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../models/category_model.dart';
-import '../../services/firestore_service.dart';
+import '../../services/local_data_service.dart';
 
-class AdminCategoriesScreen extends StatelessWidget {
+class AdminCategoriesScreen extends StatefulWidget {
   const AdminCategoriesScreen({super.key});
+
+  @override
+  State<AdminCategoriesScreen> createState() => _AdminCategoriesScreenState();
+}
+
+class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
+  late List<LocalCategory> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    _items = LocalDataService.getCategories();
+  }
+
+  Color _parseColor(String hex) {
+    var h = hex.replaceAll('#', '');
+    if (h.length == 6) h = 'FF$h';
+    return Color(int.parse(h, radix: 16));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,56 +45,54 @@ class AdminCategoriesScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<List<CategoryModel>>(
-        stream: FirestoreService.getCategoriesStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No categories. Add one!'));
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) {
-              final category = snapshot.data![index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: (AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor).withOpacity(0.1),
-                    child: Text(category.icon ?? '📚', style: const TextStyle(fontSize: 20)),
+      body: _items.isEmpty
+          ? const Center(child: Text('No categories. Add one!'))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _items.length,
+              itemBuilder: (context, index) {
+                final c = _items[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _parseColor(c.color).withOpacity(0.15),
+                      child: const Icon(Icons.category, size: 20),
+                    ),
+                    title: Text(c.name),
+                    subtitle: Text(
+                        '${c.testCount} tests • ${c.description.isEmpty ? "—" : c.description}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    trailing: PopupMenuButton(
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                            value: 'edit', child: Text('Edit')),
+                        const PopupMenuItem(
+                            value: 'delete', child: Text('Delete')),
+                      ],
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _showAddEditDialog(context, category: c);
+                        } else if (value == 'delete') {
+                          _confirmDelete(context, c);
+                        }
+                      },
+                    ),
                   ),
-                  title: Text(category.name),
-                  subtitle: Text('${category.subjectCount} subjects'),
-                  trailing: PopupMenuButton(
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _showAddEditDialog(context, category: category);
-                      } else if (value == 'delete') {
-                        _confirmDelete(context, category);
-                      }
-                    },
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 
-  void _showAddEditDialog(BuildContext context, {CategoryModel? category}) {
+  void _showAddEditDialog(BuildContext context, {LocalCategory? category}) {
     final nameController = TextEditingController(text: category?.name ?? '');
-    final iconController = TextEditingController(text: category?.icon ?? '📚');
-    final descController = TextEditingController(text: category?.description ?? '');
-    final orderController = TextEditingController(text: (category?.order ?? 0).toString());
+    final iconController = TextEditingController(text: category?.icon ?? 'school');
+    final colorController =
+        TextEditingController(text: category?.color ?? '#1565C0');
+    final descController =
+        TextEditingController(text: category?.description ?? '');
 
     showDialog(
       context: context,
@@ -85,12 +105,21 @@ class AdminCategoriesScreen extends StatelessWidget {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Name', hintText: 'Railway, SSC, etc.'),
+                  decoration: const InputDecoration(
+                      labelText: 'Name', hintText: 'Railway, SSC, etc.'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: iconController,
-                  decoration: const InputDecoration(labelText: 'Icon (emoji)', hintText: '🚂'),
+                  decoration: const InputDecoration(
+                      labelText: 'Icon (Material name)',
+                      hintText: 'school, train, work...'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: colorController,
+                  decoration: const InputDecoration(
+                      labelText: 'Color (hex)', hintText: '#1565C0'),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -98,36 +127,35 @@ class AdminCategoriesScreen extends StatelessWidget {
                   decoration: const InputDecoration(labelText: 'Description'),
                   maxLines: 2,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: orderController,
-                  decoration: const InputDecoration(labelText: 'Order'),
-                  keyboardType: TextInputType.number,
-                ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                final now = DateTime.now();
-                final newCategory = CategoryModel(
+                final newCat = LocalCategory(
                   id: category?.id ?? '',
-                  name: nameController.text,
-                  slug: nameController.text.toLowerCase().replaceAll(' ', '-'),
-                  icon: iconController.text,
-                  description: descController.text,
-                  order: int.tryParse(orderController.text) ?? 0,
-                  createdAt: category?.createdAt ?? now,
-                  updatedAt: now,
+                  name: nameController.text.trim(),
+                  icon: iconController.text.trim().isEmpty
+                      ? 'school'
+                      : iconController.text.trim(),
+                  color: colorController.text.trim().isEmpty
+                      ? '#1565C0'
+                      : colorController.text.trim(),
+                  description: descController.text.trim(),
+                  testCount: category?.testCount ?? 0,
                 );
                 if (category == null) {
-                  await FirestoreService.addCategory(newCategory);
+                  await LocalDataService.addCategory(newCat);
                 } else {
-                  await FirestoreService.updateCategory(newCategory);
+                  await LocalDataService.updateCategory(newCat);
                 }
-                if (context.mounted) Navigator.pop(context);
+                if (!mounted) return;
+                Navigator.pop(context);
+                setState(_reload);
               },
               child: const Text('Save'),
             ),
@@ -137,20 +165,26 @@ class AdminCategoriesScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, CategoryModel category) {
+  void _confirmDelete(BuildContext context, LocalCategory category) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete Category?'),
-          content: Text('Are you sure you want to delete "${category.name}"? This will also delete all subjects and tests under it.'),
+          content: Text(
+              'Are you sure you want to delete "${category.name}"? This will also delete all subjects and tests under it.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.errorColor),
               onPressed: () async {
-                await FirestoreService.deleteCategory(category.id);
-                if (context.mounted) Navigator.pop(context);
+                await LocalDataService.deleteCategory(category.id);
+                if (!mounted) return;
+                Navigator.pop(context);
+                setState(_reload);
               },
               child: const Text('Delete'),
             ),

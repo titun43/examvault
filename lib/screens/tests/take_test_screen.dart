@@ -1,21 +1,18 @@
 // =============================================================================
-// ExamVault - Take Test Screen (Test taking with timer)
+// ExamVault - Take Test Screen (Test taking with timer) — offline
 // =============================================================================
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/test_model.dart';
-import '../../models/question_model.dart';
-import '../../models/test_result_model.dart';
-import '../../services/firestore_service.dart';
+import '../../services/local_data_service.dart';
 import '../../services/admob_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
-  final TestModel test;
+  final LocalTest test;
 
   const TakeTestScreen({super.key, required this.test});
 
@@ -24,19 +21,18 @@ class TakeTestScreen extends StatefulWidget {
 }
 
 class _TakeTestScreenState extends State<TakeTestScreen> {
-  List<QuestionModel> _questions = [];
+  List<LocalQuestion> _questions = [];
   List<int> _userAnswers = [];
   int _currentQuestionIndex = 0;
   Timer? _timer;
   int _timeRemaining = 0;
   bool _isLoading = true;
-  bool _showSubmitDialog = false;
 
   @override
   void initState() {
     super.initState();
     _loadQuestions();
-    _timeRemaining = widget.test.duration * 60;
+    _timeRemaining = widget.test.durationMinutes * 60;
     _startTimer();
   }
 
@@ -46,19 +42,13 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     super.dispose();
   }
 
-  void _loadQuestions() async {
-    try {
-      final questions = await FirestoreService.getQuestions(widget.test.id);
-      setState(() {
-        _questions = questions;
-        _userAnswers = List.filled(questions.length, -1);
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  void _loadQuestions() {
+    final questions = LocalDataService.questionsByTest(widget.test.id);
+    setState(() {
+      _questions = questions;
+      _userAnswers = List.filled(questions.length, -1);
+      _isLoading = false;
+    });
   }
 
   void _startTimer() {
@@ -103,7 +93,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     Navigator.pop(context);
   }
 
-  void _submitTest() {
+  void _submitTest() async {
     _timer?.cancel();
 
     int correct = 0;
@@ -114,14 +104,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     for (int i = 0; i < _questions.length; i++) {
       if (_userAnswers[i] == -1) {
         unattempted++;
-      } else if (_userAnswers[i] == _questions[i].correctAnswerIndex) {
+      } else if (_userAnswers[i] == _questions[i].correctIndex) {
         correct++;
-        obtainedMarks += _questions[i].marks;
+        obtainedMarks += 1; // 1 mark per correct answer
       } else {
         wrong++;
-        if (widget.test.negativeMarking) {
-          obtainedMarks -= widget.test.negativeMarks.toInt();
-        }
       }
     }
 
@@ -131,42 +118,44 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     final accuracy = (correct + wrong) > 0
         ? (correct / (correct + wrong)) * 100
         : 0.0;
+    final isPassed = percentage >= 40;
 
-    final result = TestResultModel(
+    final userId = Provider.of<AuthProvider>(context, listen: false).user?.id ?? '';
+    final timeTaken = widget.test.durationMinutes * 60 - _timeRemaining;
+
+    // Save result locally
+    await LocalDataService.addTestResult(LocalTestResult(
       id: '',
-      userId: Provider.of<AuthProvider>(context, listen: false).user?.id ?? '',
+      userId: userId,
       testId: widget.test.id,
       testTitle: widget.test.title,
-      totalQuestions: _questions.length,
-      correctAnswers: correct,
-      wrongAnswers: wrong,
-      unattempted: unattempted,
-      totalMarks: widget.test.totalMarks,
-      obtainedMarks: obtainedMarks,
-      percentage: percentage,
-      isPassed: percentage >= widget.test.passingMarks,
-      timeTaken: widget.test.duration * 60 - _timeRemaining,
-      totalTime: widget.test.duration * 60,
-      userAnswers: _userAnswers,
-      correctAnswersList: _questions.map((q) => q.correctAnswerIndex).toList(),
-      accuracy: accuracy,
-      attemptedAt: DateTime.now(),
-    );
+      score: correct,
+      total: _questions.length,
+      date: DateTime.now(),
+    ));
 
-    // Save result
-    FirestoreService.saveResult(result);
+    // Show interstitial ad (best-effort)
+    try {
+      AdMobService.showInterstitialAd();
+    } catch (_) {}
 
-    // Show interstitial ad
-    AdMobService.showInterstitialAd();
-
-    // Navigate to result
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) => ResultScreen(
-          result: result,
+          testTitle: widget.test.title,
+          score: correct,
+          total: _questions.length,
+          correct: correct,
+          wrong: wrong,
+          unattempted: unattempted,
+          percentage: percentage,
+          accuracy: accuracy,
+          timeTaken: timeTaken,
           questions: _questions,
           userAnswers: _userAnswers,
+          isPassed: isPassed,
         ),
       ),
     );
@@ -178,6 +167,26 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       return Scaffold(
         appBar: AppBar(title: const Text('Loading...')),
         body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_questions.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.test.title)),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('No questions available for this test.'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Back'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -198,9 +207,12 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           actions: [
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _timeRemaining < 300 ? Colors.red : Colors.white.withOpacity(0.2),
+                  color: _timeRemaining < 300
+                      ? Colors.red
+                      : Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -225,7 +237,8 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             LinearProgressIndicator(
               value: (_currentQuestionIndex + 1) / _questions.length,
               backgroundColor: Colors.grey.shade200,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
             ),
             // Question counter
             Padding(
@@ -241,10 +254,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     ),
                   ),
                   Text(
-                    'Marks: ${question.marks}',
-                    style: const TextStyle(
+                    'Marks: 1',
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ],
@@ -257,13 +270,6 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (question.imageUrl != null) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(question.imageUrl!),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
                     Text(
                       question.question,
                       style: const TextStyle(
@@ -275,7 +281,8 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     const SizedBox(height: 24),
                     // Options
                     ...List.generate(question.options.length, (index) {
-                      final isSelected = _userAnswers[_currentQuestionIndex] == index;
+                      final isSelected =
+                          _userAnswers[_currentQuestionIndex] == index;
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: InkWell(
@@ -362,8 +369,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                         child: const Text('Previous'),
                       ),
                     ),
-                  if (_currentQuestionIndex > 0)
-                    const SizedBox(width: 12),
+                  if (_currentQuestionIndex > 0) const SizedBox(width: 12),
                   Expanded(
                     child: _currentQuestionIndex == _questions.length - 1
                         ? ElevatedButton(
