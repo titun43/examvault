@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../models/current_affair_model.dart';
@@ -39,6 +40,22 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          // Dark/Light theme toggle in header
+          Consumer<ThemeProvider>(
+            builder: (context, themeProvider, _) {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              return IconButton(
+                icon: Icon(
+                  isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  color: Colors.white,
+                ),
+                tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+                onPressed: () {
+                  themeProvider.toggleTheme();
+                },
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {

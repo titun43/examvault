@@ -205,10 +205,13 @@ class _LoginScreenState extends State<LoginScreen> {
         TextField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
+          maxLength: 10,
           decoration: InputDecoration(
-            labelText: 'Phone Number',
-            hintText: '+91 98765 43210',
+            labelText: 'Mobile Number',
+            hintText: '9876543210',
+            prefixText: '+91 ',
             prefixIcon: const Icon(Icons.phone_outlined),
+            counterText: '',
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -217,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_otpSent) ...[
           const SizedBox(height: 16),
           Text(
-            'Enter OTP sent to ${_phoneController.text}',
+            'Enter OTP sent to +91 ${_phoneController.text}',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -357,28 +360,52 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _sendOtp() async {
-    if (_phoneController.text.isEmpty) {
+    final rawPhone = _phoneController.text.trim();
+    if (rawPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter phone number')),
       );
       return;
     }
 
+    // Normalize: digits only
+    final digits = rawPhone.replaceAll(RegExp(r'[^\d]'), '');
+
+    // Build full phone with country code
+    String fullPhone;
+    if (rawPhone.startsWith('+')) {
+      fullPhone = rawPhone;
+    } else if (digits.length == 10) {
+      // 10-digit Indian number → prepend +91
+      fullPhone = '+91$digits';
+    } else if (digits.length > 10) {
+      // Already includes country code (e.g. 919876543210)
+      fullPhone = '+$digits';
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
+      );
+      return;
+    }
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.verifyPhoneNumber(
-      phoneNumber: _phoneController.text.trim(),
+      phoneNumber: fullPhone,
       onCodeSent: (verificationId, _) {
         setState(() {
           _verificationId = verificationId;
           _otpSent = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('OTP sent successfully!')),
+          SnackBar(content: Text('OTP sent to $fullPhone')),
         );
       },
       onError: (error) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error)),
+          SnackBar(
+            content: Text(error),
+            duration: const Duration(seconds: 5),
+          ),
         );
       },
     );
@@ -411,9 +438,35 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _emailAuth() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    // Basic email format validation
+    if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+
+    // Password length check (Firebase requires 6+)
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    if (_isSignUp && _nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name')),
       );
       return;
     }
@@ -422,14 +475,14 @@ class _LoginScreenState extends State<LoginScreen> {
     bool success;
     if (_isSignUp) {
       success = await auth.signUpWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
         name: _nameController.text.trim(),
       );
     } else {
       success = await auth.signInWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
+        email: email,
+        password: password,
       );
     }
 
@@ -440,7 +493,10 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } else if (auth.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.errorMessage!)),
+        SnackBar(
+          content: Text(auth.errorMessage!),
+          duration: const Duration(seconds: 5),
+        ),
       );
     }
   }
