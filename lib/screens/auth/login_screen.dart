@@ -1,8 +1,9 @@
 // =============================================================================
 // ExamVault - Login Screen
 // =============================================================================
-// User login: Mobile number → Firebase OTP → auto-register/login
-// Admin login: HIDDEN — tap logo 7 times to open admin login door
+// User login: Mobile number → local OTP (6-digit, shown in a dialog) → login.
+//             Works 100% offline — no Firebase setup needed.
+// Admin login: HIDDEN — tap logo 7 times to open the admin login door.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -12,7 +13,6 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../home/main_navigation.dart';
 import '../../admin/admin_login_screen.dart';
-import '../../admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -43,6 +43,68 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
       );
     }
+  }
+
+  /// Shows the generated OTP in a dialog so the user can see & enter it.
+  /// (In this offline-first build, the OTP is generated on-device; for real
+  ///  SMS delivery, wire up Firebase Phone Auth later.)
+  void _showOtpDialog(String otp) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.sms, color: AppTheme.primaryColor),
+            const SizedBox(width: 8),
+            const Text('Your OTP'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'A 6-digit OTP was generated for +91 ${_phoneController.text.trim()}:',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
+              ),
+              child: Text(
+                otp,
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 8,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Enter this code below to login.\n(Offline demo mode — no SMS is sent.)',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Got it'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -162,6 +224,12 @@ class _LoginScreenState extends State<LoginScreen> {
             },
             child: const Text('Change mobile number'),
           ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: _resendOtp,
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Resend OTP'),
+        ),
       ],
     );
   }
@@ -179,11 +247,30 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     auth.sendOtp(
       phoneNumber: digits,
-      onCodeSent: () {
+      onCodeSent: (String otp) {
         setState(() => _otpSent = true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('OTP sent to +91 $digits')),
         );
+        // Show the OTP in a dialog (offline demo mode — no real SMS)
+        _showOtpDialog(otp);
+      },
+    );
+  }
+
+  void _resendOtp() {
+    if (_phoneController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your mobile number first')),
+      );
+      return;
+    }
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    auth.sendOtp(
+      phoneNumber: _phoneController.text.trim(),
+      onCodeSent: (String otp) {
+        setState(() => _otpSent = true);
+        _showOtpDialog(otp);
       },
     );
   }

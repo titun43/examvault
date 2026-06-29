@@ -1,19 +1,24 @@
 // =============================================================================
 // ExamVault - Auth Provider
 // =============================================================================
-// User login: Firebase Phone Auth (real OTP via SMS)
+// User login: Local OTP (6-digit code generated on-device, shown in the UI).
+//             Works 100% offline — no Firebase setup required.
+//             (Firebase Phone Auth can be wired in later for real SMS; the
+//              local flow is the reliable fallback that always works.)
 // Admin login: local credentials (admin@examvault.com / admin123)
 // =============================================================================
 
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/local_data_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   LocalUser? _user;
   bool _isLoading = false;
   String? _errorMessage;
-  String? _verificationId;
+  String? _pendingPhone;      // phone number waiting for OTP
+  String? _generatedOtp;      // locally-generated OTP for the current session
+  int? _otpExpiresAt;         // epoch-millis expiry
 
   LocalUser? get user => _user;
   bool get isLoading => _isLoading;
@@ -36,116 +41,81 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ==================== PHONE OTP (Firebase) ====================
-  /// Sends OTP to the given phone number via Firebase.
-  /// [onCodeSent] is called when OTP is sent (UI switches to OTP entry).
+  // ==================== LOCAL OTP (offline, always works) ====================
+  /// Sends a 6-digit OTP to the given phone number (locally generated).
+  /// [onCodeSent] is called with the generated OTP so the UI can display it
+  /// (since there's no real SMS in this offline-first flow).
   Future<void> sendOtp({
     required String phoneNumber,
-    required void Function() onCodeSent,
+    required void Function(String otp) onCodeSent,
   }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Normalize to +91XXXXXXXXXX
-      String fullPhone = phoneNumber.trim();
-      final digits = fullPhone.replaceAll(RegExp(r'[^\d]'), '');
+      // Normalize to 10-digit Indian mobile
+      String digits = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
       if (digits.length == 10) {
-        fullPhone = '+91$digits';
-      } else if (!fullPhone.startsWith('+')) {
-        fullPhone = '+$digits';
+        // ok
+      } else if (digits.length > 10) {
+        digits = digits.substring(digits.length - 10);
+      } else {
+        _errorMessage = 'Please enter a valid 10-digit mobile number.';
+        return;
+      }
+      if (!RegExp(r'^[6-9]').hasMatch(digits)) {
+        _errorMessage = 'Please enter a valid Indian mobile number.';
+        return;
       }
 
-      await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: fullPhone,
-        timeout: const Duration(seconds: 60),
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Auto-verification (Android only, rare)
-          await _signInWithCredential(credential);
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          _errorMessage = _friendlyError(e);
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          _verificationId = verificationId;
-          onCodeSent();
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
-        },
-      );
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _friendlyError(e);
+      _pendingPhone = '+91$digits';
+      // Generate a 6-digit OTP
+      final rnd = Random();
+      _generatedOtp = (100000 + rnd.nextInt(900000)).toString();
+      _otpExpiresAt = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
+      onCodeSent(_generatedOtp!);
     } catch (e) {
-      _errorMessage = 'Failed to send OTP. Check your internet connection.';
+      _errorMessage = 'Failed to send OTP. Please try again.';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Verifies the OTP entered by the user.
+  /// Verifies the OTP entered by the user against the locally-generated one.
   Future<bool> verifyOtp({required String smsCode}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      if (_verificationId == null) {
+      if (_generatedOtp == null || _pendingPhone == null) {
         _errorMessage = 'Please request OTP first.';
         return false;
       }
-      final credential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: smsCode,
-      );
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      // Firebase auth succeeded — find or create local user
-      final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-      _user = LocalDataService.findOrCreateByPhone(phone);
-      _verificationId = null;
+      if (_otpExpiresAt != null &&
+          DateTime.now().millisecondsSinceEpoch > _otpExpiresAt!) {
+        _errorMessage = 'OTP expired. Please request a new OTP.';
+        _generatedOtp = null;
+        return false;
+      }
+      if (smsCode.trim() != _generatedOtp) {
+        _errorMessage = 'Invalid OTP. Please check and enter the correct 6-digit code.';
+        return false;
+      }
+      // OTP matched — find or create the local student record
+      _user = LocalDataService.findOrCreateByPhone(_pendingPhone!);
+      _generatedOtp = null;
+      _pendingPhone = null;
+      _otpExpiresAt = null;
       return true;
-    } on FirebaseAuthException catch (e) {
-      _errorMessage = _friendlyError(e);
-      return false;
     } catch (e) {
       _errorMessage = 'Verification failed. Please try again.';
       return false;
     } finally {
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
-    try {
-      await FirebaseAuth.instance.signInWithCredential(credential);
-      final phone = FirebaseAuth.instance.currentUser?.phoneNumber ?? '';
-      _user = LocalDataService.findOrCreateByPhone(phone);
-    } catch (_) {}
-  }
-
-  String _friendlyError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-phone-number':
-        return 'Invalid phone number. Enter a valid 10-digit mobile number.';
-      case 'invalid-verification-code':
-        return 'Invalid OTP. Please check and enter the correct 6-digit code.';
-      case 'session-expired':
-        return 'OTP session expired. Please request a new OTP.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please wait a few minutes and try again.';
-      case 'network-request-failed':
-        return 'Network error. Check your internet connection.';
-      case 'quota-exceeded':
-        return 'SMS quota exceeded. Please try again later.';
-      case 'operation-not-allowed':
-        return 'Phone authentication is not enabled. Contact admin.';
-      case 'user-disabled':
-        return 'This account has been disabled.';
-      default:
-        return e.message ?? 'Authentication failed. Please try again.';
     }
   }
 
@@ -160,6 +130,8 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       await Future.delayed(const Duration(milliseconds: 300));
+      // Make sure the admin account exists (safety net — also done at app start)
+      await LocalDataService.ensureAdminAccount();
       final u = LocalDataService.loginWithIdentifier(
         identifier: email,
         password: password,
@@ -191,12 +163,11 @@ class AuthProvider extends ChangeNotifier {
 
   // ==================== LOGOUT ====================
   Future<void> logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
     await LocalDataService.logout();
     _user = null;
-    _verificationId = null;
+    _generatedOtp = null;
+    _pendingPhone = null;
+    _otpExpiresAt = null;
     notifyListeners();
   }
 }

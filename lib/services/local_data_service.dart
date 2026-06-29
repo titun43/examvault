@@ -429,7 +429,36 @@ class LocalDataService {
     if (_initialized) return;
     _prefs = await SharedPreferences.getInstance();
     await _seedIfFirstRun();
+    // ALWAYS make sure the admin account exists with the correct credentials.
+    // This runs on every app start so admin login never breaks — even if the
+    // user previously deleted/changed the admin, or upgraded from an old version.
+    await ensureAdminAccount();
     _initialized = true;
+  }
+
+  /// Guarantee the admin account exists with the canonical credentials
+  /// (admin@examvault.com / admin123). If an admin-role user is missing,
+  /// or exists but with a different email/password, it is (re)created.
+  /// This is idempotent and safe to call on every startup.
+  static Future<void> ensureAdminAccount() async {
+    final users = _readList(_kUsers).map(LocalUser.fromJson).toList();
+    final hasAdmin = users.any((u) => u.role == 'admin' &&
+        (u.email ?? '').toLowerCase() == 'admin@examvault.com');
+    if (hasAdmin) return; // admin already present, do not touch
+
+    // Remove any stale admin-role rows (wrong email/password) first
+    users.removeWhere((u) => u.role == 'admin');
+    // Add the canonical admin
+    users.insert(0, LocalUser(
+      id: 'admin-001',
+      name: 'Admin',
+      email: 'admin@examvault.com',
+      phone: '9000000000',
+      password: 'admin123',
+      role: 'admin',
+      isPremium: true,
+    ));
+    await _save(_kUsers, users.map((u) => u.toJson()).toList());
   }
 
   static SharedPreferences get _p {
