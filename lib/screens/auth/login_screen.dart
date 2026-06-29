@@ -7,11 +7,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../home/main_navigation.dart';
 import '../../admin/admin_login_screen.dart';
+import '../../admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
