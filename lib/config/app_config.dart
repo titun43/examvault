@@ -1,0 +1,164 @@
+// =============================================================================
+// EXAMVAULT - App Configuration  (REAL VALUES — DO NOT COMMIT PUBLICLY)
+// =============================================================================
+// All real API keys, AdMob IDs, Firebase config, Razorpay keys, and signing
+// info have been entered by the app owner. Treat this file as sensitive.
+// =============================================================================
+
+class AppConfig {
+  AppConfig._();
+
+  // ==================== APP INFO ====================
+  static const String appName = 'ExamVault';
+  static const String appDisplayName = 'ExamVault - MCQ Mock Tests';
+  static const String packageName = 'com.examvault.education';
+  static const String version = '1.0.0';
+  static const int versionCode = 1;
+
+  // Owner / contact
+  static const String ownerEmail = 'lkstudeoandcomputering@gmail.com';
+
+  // ==================== FIREBASE ====================
+  // Real values from google-services.json (Android app) + Firebase Console (Web app).
+  // On Android, the google-services.json file is the source of truth — Flutter's
+  // Firebase plugin reads it at build time. The values below are used for
+  // explicit FirebaseOptions initialization on non-Android platforms.
+  static const String firebaseProjectId = 'examvault-7fba8';
+  // Android API key (from google-services.json)
+  static const String firebaseApiKey = 'AIzaSyBLWPhLXCfnMw_o5u8rcBTovbmvy4jTTo0';
+  // Web API key (kept for reference / cross-platform use)
+  static const String firebaseWebApiKey = 'AIzaSyDumulPADTU0YigQ_w96-shb5i2ch6w8FY';
+  // Android App ID (from google-services.json)
+  static const String firebaseAndroidAppId =
+      '1:134227461460:android:21f9de1b95991b0df734c1';
+  // Web App ID (kept for reference)
+  static const String firebaseWebAppId =
+      '1:134227461460:web:f8e6c4b012fce4c8f734c1';
+  static const String firebaseAppId = firebaseAndroidAppId;
+  static const String firebaseStorageBucket = 'examvault-7fba8.firebasestorage.app';
+  static const String firebaseMessagingSenderId = '134227461460';
+  static const String firebaseAuthDomain = 'examvault-7fba8.firebaseapp.com';
+  static const String firebaseMeasurementId = 'G-73WTWNYXSX';
+
+  // OAuth Client ID for Google Sign-In (Web Client, client_type 3)
+  static const String googleSignInClientId =
+      '134227461460-o624mprg5ol6c4qh90i9pm7md54783dr.apps.googleusercontent.com';
+
+  // SHA-1 fingerprint of the release signing certificate (added to Firebase)
+  static const String releaseSha1 = '939f8d49fb0b86520f7657a94ed37b352b198ea7';
+
+  // FCM Web Push private key (server-side only, used for VAPID pairs / push)
+  static const String fcmWebPushPrivateKey =
+      'boaw-M3SKxsl72jctheH9gWWuI4Qy7Jehd2sIf72p8w';
+
+  // ==================== ADMOB ====================
+  // Real AdMob IDs (production). Set admobTestMode=false before release.
+  static const bool admobTestMode = false;
+
+  // Test AdMob IDs (Google sample — for development only)
+  static const String testAdmobAppId = 'ca-app-pub-3940256099942544~3347511713';
+  static const String testBannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
+  static const String testInterstitialAdUnitId =
+      'ca-app-pub-3940256099942544/1033173712';
+  static const String testRewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
+  static const String testNativeAdUnitId = 'ca-app-pub-3940256099942544/2247696110';
+  static const String testAppOpenAdUnitId = 'ca-app-pub-3940256099942544/9257395921';
+
+  // ===== REAL AdMob IDs (provided by owner) =====
+  static const String admobAppId = 'ca-app-pub-1742730064755213~7890219994';
+  static const String bannerAdUnitId = 'ca-app-pub-1742730064755213/4499859652';
+  static const String interstitialAdUnitId = 'ca-app-pub-1742730064755213/5520307609';
+  // Rewarded / Native / AppOpen — reuse interstitial slot for now; create
+  // dedicated ad units in AdMob console and replace when available.
+  static const String rewardedAdUnitId = 'ca-app-pub-1742730064755213/5520307609';
+  static const String nativeAdUnitId = 'ca-app-pub-1742730064755213/4499859652';
+  static const String appOpenAdUnitId = 'ca-app-pub-1742730064755213/5520307609';
+
+  // Active getters
+  static String get activeAdmobAppId => admobTestMode ? testAdmobAppId : admobAppId;
+  static String get activeBannerAdUnitId =>
+      admobTestMode ? testBannerAdUnitId : bannerAdUnitId;
+  static String get activeInterstitialAdUnitId =>
+      admobTestMode ? testInterstitialAdUnitId : interstitialAdUnitId;
+  static String get activeRewardedAdUnitId =>
+      admobTestMode ? testRewardedAdUnitId : rewardedAdUnitId;
+  static String get activeNativeAdUnitId =>
+      admobTestMode ? testNativeAdUnitId : nativeAdUnitId;
+  static String get activeAppOpenAdUnitId =>
+      admobTestMode ? testAppOpenAdUnitId : appOpenAdUnitId;
+
+  // ==================== RAZORPAY ====================
+  // Live mode is enabled — real money will be charged.
+  static const bool razorpayTestMode = false;
+
+  // Test Keys (sandbox)
+  static const String razorpayTestKeyId = 'rzp_test_XXXXXXXXXX';
+  static const String razorpayTestKeySecret = 'XXXXXXXXXXXXXXXXXXXXXX';
+
+  // ===== LIVE Keys (provided by owner) =====
+  static const String razorpayLiveKeyId = 'rzp_live_T2FtqmiTmWAWRW';
+  static const String razorpayLiveKeySecret = 'bm7ZbG2UEIRmQzoKcJXRWG2i';
+
+  // Active getters — key_id goes in the app; key_secret should ideally be on
+  // a backend for signature verification. For now, local verification is used.
+  static String get razorpayKeyId =>
+      razorpayTestMode ? razorpayTestKeyId : razorpayLiveKeyId;
+  static String get razorpayKeySecret =>
+      razorpayTestMode ? razorpayTestKeySecret : razorpayLiveKeySecret;
+
+  // Subscription Plan IDs (create these in Razorpay Dashboard -> Subscriptions)
+  static const String monthlyPlanId = 'plan_monthly_examvault';
+  static const String quarterlyPlanId = 'plan_quarterly_examvault';
+  static const String yearlyPlanId = 'plan_yearly_examvault';
+
+  // ==================== KEYSTORE / SIGNING ====================
+  // Used by android/key.properties — DO NOT put these in source control.
+  // These are documented here for the owner's reference only.
+  //   Keystore file : examvault-release.keystore
+  //   Store password: ExamVault2026!
+  //   Key alias     : examvault
+  //   Key password  : ExamVault2026!
+  //   DName         : CN=ExamVault, O=ExamVault, C=IN
+  //   SHA-1         : (run keytool -list -v on the keystore to get it)
+
+  // ==================== CONTACT & LEGAL ====================
+  static const String supportEmail = 'lkstudeoandcomputering@gmail.com';
+  static const String privacyPolicyUrl =
+      'https://examvault.app/privacy';
+  static const String termsUrl = 'https://examvault.app/terms';
+  static const String refundPolicyUrl = 'https://examvault.app/refund';
+  static const String websiteUrl = 'https://examvault.app';
+  static const String companyName = 'ExamVault';
+
+  // ==================== PRICING (INR) ====================
+  static const int premiumMonthlyPrice = 99;
+  static const int premiumQuarterlyPrice = 249;
+  static const int premiumYearlyPrice = 799;
+
+  // ==================== PREMIUM FEATURES ====================
+  static const List<String> premiumFeatures = [
+    'Unlimited Mock Tests',
+    'Detailed Solutions',
+    'Performance Analytics',
+    'Ad-Free Experience',
+    'Priority Support',
+    'Download PDFs',
+    'Previous Year Papers',
+    'AI Performance Insights',
+  ];
+
+  // ==================== EXAM CATEGORIES ====================
+  static const List<String> examCategories = [
+    'Railway',
+    'SSC',
+    'UPSC',
+    'Banking',
+    'ADRE',
+    'State Exams',
+  ];
+
+  // ==================== NOTIFICATION ====================
+  static const String dailyQuizNotificationTime = '08:00';
+  static const bool testResultNotification = true;
+  static const bool currentAffairsNotification = true;
+}

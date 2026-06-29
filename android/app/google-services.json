@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "134227461460",
+    "project_id": "examvault-7fba8",
+    "storage_bucket": "examvault-7fba8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134227461460:android:21f9de1b95991b0df734c1",
+        "android_client_info": {
+          "package_name": "com.examvault.education"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "134227461460-k93dgjt1238prrkh8q3f3qu31ljb3pk9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.examvault.education",
+            "certificate_hash": "939f8d49fb0b86520f7657a94ed37b352b198ea7"
+          }
+        },
+        {
+          "client_id": "134227461460-o624mprg5ol6c4qh90i9pm7md54783dr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLWPhLXCfnMw_o5u8rcBTovbmvy4jTTo0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "134227461460-o624mprg5ol6c4qh90i9pm7md54783dr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

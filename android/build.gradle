@@ -1,0 +1,25 @@
+// =============================================================================
+// ExamVault - Android build.gradle (project level)
+// =============================================================================
+// All plugins are declared in settings.gradle (new Flutter style).
+// This file contains only the allprojects block and clean task.
+// =============================================================================
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

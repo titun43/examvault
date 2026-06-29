@@ -1,0 +1,81 @@
+// =============================================================================
+// ExamVault - Notification Model
+// =============================================================================
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum NotificationType {
+  testResult,
+  newTest,
+  currentAffair,
+  leaderboard,
+  premium,
+  announcement,
+  dailyQuiz,
+  general
+}
+
+class NotificationModel {
+  final String id;
+  final String userId; // specific user, or 'all' for broadcast
+  final String title;
+  final String body;
+  final NotificationType type;
+  final Map<String, dynamic> data;
+  final bool isRead;
+  final DateTime? scheduledAt;
+  final DateTime createdAt;
+
+  NotificationModel({
+    required this.id,
+    required this.userId,
+    required this.title,
+    required this.body,
+    this.type = NotificationType.general,
+    this.data = const {},
+    this.isRead = false,
+    this.scheduledAt,
+    required this.createdAt,
+  });
+
+  factory NotificationModel.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return NotificationModel(
+      id: doc.id,
+      userId: data['userId'] ?? 'all',
+      title: data['title'] ?? '',
+      body: data['body'] ?? '',
+      type: _parseType(data['type']),
+      data: data['data'] ?? {},
+      isRead: data['isRead'] ?? false,
+      scheduledAt: (data['scheduledAt'] as Timestamp?)?.toDate(),
+      createdAt: (data['createdAt'] as Timestamp).toDate(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'userId': userId,
+      'title': title,
+      'body': body,
+      'type': type.name,
+      'data': data,
+      'isRead': isRead,
+      'scheduledAt': scheduledAt != null ? Timestamp.fromDate(scheduledAt!) : null,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
+  }
+
+  static NotificationType _parseType(String? type) {
+    switch (type) {
+      case 'testResult': return NotificationType.testResult;
+      case 'newTest': return NotificationType.newTest;
+      case 'currentAffair': return NotificationType.currentAffair;
+      case 'leaderboard': return NotificationType.leaderboard;
+      case 'premium': return NotificationType.premium;
+      case 'announcement': return NotificationType.announcement;
+      case 'dailyQuiz': return NotificationType.dailyQuiz;
+      default: return NotificationType.general;
+    }
+  }
+}

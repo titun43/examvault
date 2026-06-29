@@ -1,0 +1,43 @@
+{
+  "_comment_1": "================================================================",
+  "_comment_2": "PLACEHOLDER FILE — Replace this file with the REAL google-services.json",
+  "_comment_3": "downloaded from Firebase Console.",
+  "_comment_4": "",
+  "_comment_5": "Steps to get the real file:",
+  "_comment_6": "  1. Go to https://console.firebase.google.com/",
+  "_comment_7": "  2. Select project: examvault-7fba8",
+  "_comment_8": "  3. Project Settings → 'Your apps' → click the Android icon",
+  "_comment_9": "  4. Register Android app with package name: com.examvault.education",
+  "_comment_10": "  5. Download google-services.json",
+  "_comment_11": "  6. Replace THIS file with the downloaded one (same path).",
+  "_comment_12": "  7. Also add the SHA-1 of your keystore to the Firebase Android app:",
+  "_comment_13": "     keytool -list -v -keystore examvault-release.keystore -alias examvault -storepass ExamVault2026!",
+  "_comment_14": "================================================================",
+  "project_info": {
+    "project_number": "134227461460",
+    "project_id": "examvault-7fba8",
+    "storage_bucket": "examvault-7fba8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:134227461460:android:REPLACE_WITH_REAL_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "com.examvault.education"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDumulPADTU0YigQ_w96-shb5i2ch6w8FY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

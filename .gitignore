@@ -1,0 +1,65 @@
+# =============================================================================
+# ExamVault - .gitignore
+# =============================================================================
+
+# ---- SENSITIVE: NEVER COMMIT THESE ----
+# Firebase config (download from Firebase Console per-platform)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Keystore & signing config
+android/key.properties
+android/app/examvault-release.keystore
+android/app/*.keystore
+android/app/*.jks
+*.keystore
+*.jks
+
+# Local env / secrets
+PROJECT_CONFIG.env
+.env
+.env.local
+secrets.json
+
+# ---- FLUTTER / DART ----
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+.idea/
+.vscode/
+*.lock
+!pubspec.lock
+
+# ---- ANDROID ----
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/captures/
+
+# ---- IOS ----
+ios/Pods/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Runner/GeneratedPluginRegistrant.*
+
+# ---- MACOS / OS ----
+.DS_Store
+**/Flutter.podspec
+
+# ---- WEB ----
+web/
+
+# ---- LOGS / TMP ----
+*.log
+*.tmp
+
+# ---- COVERAGE ----
+coverage/
