@@ -300,9 +300,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (success && mounted) {
+      // Route admins to AdminDashboard, students to MainNavigation
+      final dest = auth.isAdmin
+          ? const AdminDashboard()
+          : const MainNavigation();
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
+        MaterialPageRoute(builder: (_) => dest),
       );
     } else if (auth.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
