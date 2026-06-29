@@ -120,7 +120,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.history,
               'Test History',
-              () {
+              null,
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const TestHistoryScreen()),
@@ -131,7 +132,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.bookmark,
               'Bookmarks',
-              () {
+              null,
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BookmarksScreen()),
@@ -142,7 +144,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.newspaper,
               'Current Affairs',
-              () {
+              null,
+              onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()),
@@ -169,7 +172,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.share,
               'Share App',
-              () {
+              null,
+              onTap: () {
                 // Share app
               },
             ),
@@ -177,7 +181,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.star,
               'Rate Us',
-              () {
+              null,
+              onTap: () {
                 // Rate app
               },
             ),
@@ -185,7 +190,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.help,
               'Help & Support',
-              () {
+              null,
+              onTap: () {
                 // Help
               },
             ),
@@ -193,7 +199,8 @@ class ProfileScreen extends StatelessWidget {
               context,
               Icons.description,
               'Privacy Policy',
-              () {
+              null,
+              onTap: () {
                 // Privacy policy
               },
             ),

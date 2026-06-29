@@ -105,7 +105,7 @@ class ResultScreen extends StatelessWidget {
                   'Accuracy',
                   '${result.accuracy.toStringAsFixed(1)}%',
                   AppTheme.infoColor,
-                  Icons.target,
+                  Icons.gps_fixed,
                 ),
               ],
             ),
