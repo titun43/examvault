@@ -8,6 +8,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/local_data_service.dart';
+import '../../widgets/scrolling_announcement_banner.dart';
 import 'category_detail_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import '../premium/premium_screen.dart';
@@ -65,26 +66,35 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWelcomeCard(context),
-            const SizedBox(height: 24),
-            _buildQuickActions(context),
-            const SizedBox(height: 24),
-            _buildCategoriesSection(context),
-            const SizedBox(height: 24),
-            _buildPopularSubjects(context),
-            const SizedBox(height: 24),
-            _buildCurrentAffairs(context),
-            const SizedBox(height: 24),
-            _buildPremiumBanner(context),
-            const SizedBox(height: 24),
-          ],
-        ),
+      body: Column(
+        children: [
+          // Scrolling announcement banner at top
+          const ScrollingAnnouncementBanner(),
+          // Scrollable content
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildWelcomeCard(context),
+                  const SizedBox(height: 24),
+                  _buildQuickActions(context),
+                  const SizedBox(height: 24),
+                  _buildCategoriesSection(context),
+                  const SizedBox(height: 24),
+                  _buildPopularSubjects(context),
+                  const SizedBox(height: 24),
+                  _buildCurrentAffairs(context),
+                  const SizedBox(height: 24),
+                  _buildPremiumBanner(context),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -243,7 +253,29 @@ class HomeScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (categories.isEmpty)
-          const Center(child: Text('No categories available'))
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.folder_open, size: 48, color: Colors.grey.shade400),
+                const SizedBox(height: 8),
+                Text(
+                  'No categories yet',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tests will appear here once the admin adds them.',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
         else
           GridView.builder(
             shrinkWrap: true,

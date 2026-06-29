@@ -17,6 +17,7 @@ import 'screens/admin_analytics_screen.dart';
 import 'screens/admin_announcements_screen.dart';
 import 'screens/admin_current_affairs_screen.dart';
 import 'screens/admin_upcoming_exams_screen.dart';
+import '../widgets/scrolling_announcement_banner.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -153,7 +154,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           // Main content
           Expanded(
-            child: _screens[_selectedIndex],
+            child: Column(
+              children: [
+                // Scrolling announcement banner at top
+                const ScrollingAnnouncementBanner(isAdmin: true),
+                // Selected admin screen
+                Expanded(child: _screens[_selectedIndex]),
+              ],
+            ),
           ),
         ],
       ),

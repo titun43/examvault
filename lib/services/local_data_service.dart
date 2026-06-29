@@ -423,7 +423,7 @@ class LocalDataService {
   static const _kUpcomingExams = 'upcoming_exams';
   static const _kTestResults = 'test_results';
   static const _kCurrentUserId = 'current_user_id';
-  static const _kSeeded = 'seeded_v1';
+  static const _kSeeded = 'seeded_v3'; // bumped to clear old demo data
 
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -440,8 +440,24 @@ class LocalDataService {
   }
 
   // ==================== SEED ====================
+  // Only the admin account is seeded. All other content (categories, tests,
+  // questions, announcements, etc.) must be added by the admin from the panel.
+  // Users register/login via Firebase Phone OTP.
   static Future<void> _seedIfFirstRun() async {
     if (_prefs!.getBool(_kSeeded) == true) return;
+
+    // Clear any leftover demo data from older versions
+    await _prefs!.remove(_kUsers);
+    await _prefs!.remove(_kCategories);
+    await _prefs!.remove(_kSubjects);
+    await _prefs!.remove(_kTests);
+    await _prefs!.remove(_kQuestions);
+    await _prefs!.remove(_kPayments);
+    await _prefs!.remove(_kAnnouncements);
+    await _prefs!.remove(_kCurrentAffairs);
+    await _prefs!.remove(_kUpcomingExams);
+    await _prefs!.remove(_kTestResults);
+    await _prefs!.remove(_kCurrentUserId);
 
     final admin = LocalUser(
       id: 'admin-001',
@@ -452,113 +468,7 @@ class LocalDataService {
       role: 'admin',
       isPremium: true,
     );
-
-    final students = [
-      LocalUser(
-        id: 'user-001',
-        name: 'Demo Student',
-        email: 'demo@examvault.com',
-        phone: '9876543210',
-        password: 'demo123',
-        isPremium: false,
-      ),
-      LocalUser(
-        id: 'user-002',
-        name: 'Rahul Sharma',
-        email: 'rahul@example.com',
-        phone: '9123456780',
-        password: 'rahul123',
-        isPremium: true,
-      ),
-      LocalUser(
-        id: 'user-003',
-        name: 'Priya Das',
-        email: 'priya@example.com',
-        phone: '9988776655',
-        password: 'priya123',
-        isPremium: false,
-      ),
-    ];
-
-    await _save(_kUsers, [admin.toJson(), ...students.map((s) => s.toJson())]);
-
-    final categories = [
-      LocalCategory(id: 'cat-railway', name: 'Railway', icon: 'train', color: '#1565C0', description: 'RRB NTPC, Group D, ALP, JE exams', testCount: 12),
-      LocalCategory(id: 'cat-ssc', name: 'SSC', icon: 'work', color: '#00897B', description: 'SSC CGL, CHSL, MTS, GD Constable', testCount: 15),
-      LocalCategory(id: 'cat-upsc', name: 'UPSC', icon: 'account_balance', color: '#6A1B9A', description: 'Civil Services Prelims & Mains', testCount: 8),
-      LocalCategory(id: 'cat-banking', name: 'Banking', icon: 'savings', color: '#E65100', description: 'IBPS PO, Clerk, SBI, RBI', testCount: 10),
-      LocalCategory(id: 'cat-adre', name: 'ADRE', icon: 'school', color: '#2E7D32', description: 'Assam Direct Recruitment Exam', testCount: 6),
-      LocalCategory(id: 'cat-state', name: 'State Exams', icon: 'public', color: '#C62828', description: 'State PSC, Police, Secretariat', testCount: 7),
-    ];
-    await _save(_kCategories, categories.map((c) => c.toJson()).toList());
-
-    final subjects = [
-      LocalSubject(id: 'sub-gk', categoryId: 'cat-railway', name: 'General Knowledge', icon: 'public'),
-      LocalSubject(id: 'sub-maths', categoryId: 'cat-railway', name: 'Mathematics', icon: 'calculate'),
-      LocalSubject(id: 'sub-reasoning', categoryId: 'cat-railway', name: 'Reasoning', icon: 'psychology'),
-      LocalSubject(id: 'sub-english', categoryId: 'cat-ssc', name: 'English', icon: 'menu_book'),
-      LocalSubject(id: 'sub-gs', categoryId: 'cat-upsc', name: 'General Studies', icon: 'library_books'),
-      LocalSubject(id: 'sub-aptitude', categoryId: 'cat-banking', name: 'Aptitude', icon: 'timeline'),
-    ];
-    await _save(_kSubjects, subjects.map((s) => s.toJson()).toList());
-
-    final tests = [
-      LocalTest(id: 'test-001', categoryId: 'cat-railway', title: 'RRB NTPC Full Mock Test 1', description: 'Complete CBT-1 pattern mock test', durationMinutes: 90, totalQuestions: 100, totalMarks: 100, isFree: true),
-      LocalTest(id: 'test-002', categoryId: 'cat-railway', title: 'RRB Group D Mock Test', description: 'Group D exam pattern', durationMinutes: 60, totalQuestions: 50, totalMarks: 50, isFree: true),
-      LocalTest(id: 'test-003', categoryId: 'cat-ssc', title: 'SSC CGL Tier 1 Mock', description: 'CGL pattern with 4 sections', durationMinutes: 60, totalQuestions: 100, totalMarks: 200, isFree: true),
-      LocalTest(id: 'test-004', categoryId: 'cat-upsc', title: 'UPSC Prelims GS Mock', description: 'CSAT General Studies', durationMinutes: 120, totalQuestions: 100, totalMarks: 200, isFree: false),
-      LocalTest(id: 'test-005', categoryId: 'cat-banking', title: 'IBPS PO Prelims Mock', description: 'Banking prelims pattern', durationMinutes: 60, totalQuestions: 100, totalMarks: 100, isFree: true),
-      LocalTest(id: 'test-006', categoryId: 'cat-adre', title: 'ADRE Grade 3 Mock Test', description: 'Assam Direct Recruitment', durationMinutes: 120, totalQuestions: 100, totalMarks: 175, isFree: true),
-    ];
-    await _save(_kTests, tests.map((t) => t.toJson()).toList());
-
-    final questions = [
-      LocalQuestion(id: 'q-001', testId: 'test-001', question: 'Who is known as the Father of the Indian Constitution?', options: ['Mahatma Gandhi', 'Dr. B.R. Ambedkar', 'Jawaharlal Nehru', 'Sardar Patel'], correctIndex: 1, explanation: 'Dr. B.R. Ambedkar was the Chairman of the Drafting Committee.'),
-      LocalQuestion(id: 'q-002', testId: 'test-001', question: 'Which is the longest river in India?', options: ['Yamuna', 'Ganga', 'Godavari', 'Brahmaputra'], correctIndex: 1, explanation: 'Ganga is the longest river in India at 2525 km.'),
-      LocalQuestion(id: 'q-003', testId: 'test-001', question: 'The Indian Railways was nationalized in which year?', options: ['1947', '1950', '1951', '1952'], correctIndex: 2, explanation: 'Indian Railways was nationalized in 1951.'),
-      LocalQuestion(id: 'q-004', testId: 'test-001', question: 'Which planet is known as the Red Planet?', options: ['Venus', 'Mars', 'Jupiter', 'Saturn'], correctIndex: 1, explanation: 'Mars is called the Red Planet due to iron oxide on its surface.'),
-      LocalQuestion(id: 'q-005', testId: 'test-001', question: 'Who wrote the Indian National Anthem?', options: ['Bankim Chandra', 'Rabindranath Tagore', 'Sarojini Naidu', 'Iqbal'], correctIndex: 1, explanation: 'Jana Gana Mana was written by Rabindranath Tagore.'),
-      LocalQuestion(id: 'q-006', testId: 'test-003', question: 'Synonym of "Abundant" is?', options: ['Scarce', 'Plentiful', 'Empty', 'Limited'], correctIndex: 1, explanation: 'Abundant means existing in large quantities; plentiful.'),
-      LocalQuestion(id: 'q-007', testId: 'test-003', question: 'Choose the correct spelling:', options: ['Accomodation', 'Acommodation', 'Accommodation', 'Acomodation'], correctIndex: 2, explanation: 'Correct spelling is "Accommodation" with double c and double m.'),
-      LocalQuestion(id: 'q-008', testId: 'test-005', question: 'The headquarters of RBI is located in?', options: ['New Delhi', 'Mumbai', 'Kolkata', 'Chennai'], correctIndex: 1, explanation: 'Reserve Bank of India headquarters is in Mumbai.'),
-      LocalQuestion(id: 'q-009', testId: 'test-005', question: 'NEFT stands for?', options: ['National Electronic Funds Transfer', 'National Easy Fund Transfer', 'New Electronic Funds Transfer', 'None'], correctIndex: 0, explanation: 'NEFT = National Electronic Funds Transfer.'),
-      LocalQuestion(id: 'q-010', testId: 'test-006', question: 'Capital of Assam is?', options: ['Guwahati', 'Dispur', 'Dibrugarh', 'Tezpur'], correctIndex: 1, explanation: 'Dispur is the capital of Assam.'),
-    ];
-    await _save(_kQuestions, questions.map((q) => q.toJson()).toList());
-
-    final payments = [
-      LocalPayment(id: 'pay-001', userId: 'user-002', userName: 'Rahul Sharma', plan: 'Yearly', amount: 799, status: 'success', date: DateTime.now().subtract(const Duration(days: 5))),
-      LocalPayment(id: 'pay-002', userId: 'user-001', userName: 'Demo Student', plan: 'Monthly', amount: 99, status: 'success', date: DateTime.now().subtract(const Duration(days: 10))),
-      LocalPayment(id: 'pay-003', userId: 'user-003', userName: 'Priya Das', plan: 'Quarterly', amount: 249, status: 'pending', date: DateTime.now().subtract(const Duration(days: 2))),
-    ];
-    await _save(_kPayments, payments.map((p) => p.toJson()).toList());
-
-    final announcements = [
-      LocalAnnouncement(id: 'ann-001', title: 'New ADRE Mock Tests Added!', body: 'We have added 6 new ADRE Grade 3 mock tests. Start practicing now.', date: DateTime.now().subtract(const Duration(days: 1))),
-      LocalAnnouncement(id: 'ann-002', title: 'Maintenance Notice', body: 'The app will be under maintenance on Sunday 2 AM - 4 AM.', date: DateTime.now().subtract(const Duration(days: 3))),
-    ];
-    await _save(_kAnnouncements, announcements.map((a) => a.toJson()).toList());
-
-    final currentAffairs = [
-      LocalCurrentAffair(id: 'ca-001', title: 'ISRO launches PSLV-C58', summary: 'ISRO successfully launched PSLV-C58 carrying X-ray Polarimeter Satellite (XPoSat).', category: 'Science & Tech', date: DateTime.now().subtract(const Duration(days: 1))),
-      LocalCurrentAffair(id: 'ca-002', title: 'G20 Summit outcomes', summary: 'India hosted the G20 Summit with major agreements on climate and trade.', category: 'International', date: DateTime.now().subtract(const Duration(days: 4))),
-      LocalCurrentAffair(id: 'ca-003', title: 'New Education Policy updates', summary: 'NEP 2020 implementation updates announced by the Education Ministry.', category: 'National', date: DateTime.now().subtract(const Duration(days: 7))),
-    ];
-    await _save(_kCurrentAffairs, currentAffairs.map((c) => c.toJson()).toList());
-
-    final upcomingExams = [
-      LocalUpcomingExam(id: 'ue-001', name: 'RRB NTPC CBT 1', organization: 'Railway Recruitment Board', examDate: DateTime.now().add(const Duration(days: 30))),
-      LocalUpcomingExam(id: 'ue-002', name: 'SSC CGL Tier 1', organization: 'Staff Selection Commission', examDate: DateTime.now().add(const Duration(days: 45))),
-      LocalUpcomingExam(id: 'ue-003', name: 'IBPS PO Prelims', organization: 'IBPS', examDate: DateTime.now().add(const Duration(days: 60))),
-      LocalUpcomingExam(id: 'ue-004', name: 'ADRE Grade 3', organization: 'Govt of Assam', examDate: DateTime.now().add(const Duration(days: 15))),
-    ];
-    await _save(_kUpcomingExams, upcomingExams.map((u) => u.toJson()).toList());
-
-    final results = [
-      LocalTestResult(id: 'tr-001', userId: 'user-001', testId: 'test-001', testTitle: 'RRB NTPC Full Mock Test 1', score: 72, total: 100, date: DateTime.now().subtract(const Duration(days: 2))),
-      LocalTestResult(id: 'tr-002', userId: 'user-001', testId: 'test-003', testTitle: 'SSC CGL Tier 1 Mock', score: 85, total: 100, date: DateTime.now().subtract(const Duration(days: 5))),
-    ];
-    await _save(_kTestResults, results.map((r) => r.toJson()).toList());
+    await _save(_kUsers, [admin.toJson()]);
 
     await _prefs!.setBool(_kSeeded, true);
   }
@@ -662,6 +572,36 @@ class LocalDataService {
   }
 
   static bool get isAdmin => currentUser?.role == 'admin';
+
+  /// Find or create a student by phone number (used after Firebase OTP login).
+  static LocalUser findOrCreateByPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+    final users = _readList(_kUsers).map(LocalUser.fromJson).toList();
+    try {
+      final existing = users.firstWhere((u) {
+        final ph = (u.phone ?? '').replaceAll(RegExp(r'[^\d]'), '');
+        return ph.isNotEmpty && ph.endsWith(last10);
+      });
+      _p.setString(_kCurrentUserId, existing.id);
+      return existing;
+    } catch (_) {
+      // Create new student
+      final newId = 'user-${DateTime.now().millisecondsSinceEpoch}';
+      final newUser = LocalUser(
+        id: newId,
+        name: 'User',
+        phone: last10,
+        password: '',
+        role: 'student',
+        isPremium: false,
+      );
+      users.add(newUser);
+      _save(_kUsers, users.map((u) => u.toJson()).toList());
+      _p.setString(_kCurrentUserId, newId);
+      return newUser;
+    }
+  }
 
   // ==================== USERS (Admin CRUD) ====================
   static List<LocalUser> getAllUsers() =>
