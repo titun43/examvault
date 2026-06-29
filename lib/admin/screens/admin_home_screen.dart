@@ -50,7 +50,7 @@ class AdminHomeScreen extends StatelessWidget {
     );
   }
 
-  final _statCards = [
+  List<Map<String, dynamic>> get _statCards => [
     {'title': 'Total Users', 'key': 'totalUsers', 'icon': Icons.people, 'color': AppTheme.primaryColor},
     {'title': 'Premium Users', 'key': 'premiumUsers', 'icon': Icons.workspace_premium, 'color': AppTheme.accentColor},
     {'title': 'Total Tests', 'key': 'totalTests', 'icon': Icons.quiz, 'color': Colors.purple},

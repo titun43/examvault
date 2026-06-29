@@ -94,7 +94,7 @@ dependencies:
   table_calendar: ^3.0.9
 
   # ==================== ICONS ====================
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: 10.6.0
 
 dev_dependencies:
   flutter_test:

@@ -3,11 +3,11 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
-import 'home/home_screen.dart';
-import 'tests/test_series_screen.dart';
-import 'leaderboard/leaderboard_screen.dart';
-import 'profile/profile_screen.dart';
-import '../../theme/app_theme.dart';
+import 'package:examvault/screens/home/home_screen.dart';
+import 'package:examvault/screens/tests/test_series_screen.dart';
+import 'package:examvault/screens/leaderboard/leaderboard_screen.dart';
+import 'package:examvault/screens/profile/profile_screen.dart';
+import 'package:examvault/theme/app_theme.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
