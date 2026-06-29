@@ -87,8 +87,7 @@ dependencies:
   webview_flutter: ^4.7.0
 
   # ==================== PDF ====================
-  printing: ^5.12.0
-  pdf: ^3.10.8
+  # pdf and printing removed (not used in code, caused AndroidX lStar conflict)
 
   # ==================== CALENDAR / DATE ====================
   table_calendar: ^3.0.9
