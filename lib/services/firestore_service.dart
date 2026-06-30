@@ -103,14 +103,32 @@ class FirestoreService {
     TestType? type,
     bool? isPublished,
   }) {
-    Query query = _db.collection('tests').orderBy('createdAt', descending: true);
-    if (subjectId != null) query = query.where('subjectId', isEqualTo: subjectId);
-    if (type != null) query = query.where('type', isEqualTo: type.name);
-    if (isPublished != null) query = query.where('isPublished', isEqualTo: isPublished);
+    // Use ONLY single-field filters to avoid composite index requirements.
+    // Firestore auto-creates single-field indexes, so this works without
+    // manual index setup. We filter+sort client-side for the rest.
+    Query query = _db.collection('tests');
+    // Prefer the most selective single filter:
+    if (subjectId != null) {
+      query = query.where('subjectId', isEqualTo: subjectId);
+    } else if (type != null) {
+      query = query.where('type', isEqualTo: type.name);
+    } else if (isPublished != null) {
+      query = query.where('isPublished', isEqualTo: isPublished);
+    }
 
-    return query.snapshots().map((snapshot) => snapshot.docs
-        .map((doc) => TestModel.fromFirestore(doc))
-        .toList());
+    return query.snapshots().map((snapshot) {
+      var docs = snapshot.docs.map((doc) => TestModel.fromFirestore(doc)).toList();
+      // Client-side filters for remaining conditions
+      if (type != null && subjectId != null) {
+        docs = docs.where((t) => t.type == type).toList();
+      }
+      if (isPublished != null) {
+        docs = docs.where((t) => t.isPublished == isPublished).toList();
+      }
+      // Sort by createdAt desc (client-side)
+      docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return docs;
+    });
   }
 
   static Future<TestModel?> getTest(String id) async {
@@ -174,13 +192,16 @@ class FirestoreService {
   }
 
   static Stream<List<TestResultModel>> getUserResultsStream(String userId) {
+    // Single-field filter (userId) — sort client-side to avoid composite index.
     return _db.collection('results')
         .where('userId', isEqualTo: userId)
-        .orderBy('attemptedAt', descending: true)
+        .limit(200)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TestResultModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => TestResultModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => b.attemptedAt.compareTo(a.attemptedAt));
+          return docs;
+        });
   }
 
   static Future<String?> saveResult(TestResultModel result) async {
@@ -220,14 +241,17 @@ class FirestoreService {
 
   // ==================== NOTIFICATIONS ====================
   static Stream<List<NotificationModel>> getNotificationsStream(String userId) {
+    // whereIn + orderBy requires composite index. Use whereIn only,
+    // sort client-side.
     return _db.collection('notifications')
         .where('userId', whereIn: [userId, 'all'])
-        .orderBy('createdAt', descending: true)
-        .limit(50)
+        .limit(100)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => NotificationModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => NotificationModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return docs.take(50).toList();
+        });
   }
 
   static Future<void> markNotificationRead(String id) async {
@@ -264,14 +288,16 @@ class FirestoreService {
     LeaderboardType type = LeaderboardType.allTime,
     int limit = 100,
   }) {
+    // Single-field filter (type) — sort client-side by rank.
     return _db.collection('leaderboard')
         .where('type', isEqualTo: type.name)
-        .orderBy('rank')
-        .limit(limit)
+        .limit(limit * 2)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => LeaderboardModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => LeaderboardModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => a.rank.compareTo(b.rank));
+          return docs.take(limit).toList();
+        });
   }
 
   // ==================== ANNOUNCEMENTS ====================
@@ -286,15 +312,21 @@ class FirestoreService {
   }
 
   static Stream<List<AnnouncementModel>> getAnnouncementsStream({int limit = 50}) {
+    // Single-field filter (isPublished) — sort client-side to avoid composite index.
     return _db.collection('announcements')
         .where('isPublished', isEqualTo: true)
-        .orderBy('isPinned', descending: true)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
+        .limit(limit * 2)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => AnnouncementModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => AnnouncementModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) {
+            // Pinned first, then by createdAt desc
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            return b.createdAt.compareTo(a.createdAt);
+          });
+          return docs.take(limit).toList();
+        });
   }
 
   /// Admin-only: includes drafts and unpublished items.
@@ -331,14 +363,16 @@ class FirestoreService {
   }
 
   static Stream<List<UpcomingExamModel>> getUpcomingExamsStream({int limit = 50}) {
+    // Single-field filter (isPublished) — sort client-side by examDate asc.
     return _db.collection('upcoming_exams')
         .where('isPublished', isEqualTo: true)
-        .orderBy('examDate')
-        .limit(limit)
+        .limit(limit * 2)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => UpcomingExamModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => UpcomingExamModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => a.examDate.compareTo(b.examDate));
+          return docs.take(limit).toList();
+        });
   }
 
   /// Admin-only: includes drafts and unpublished items.
@@ -366,14 +400,17 @@ class FirestoreService {
 
   // ==================== BANNERS ====================
   static Stream<List<BannerModel>> getActiveBannersStream() {
+    // Single-field filter (isActive) — sort client-side by order.
     return _db.collection('banners')
         .where('isActive', isEqualTo: true)
-        .orderBy('order')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => BannerModel.fromFirestore(doc))
-            .where((b) => b.isVisible && b.imageUrl.isNotEmpty)
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => BannerModel.fromFirestore(doc))
+              .where((b) => b.isVisible && b.imageUrl.isNotEmpty)
+              .toList();
+          docs.sort((a, b) => (a.order).compareTo(b.order));
+          return docs;
+        });
   }
 
   /// Admin-only: includes inactive and scheduled banners.
@@ -401,14 +438,17 @@ class FirestoreService {
 
   // ==================== PREVIOUS PAPERS (Test type filter) ====================
   static Stream<List<TestModel>> getPreviousPapersStream() {
+    // Single-field filter only (type) — sort + isPublished filter client-side
+    // to avoid composite index requirement.
     return _db.collection('tests')
         .where('type', isEqualTo: 'previousYear')
-        .where('isPublished', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => TestModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => TestModel.fromFirestore(doc)).toList();
+          docs = docs.where((t) => t.isPublished).toList();
+          docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return docs;
+        });
   }
 
   // ==================== ANALYTICS (for Admin Dashboard) ====================

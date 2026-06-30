@@ -1,54 +1,109 @@
-# =============================================================================
-# ExamVault - Firestore Indexes
-# Required composite indexes for queries
-# =============================================================================
-
-# Index for: getTestsStream(subjectId, isPublished, orderBy createdAt)
-- collectionGroup: tests
-  fields:
-    - fieldPath: subjectId
-      order: ASCENDING
-    - fieldPath: isPublished
-      order: ASCENDING
-    - fieldPath: createdAt
-      order: DESCENDING
-
-# Index for: getTestsStream(type, isPublished, orderBy createdAt)
-- collectionGroup: tests
-  fields:
-    - fieldPath: type
-      order: ASCENDING
-    - fieldPath: isPublished
-      order: ASCENDING
-    - fieldPath: createdAt
-      order: DESCENDING
-
-# Index for: getUserResultsStream(userId, orderBy attemptedAt)
-- collectionGroup: results
-  fields:
-    - fieldPath: userId
-      order: ASCENDING
-    - fieldPath: attemptedAt
-      order: DESCENDING
-
-# Index for: getNotificationsStream(userId in [all, current], orderBy createdAt)
-- collectionGroup: notifications
-  fields:
-    - fieldPath: userId
-      order: ASCENDING
-    - fieldPath: createdAt
-      order: DESCENDING
-
-# Index for: getLeaderboardStream(type, orderBy rank)
-- collectionGroup: leaderboard
-  fields:
-    - fieldPath: type
-      order: ASCENDING
-    - fieldPath: rank
-      order: ASCENDING
-
-# Index for: getCurrentAffairsStream(date range)
-- collectionGroup: current_affairs
-  fields:
-    - fieldPath: date
-      order: DESCENDING
+{
+  "indexes": [
+    {
+      "collectionGroup": "tests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subjectId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "questions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "testId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "results",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "attemptedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "leaderboard",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "rank", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "announcements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "upcoming_exams",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isPublished", "order": "ASCENDING" },
+        { "fieldPath": "examDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "banners",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "subjects",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoryId", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "payments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

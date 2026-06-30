@@ -249,6 +249,11 @@ class AuthService {
   }
 
   // ==================== HELPER: CREATE/UPDATE USER IN FIRESTORE ====================
+  /// Creates the user's Firestore doc on first sign-in, or updates lastActiveAt
+  /// on subsequent sign-ins. CRITICALLY: this method NEVER throws — if the
+  /// Firestore write fails (rules, network, etc.), we still consider the user
+  /// "logged in" via Firebase Auth so they aren't kicked back to the login
+  /// screen. The Firestore doc is best-effort.
   static Future<void> _createOrUpdateUser(
     User? firebaseUser, {
     String? name,
@@ -258,26 +263,52 @@ class AuthService {
     if (firebaseUser == null) return;
 
     final userDoc = FirebaseService.usersRef.doc(firebaseUser.uid);
-    final docSnapshot = await userDoc.get();
 
-    if (!docSnapshot.exists) {
-      // New user - create document
-      final newUser = UserModel(
-        id: firebaseUser.uid,
-        name: name ?? firebaseUser.displayName ?? 'User',
-        email: email ?? firebaseUser.email,
-        phoneNumber: firebaseUser.phoneNumber,
-        photoUrl: firebaseUser.photoURL,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        lastActiveAt: DateTime.now(),
-      );
-      await userDoc.set(newUser.toFirestore());
-    } else {
-      // Existing user - update last active
-      await userDoc.update({
-        'lastActiveAt': FieldValue.serverTimestamp(),
-      });
+    try {
+      final docSnapshot = await userDoc.get();
+
+      if (!docSnapshot.exists) {
+        // New user - create document
+        final newUser = UserModel(
+          id: firebaseUser.uid,
+          name: name ?? firebaseUser.displayName ?? 'User',
+          email: email ?? firebaseUser.email,
+          phoneNumber: firebaseUser.phoneNumber,
+          photoUrl: firebaseUser.photoURL,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          lastActiveAt: DateTime.now(),
+        );
+        await userDoc.set(newUser.toFirestore());
+      } else {
+        // Existing user - update last active (best-effort, don't throw)
+        try {
+          await userDoc.update({
+            'lastActiveAt': FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          devlog.log('Best-effort lastActiveAt update failed (non-fatal): $e');
+        }
+      }
+    } catch (e) {
+      // If the doc read fails (e.g. permission denied), try a best-effort create.
+      devlog.log('User doc read failed, attempting best-effort create: $e');
+      try {
+        final newUser = UserModel(
+          id: firebaseUser.uid,
+          name: name ?? firebaseUser.displayName ?? 'User',
+          email: email ?? firebaseUser.email,
+          phoneNumber: firebaseUser.phoneNumber,
+          photoUrl: firebaseUser.photoURL,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          lastActiveAt: DateTime.now(),
+        );
+        await userDoc.set(newUser.toFirestore(), SetOptions(merge: true));
+      } catch (e2) {
+        devlog.log('Best-effort user doc create also failed (non-fatal): $e2');
+        // Still don't throw — Firebase Auth sign-in succeeded.
+      }
     }
   }
 

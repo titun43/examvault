@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_service.dart';
@@ -95,7 +96,8 @@ class AuthProvider extends ChangeNotifier {
     try {
       _user = await AuthService.getCurrentUserData();
       // If user is authenticated in Firebase but their Firestore doc is missing
-      // (can happen right after auto-retrieval sign-in), try to (re)create it.
+      // (can happen right after auto-retrieval sign-in or due to rules issues),
+      // try to (re)create it with merge so we don't overwrite existing data.
       if (_user == null && AuthService.currentUser != null) {
         final fbUser = AuthService.currentUser!;
         final newUser = UserModel(
@@ -109,15 +111,33 @@ class AuthProvider extends ChangeNotifier {
           lastActiveAt: DateTime.now(),
         );
         try {
-          await FirebaseService.usersRef.doc(fbUser.uid).set(newUser.toFirestore());
+          await FirebaseService.usersRef.doc(fbUser.uid).set(
+            newUser.toFirestore(),
+            SetOptions(merge: true),
+          );
           _user = newUser;
-        } catch (_) {
-          // If Firestore write fails (e.g. rules), at least keep the user
-          // "authenticated" so they don't get kicked back to login.
+        } catch (e) {
+          // Firestore write failed (e.g. rules). Don't fail the login —
+          // the user is still authenticated via Firebase Auth. Use the
+          // locally-constructed UserModel so the app can proceed.
+          _user = newUser;
         }
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      // Don't fail login if Firestore read fails — keep user authenticated.
+      _errorMessage = null;
+      if (AuthService.currentUser != null) {
+        final fbUser = AuthService.currentUser!;
+        _user = UserModel(
+          id: fbUser.uid,
+          name: fbUser.displayName ?? 'User',
+          email: fbUser.email,
+          phoneNumber: fbUser.phoneNumber,
+          photoUrl: fbUser.photoURL,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
