@@ -38,11 +38,14 @@ service cloud.firestore {
     }
 
     // ==================== ADMINS ====================
-    // Only admins can read/write admins collection
+    // Bootstrap-friendly rules:
+    // - Any signed-in user can READ their OWN admins doc (to check if they're admin)
+    // - Any signed-in user can CREATE their OWN admins doc (first-time admin setup)
+    // - Only existing admins can UPDATE/DELETE (prevents privilege escalation)
     match /admins/{adminId} {
-      allow read, write: if isAdmin();
-      // Allow initial admin setup (first time only)
-      allow create: if isSignedIn();
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow create: if isSignedIn() && request.auth.uid == adminId;
+      allow update, delete: if isAdmin();
     }
 
     // ==================== CATEGORIES ====================

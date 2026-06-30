@@ -146,6 +146,10 @@ class AuthService {
   /// If the authenticated user's Firestore doc has role == 'admin', returns true.
   /// For the canonical admin email (admin@examvault.com), auto-creates the
   /// Firestore admin doc on first login (bootstrap).
+  ///
+  /// NOTE: This is defensive against Firestore permission-denied on the
+  /// admins/{uid} read — if the doc doesn't exist yet, the read may throw,
+  /// so we catch and fall through to the bootstrap create.
   static Future<bool> adminLogin({
     required String email,
     required String password,
@@ -159,10 +163,12 @@ class AuthService {
       final userDoc = FirebaseService.usersRef.doc(uid);
       final docSnapshot = await userDoc.get();
 
+      final canonicalAdmin = email.trim().toLowerCase() == 'admin@examvault.com';
+
       if (!docSnapshot.exists) {
         // Bootstrap: if logging in with the canonical admin email, create the
         // admin Firestore doc automatically.
-        if (email.trim().toLowerCase() == 'admin@examvault.com') {
+        if (canonicalAdmin) {
           final adminUser = UserModel(
             id: uid,
             name: 'Admin',
@@ -189,13 +195,39 @@ class AuthService {
 
       // Doc exists — check role
       final data = docSnapshot.data() as Map<String, dynamic>;
-      if (data['role'] != 'admin') {
+      final isAdminRole = data['role'] == 'admin';
+
+      if (!isAdminRole) {
+        // Allow canonical admin email to self-promote (defensive)
+        if (canonicalAdmin) {
+          await userDoc.update({
+            'role': 'admin',
+            'isPremium': true,
+            'subscriptionStatus': 'premium',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          await FirebaseService.adminsRef.doc(uid).set({
+            'email': email.trim(),
+            'role': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          return true;
+        }
         await _auth.signOut();
         return false;
       }
-      // Ensure admins/{uid} mirror exists (so security rules work)
-      final adminMirror = await FirebaseService.adminsRef.doc(uid).get();
-      if (!adminMirror.exists) {
+
+      // Ensure admins/{uid} mirror exists (so security rules work).
+      // Defensive: if read throws (permission-denied on a non-existent doc),
+      // fall through to create.
+      bool mirrorExists = false;
+      try {
+        final adminMirror = await FirebaseService.adminsRef.doc(uid).get();
+        mirrorExists = adminMirror.exists;
+      } catch (_) {
+        // Permission denied — mirror doc doesn't exist yet. Create below.
+      }
+      if (!mirrorExists) {
         await FirebaseService.adminsRef.doc(uid).set({
           'email': email.trim(),
           'role': 'admin',
@@ -206,6 +238,7 @@ class AuthService {
     } on FirebaseAuthException {
       return false;
     } catch (e) {
+      devlog.log('adminLogin error: $e');
       return false;
     }
   }
