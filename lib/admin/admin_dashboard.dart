@@ -125,7 +125,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     {'title': 'Previous Papers', 'icon': Icons.history_edu},
     {'title': 'Questions', 'icon': Icons.question_answer},
     {'title': 'Announcements', 'icon': Icons.campaign},
-    {'title': 'Upcoming Exams', 'icon': Icons.event_upcoming},
+    {'title': 'Upcoming Exams', 'icon': Icons.event_available},
     {'title': 'Banners', 'icon': Icons.view_carousel},
     {'title': 'Users', 'icon': Icons.people},
     {'title': 'Payments', 'icon': Icons.payment},

@@ -363,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickActions() {
     final actions = [
       {'icon': Icons.quiz, 'label': 'Daily Quiz', 'color': const Color(0xFFFF6F00)},
-      {'icon': Icons.event_upcoming, 'label': 'Exams', 'color': const Color(0xFF43A047)},
+      {'icon': Icons.event_available, 'label': 'Exams', 'color': const Color(0xFF43A047)},
       {'icon': Icons.newspaper, 'label': 'Current Affairs', 'color': const Color(0xFF8E24AA)},
       {'icon': Icons.campaign, 'label': 'Updates', 'color': const Color(0xFF1E88E5)},
     ];
@@ -540,7 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) {
                 final category = snapshot.data![index];
-                return _buildCategoryCard(context, category);
+                return _buildCategoryCard(category);
               },
             );
           },
@@ -644,7 +644,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemCount: snapshot.data!.length,
                 itemBuilder: (context, index) {
                   final subject = snapshot.data![index];
-                  return _buildSubjectCard(context, subject);
+                  return _buildSubjectCard(subject);
                 },
               ),
             );
@@ -879,7 +879,7 @@ class _HomeScreenState extends State<HomeScreen> {
             }
             return Column(
               children: snapshot.data!.map((affair) {
-                return _buildCurrentAffairCard(context, affair);
+                return _buildCurrentAffairCard(affair);
               }).toList(),
             );
           },
