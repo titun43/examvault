@@ -1,41 +1,14 @@
 // =============================================================================
-// ExamVault - Admin Payments Screen (offline)
+// ExamVault - Admin Payments Screen
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../services/local_data_service.dart';
+import '../../models/payment_model.dart';
+import '../../services/firebase_service.dart';
 
-class AdminPaymentsScreen extends StatefulWidget {
+class AdminPaymentsScreen extends StatelessWidget {
   const AdminPaymentsScreen({super.key});
-
-  @override
-  State<AdminPaymentsScreen> createState() => _AdminPaymentsScreenState();
-}
-
-class _AdminPaymentsScreenState extends State<AdminPaymentsScreen> {
-  late List<LocalPayment> _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _items = LocalDataService.getPayments();
-  }
-
-  Color _statusColor(String s) {
-    switch (s) {
-      case 'success':
-        return AppTheme.successColor;
-      case 'failed':
-        return AppTheme.errorColor;
-      case 'pending':
-        return Colors.blue;
-      case 'refunded':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,39 +17,57 @@ class _AdminPaymentsScreenState extends State<AdminPaymentsScreen> {
         title: const Text('Payments'),
         automaticallyImplyLeading: false,
       ),
-      body: _items.isEmpty
-          ? const Center(child: Text('No payments'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _items.length,
-              itemBuilder: (context, index) {
-                final p = _items[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text('${p.userName} — ${p.plan}'),
-                    subtitle: Text(
-                        '₹${p.amount} • ${p.date.day}/${p.date.month}/${p.date.year} • ${p.id}'),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _statusColor(p.status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        p.status.toUpperCase(),
-                        style: TextStyle(
-                          color: _statusColor(p.status),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
+      body: StreamBuilder(
+        stream: FirebaseService.paymentsRef.snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: Text('No payments'));
+          }
+          final docs = snapshot.data!.docs;
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final payment = PaymentModel.fromFirestore(docs[index]);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(payment.planName),
+                  subtitle: Text('₹${payment.amount ~/ 100} • ${payment.status.name}'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(payment.status).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      payment.status.name.toUpperCase(),
+                      style: TextStyle(
+                        color: _getStatusColor(payment.status),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
+  }
+
+  Color _getStatusColor(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.captured: return AppTheme.successColor;
+      case PaymentStatus.failed: return AppTheme.errorColor;
+      case PaymentStatus.refunded: return Colors.orange;
+      case PaymentStatus.pending: return Colors.blue;
+      default: return Colors.grey;
+    }
   }
 }

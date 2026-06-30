@@ -1,49 +1,67 @@
 // =============================================================================
-// ExamVault - Test List Screen (Tests in a category OR all tests) — offline
+// ExamVault - Test List Screen (Tests in a subject OR Test details)
 // =============================================================================
 
 import 'package:flutter/material.dart';
-import '../../services/local_data_service.dart';
+import '../../models/subject_model.dart';
+import '../../models/test_model.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import 'take_test_screen.dart';
 
 class TestListScreen extends StatelessWidget {
-  final String? categoryId;
-  final String title;
+  final SubjectModel? subject;
+  final String? testId;
 
   const TestListScreen({
     super.key,
-    this.categoryId,
-    this.title = 'Tests',
+    this.subject,
+    this.testId,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tests = categoryId == null
-        ? LocalDataService.getTests()
-        : LocalDataService.testsByCategory(categoryId!);
-
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: tests.isEmpty
-          ? const Center(child: Text('No tests available'))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: tests.length,
-              itemBuilder: (context, index) =>
-                  _buildTestCard(context, tests[index]),
-            ),
+      appBar: AppBar(
+        title: Text(subject?.name ?? 'Tests'),
+      ),
+      body: StreamBuilder<List<TestModel>>(
+        stream: FirestoreService.getTestsStream(
+          subjectId: subject?.id,
+          isPublished: true,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No tests available'));
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.length,
+            itemBuilder: (context, index) {
+              final test = snapshot.data![index];
+              return _buildTestCard(context, test);
+            },
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildTestCard(BuildContext context, LocalTest test) {
+  Widget _buildTestCard(BuildContext context, TestModel test) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
-        ),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TakeTestScreen(test: test),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -61,18 +79,16 @@ class TestListScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (!test.isFree)
-                    const Icon(Icons.workspace_premium,
-                        color: AppTheme.accentColor, size: 20),
+                  if (test.isPremium)
+                    const Icon(Icons.workspace_premium, color: AppTheme.accentColor, size: 20),
                 ],
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  _buildInfo(
-                      Icons.help_outline, '${test.totalQuestions} Questions'),
+                  _buildInfo(Icons.help_outline, '${test.questionCount} Questions'),
                   const SizedBox(width: 16),
-                  _buildInfo(Icons.timer, '${test.durationMinutes} min'),
+                  _buildInfo(Icons.timer, '${test.duration} min'),
                   const SizedBox(width: 16),
                   _buildInfo(Icons.star, '${test.totalMarks} marks'),
                 ],
@@ -80,19 +96,19 @@ class TestListScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  _buildInfo(
-                    test.isFree ? Icons.lock_open : Icons.lock,
-                    test.isFree ? 'Free' : 'Premium',
-                  ),
+                  _buildInfo(Icons.trending_up, '${test.attemptCount} attempts'),
                   const Spacer(),
                   SizedBox(
                     height: 36,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => TakeTestScreen(test: test)),
-                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TakeTestScreen(test: test),
+                          ),
+                        );
+                      },
                       child: const Text('Start Test'),
                     ),
                   ),
@@ -113,7 +129,10 @@ class TestListScreen extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
         ),
       ],
     );

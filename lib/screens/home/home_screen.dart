@@ -1,19 +1,22 @@
 // =============================================================================
-// ExamVault - Home Screen (offline, uses LocalDataService)
+// ExamVault - Home Screen
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../services/local_data_service.dart';
-import '../../widgets/scrolling_announcement_banner.dart';
+import '../../models/category_model.dart';
+import '../../models/subject_model.dart';
+import '../../models/current_affair_model.dart';
+import '../../services/firestore_service.dart';
 import 'category_detail_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
-import '../notifications/notifications_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -59,42 +62,38 @@ class HomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => const NotificationsScreen(),
+                  builder: (_) => const _NotificationsPlaceholder(),
                 ),
               );
             },
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Scrolling announcement banner at top
-          const ScrollingAnnouncementBanner(),
-          // Scrollable content
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildWelcomeCard(context),
-                  const SizedBox(height: 24),
-                  _buildQuickActions(context),
-                  const SizedBox(height: 24),
-                  _buildCategoriesSection(context),
-                  const SizedBox(height: 24),
-                  _buildPopularSubjects(context),
-                  const SizedBox(height: 24),
-                  _buildCurrentAffairs(context),
-                  const SizedBox(height: 24),
-                  _buildPremiumBanner(context),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Refresh data
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWelcomeCard(context),
+              const SizedBox(height: 24),
+              _buildQuickActions(context),
+              const SizedBox(height: 24),
+              _buildCategoriesSection(context),
+              const SizedBox(height: 24),
+              _buildPopularSubjects(context),
+              const SizedBox(height: 24),
+              _buildCurrentAffairs(context),
+              const SizedBox(height: 24),
+              _buildPremiumBanner(context),
+              const SizedBox(height: 24),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -131,8 +130,7 @@ class HomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -178,11 +176,9 @@ class HomeScreen extends StatelessWidget {
         return GestureDetector(
           onTap: () {
             if (action['label'] == 'Daily Quiz') {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
             } else if (action['label'] == 'Current Affairs') {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
             }
           },
           child: Container(
@@ -231,7 +227,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildCategoriesSection(BuildContext context) {
-    final categories = LocalDataService.getCategories();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,50 +247,38 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        if (categories.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.folder_open, size: 48, color: Colors.grey.shade400),
-                const SizedBox(height: 8),
-                Text(
-                  'No categories yet',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tests will appear here once the admin adds them.',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          )
-        else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.85,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (context, index) =>
-                _buildCategoryCard(context, categories[index]),
-          ),
+        StreamBuilder<List<CategoryModel>>(
+          stream: FirestoreService.getCategoriesStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildShimmerGrid();
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No categories available'));
+            }
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: snapshot.data!.length,
+              itemBuilder: (context, index) {
+                final category = snapshot.data![index];
+                return _buildCategoryCard(context, category);
+              },
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, LocalCategory category) {
-    final color = _parseColor(category.color);
+  Widget _buildCategoryCard(BuildContext context, CategoryModel category) {
+    final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -328,7 +311,12 @@ class HomeScreen extends StatelessWidget {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(25),
               ),
-              child: Icon(_iconFor(category.icon), color: color, size: 24),
+              child: Center(
+                child: Text(
+                  category.icon ?? '📚',
+                  style: const TextStyle(fontSize: 24),
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Text(
@@ -341,7 +329,7 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${category.testCount} Tests',
+              '${category.subjectCount} Subjects',
               style: TextStyle(
                 fontSize: 10,
                 color: Colors.grey.shade600,
@@ -354,7 +342,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildPopularSubjects(BuildContext context) {
-    final subjects = LocalDataService.getSubjects().take(6).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -369,23 +356,33 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        if (subjects.isEmpty)
-          const Center(child: Text('No subjects available'))
-        else
-          SizedBox(
-            height: 140,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: subjects.length,
-              itemBuilder: (context, index) =>
-                  _buildSubjectCard(context, subjects[index]),
-            ),
-          ),
+        StreamBuilder<List<SubjectModel>>(
+          stream: FirestoreService.getSubjectsStream(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildShimmerList();
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No subjects available'));
+            }
+            return SizedBox(
+              height: 140,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: snapshot.data!.length,
+                itemBuilder: (context, index) {
+                  final subject = snapshot.data![index];
+                  return _buildSubjectCard(context, subject);
+                },
+              ),
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildSubjectCard(BuildContext context, LocalSubject subject) {
+  Widget _buildSubjectCard(BuildContext context, SubjectModel subject) {
     return Container(
       width: 200,
       margin: const EdgeInsets.only(right: 12),
@@ -406,19 +403,20 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(_iconFor(subject.icon),
-                    color: Colors.white, size: 20),
+                child: Text(
+                  subject.icon ?? '📚',
+                  style: const TextStyle(fontSize: 20),
+                ),
               ),
               const Spacer(),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${subject.questionCount} Qs',
+                  '${subject.testCount} Tests',
                   style: const TextStyle(color: Colors.white, fontSize: 10),
                 ),
               ),
@@ -434,6 +432,16 @@ class HomeScreen extends StatelessWidget {
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subject.description ?? '',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 11,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -457,7 +465,6 @@ class HomeScreen extends StatelessWidget {
   }
 
   Widget _buildCurrentAffairs(BuildContext context) {
-    final affairs = LocalDataService.getCurrentAffairs().take(3).toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -472,8 +479,7 @@ class HomeScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                      builder: (_) => const CurrentAffairsScreen()),
+                  MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()),
                 );
               },
               child: const Text('View All'),
@@ -481,19 +487,27 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        if (affairs.isEmpty)
-          const Center(child: Text('No current affairs available'))
-        else
-          Column(
-            children:
-                affairs.map((a) => _buildCurrentAffairCard(context, a)).toList(),
-          ),
+        StreamBuilder<List<CurrentAffairModel>>(
+          stream: FirestoreService.getCurrentAffairsStream(limit: 3),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildShimmerList();
+            }
+            if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              return const Center(child: Text('No current affairs available'));
+            }
+            return Column(
+              children: snapshot.data!.map((affair) {
+                return _buildCurrentAffairCard(context, affair);
+              }).toList(),
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildCurrentAffairCard(
-      BuildContext context, LocalCurrentAffair affair) {
+  Widget _buildCurrentAffairCard(BuildContext context, CurrentAffairModel affair) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -502,7 +516,7 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border(
           left: BorderSide(
-            color: AppTheme.primaryColor,
+            color: affair.isImportant ? AppTheme.accentColor : AppTheme.primaryColor,
             width: 4,
           ),
         ),
@@ -520,6 +534,24 @@ class HomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (affair.isImportant) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'Important',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppTheme.accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               const Spacer(),
               Text(
                 affair.category,
@@ -605,29 +637,54 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // ---------------------- helpers ----------------------
-  Color _parseColor(String hex) {
-    var h = hex.replaceAll('#', '');
-    if (h.length == 6) h = 'FF$h';
-    return Color(int.parse(h, radix: 16));
+  Widget _buildShimmerGrid() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.85,
+        ),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          );
+        },
+      ),
+    );
   }
 
-  IconData _iconFor(String name) {
-    const map = <String, IconData>{
-      'school': Icons.school,
-      'train': Icons.train,
-      'work': Icons.work,
-      'account_balance': Icons.account_balance,
-      'savings': Icons.savings,
-      'public': Icons.public,
-      'book': Icons.book,
-      'calculate': Icons.calculate,
-      'psychology': Icons.psychology,
-      'menu_book': Icons.menu_book,
-      'library_books': Icons.library_books,
-      'timeline': Icons.timeline,
-    };
-    return map[name] ?? Icons.school;
+  Widget _buildShimmerList() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: SizedBox(
+        height: 140,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: 3,
+          itemBuilder: (context, index) {
+            return Container(
+              width: 200,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   String _monthName(int month) {
@@ -636,5 +693,17 @@ class HomeScreen extends StatelessWidget {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return months[month - 1];
+  }
+}
+
+class _NotificationsPlaceholder extends StatelessWidget {
+  const _NotificationsPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: const Center(child: Text('No notifications yet')),
+    );
   }
 }

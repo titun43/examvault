@@ -8,7 +8,6 @@ import '../../theme/app_theme.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/razorpay_service.dart';
-import '../../services/local_data_service.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -324,34 +323,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
       userId: auth.user!.id,
       userName: auth.user!.name,
       userEmail: auth.user!.email ?? 'user@examvault.com',
-      userPhone: auth.user?.phone ?? '9999999999',
+      userPhone: auth.user?.phoneNumber ?? '9999999999',
       amount: selectedPlan['price'] as int,
       planId: selectedPlan['planId'] as String,
       planName: selectedPlan['name'] as String,
       durationMonths: selectedPlan['months'] as int,
-      onSuccess: (response) async {
-        // Record payment in local store
-        await LocalDataService.addPayment(LocalPayment(
-          id: '',
-          userId: auth.user!.id,
-          userName: auth.user!.name,
-          plan: selectedPlan['name'] as String,
-          amount: selectedPlan['price'] as int,
-          status: 'success',
-        ));
-        // Activate premium for this user (toggleUserPremium flips the flag)
-        if (!auth.isPremium) {
-          await LocalDataService.toggleUserPremium(auth.user!.id);
-        }
-        // Refresh in-memory user so isPremium reflects
-        auth.refreshUser();
-        if (!mounted) return;
+      onSuccess: (response) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment successful! Premium activated!'),
             backgroundColor: AppTheme.successColor,
           ),
         );
+        auth.loadUserData();
         Navigator.pop(context);
       },
       onError: (response) {

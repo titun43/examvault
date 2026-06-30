@@ -1,51 +1,37 @@
-// =============================================================================
-// ExamVault - Notifications Screen (offline, uses local announcements)
-// =============================================================================
-
+// ExamVault - Notifications Screen
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
-import '../../services/local_data_service.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/notification_model.dart';
+import '../../services/firestore_service.dart';
 
-class NotificationsScreen extends StatefulWidget {
+class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
-}
-
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  late Future<List<LocalAnnouncement>> _future;
-
-  @override
-  void initState() {
-    super.initState();
-    _future = Future.value(LocalDataService.getAnnouncements());
-  }
-
-  Future<void> _refresh() async {
-    setState(() {
-      _future = Future.value(LocalDataService.getAnnouncements());
-    });
-    await _future;
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final userId = Provider.of<AuthProvider>(context).user?.id ?? '';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refresh,
+          TextButton(
+            onPressed: () {
+              FirestoreService.markAllNotificationsRead(userId);
+            },
+            child: const Text('Mark All Read', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-      body: FutureBuilder<List<LocalAnnouncement>>(
-        future: _future,
+      body: StreamBuilder<List<NotificationModel>>(
+        stream: FirestoreService.getNotificationsStream(userId),
         builder: (context, snapshot) {
-          final items = snapshot.data ?? const [];
-          if (items.isEmpty) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -59,29 +45,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: items.length,
+            itemCount: snapshot.data!.length,
             itemBuilder: (context, index) {
-              final a = items[index];
+              final notification = snapshot.data![index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: AppTheme.primaryColor.withOpacity(0.05),
+                color: notification.isRead ? null : AppTheme.primaryColor.withOpacity(0.05),
                 child: ListTile(
-                  leading: const CircleAvatar(
-                    backgroundColor: AppTheme.primaryColor,
-                    child:
-                        Icon(Icons.campaign, color: Colors.white, size: 20),
+                  leading: CircleAvatar(
+                    backgroundColor: _getTypeColor(notification.type).withOpacity(0.1),
+                    child: Icon(_getTypeIcon(notification.type), color: _getTypeColor(notification.type)),
                   ),
                   title: Text(
-                    a.title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    notification.title,
+                    style: TextStyle(
+                      fontWeight: notification.isRead ? FontWeight.normal : FontWeight.w700,
+                    ),
                   ),
-                  subtitle: Text(
-                    a.body,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  isThreeLine: false,
-                  onTap: () => _showDetail(a),
+                  subtitle: Text(notification.body, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  onTap: () {
+                    FirestoreService.markNotificationRead(notification.id);
+                  },
                 ),
               );
             },
@@ -91,43 +75,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _showDetail(LocalAnnouncement a) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                a.title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${a.date.day}/${a.date.month}/${a.date.year}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(a.body),
-              const SizedBox(height: 16),
-            ],
-          ),
-        );
-      },
-    );
+  Color _getTypeColor(NotificationType type) {
+    switch (type) {
+      case NotificationType.testResult: return AppTheme.primaryColor;
+      case NotificationType.newTest: return AppTheme.successColor;
+      case NotificationType.currentAffair: return Colors.purple;
+      case NotificationType.leaderboard: return AppTheme.accentColor;
+      case NotificationType.premium: return Colors.amber;
+      case NotificationType.announcement: return Colors.blue;
+      case NotificationType.dailyQuiz: return Colors.teal;
+      default: return Colors.grey;
+    }
+  }
+
+  IconData _getTypeIcon(NotificationType type) {
+    switch (type) {
+      case NotificationType.testResult: return Icons.assessment;
+      case NotificationType.newTest: return Icons.quiz;
+      case NotificationType.currentAffair: return Icons.newspaper;
+      case NotificationType.leaderboard: return Icons.leaderboard;
+      case NotificationType.premium: return Icons.workspace_premium;
+      case NotificationType.announcement: return Icons.campaign;
+      case NotificationType.dailyQuiz: return Icons.today;
+      default: return Icons.notifications;
+    }
   }
 }

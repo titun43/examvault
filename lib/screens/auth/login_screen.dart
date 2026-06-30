@@ -1,9 +1,7 @@
 // =============================================================================
 // ExamVault - Login Screen
-// =============================================================================
-// User login: Mobile number → local OTP (6-digit, shown in a dialog) → login.
-//             Works 100% offline — no Firebase setup needed.
-// Admin login: HIDDEN — tap logo 7 times to open the admin login door.
+// User login: Mobile OTP (real SMS) OR Email/Password
+// Admin login: HIDDEN — tap the logo 7 times to open the admin login door
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -13,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../home/main_navigation.dart';
 import '../../admin/admin_login_screen.dart';
+import '../../admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,18 +21,34 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final PageController _pageController = PageController();
+  int _currentMethod = 0; // 0=Mobile, 1=Email
+  int _logoTapCount = 0;
+
+  // Mobile auth
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  String? _verificationId;
   bool _otpSent = false;
-  int _logoTapCount = 0;
+
+  // Email auth
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _isSignUp = false;
 
   @override
   void dispose() {
+    _pageController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
+  /// Hidden admin entry — tap the logo 7 times to open AdminLoginScreen.
   void _onLogoTap() {
     _logoTapCount++;
     if (_logoTapCount == 7) {
@@ -45,65 +60,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Shows the generated OTP in a dialog so the user can see & enter it.
-  /// (In this offline-first build, the OTP is generated on-device; for real
-  ///  SMS delivery, wire up Firebase Phone Auth later.)
-  void _showOtpDialog(String otp) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.sms, color: AppTheme.primaryColor),
-            const SizedBox(width: 8),
-            const Text('Your OTP'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'A 6-digit OTP was generated for +91 ${_phoneController.text.trim()}:',
-              style: const TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
-              ),
-              child: Text(
-                otp,
-                style: TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 8,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Enter this code below to login.\n(Offline demo mode — no SMS is sent.)',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Got it'),
-            ),
-          ),
-        ],
-      ),
+  /// Routes the user after a successful login: admin → AdminDashboard, else → MainNavigation.
+  void _routeAfterLogin() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (!mounted) return;
+    final dest = auth.isAdmin ? const AdminDashboard() : const MainNavigation();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => dest),
     );
   }
 
@@ -116,33 +80,59 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 50),
+              const SizedBox(height: 40),
               // Logo (secret admin entry — tap 7 times)
               GestureDetector(
                 onTap: _onLogoTap,
                 child: Container(
-                  width: 84,
-                  height: 84,
+                  width: 80,
+                  height: 80,
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(22),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Icon(Icons.school, size: 42, color: Colors.white),
+                  child: const Icon(
+                    Icons.school,
+                    size: 40,
+                    color: Colors.white,
+                  ),
                 ),
               ),
               const Text(
                 'Welcome to ExamVault',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Login with your mobile number to continue',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                'Sign in to continue your exam preparation',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
               ),
               const SizedBox(height: 32),
-              _buildPhoneAuth(),
+
+              // Auth Method Tabs
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMethodTab('Mobile', 0, Icons.phone),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMethodTab('Email', 1, Icons.email),
+                  ),
+                ],
+              ),
               const SizedBox(height: 24),
+
+              // Method Content
+              _currentMethod == 0 ? _buildMobileAuth() : _buildEmailAuth(),
+              const SizedBox(height: 32),
             ],
           ),
         ),
@@ -150,8 +140,44 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildMethodTab(String title, int index, IconData icon) {
+    final isSelected = _currentMethod == index;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentMethod = index;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryColor : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isSelected ? Colors.white : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ==================== MOBILE OTP AUTH ====================
-  Widget _buildPhoneAuth() {
+  Widget _buildMobileAuth() {
     return Column(
       children: [
         TextField(
@@ -165,15 +191,16 @@ class _LoginScreenState extends State<LoginScreen> {
             prefixText: '+91 ',
             prefixIcon: const Icon(Icons.phone_outlined),
             counterText: '',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
         if (_otpSent) ...[
           const SizedBox(height: 16),
           Text(
-            'Enter the 6-digit OTP sent to +91 ${_phoneController.text}',
+            'Enter OTP sent to +91 ${_phoneController.text}',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-            textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
           Pinput(
@@ -182,16 +209,21 @@ class _LoginScreenState extends State<LoginScreen> {
             defaultPinTheme: PinTheme(
               width: 50,
               height: 56,
-              textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              textStyle: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onCompleted: (_) => _verifyOtp(),
+            onCompleted: (pin) {
+              _verifyOtp();
+            },
           ),
         ],
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
         Consumer<AuthProvider>(
           builder: (context, auth, _) {
             return ElevatedButton(
@@ -208,7 +240,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? const SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
                     )
                   : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
             );
@@ -220,57 +255,140 @@ class _LoginScreenState extends State<LoginScreen> {
               setState(() {
                 _otpSent = false;
                 _otpController.clear();
+                _verificationId = null;
               });
             },
             child: const Text('Change mobile number'),
           ),
+      ],
+    );
+  }
+
+  // ==================== EMAIL AUTH ====================
+  Widget _buildEmailAuth() {
+    return Column(
+      children: [
+        if (_isSignUp)
+          TextField(
+            controller: _nameController,
+            decoration: InputDecoration(
+              labelText: 'Full Name',
+              prefixIcon: const Icon(Icons.person_outline),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        if (_isSignUp) const SizedBox(height: 16),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: InputDecoration(
+            labelText: 'Email',
+            prefixIcon: const Icon(Icons.email_outlined),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          obscureText: true,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            prefixIcon: const Icon(Icons.lock_outline),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            return ElevatedButton(
+              onPressed: auth.isLoading ? null : _emailAuth,
+              child: auth.isLoading
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Text(_isSignUp ? 'Sign Up' : 'Sign In'),
+            );
+          },
+        ),
         const SizedBox(height: 12),
-        TextButton.icon(
-          onPressed: _resendOtp,
-          icon: const Icon(Icons.refresh, size: 16),
-          label: const Text('Resend OTP'),
+        TextButton(
+          onPressed: () {
+            setState(() {
+              _isSignUp = !_isSignUp;
+            });
+          },
+          child: Text(
+            _isSignUp
+                ? 'Already have an account? Sign In'
+                : 'Don\'t have an account? Sign Up',
+          ),
         ),
       ],
     );
   }
 
-  void _sendOtp() {
+  // ==================== OTP METHODS ====================
+  void _sendOtp() async {
     final rawPhone = _phoneController.text.trim();
+    if (rawPhone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter phone number')),
+      );
+      return;
+    }
+
+    // Normalize: digits only
     final digits = rawPhone.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.length != 10) {
+
+    // Build full phone with country code
+    String fullPhone;
+    if (rawPhone.startsWith('+')) {
+      fullPhone = rawPhone;
+    } else if (digits.length == 10) {
+      // 10-digit Indian number → prepend +91
+      fullPhone = '+91$digits';
+    } else if (digits.length > 10) {
+      // Already includes country code (e.g. 919876543210)
+      fullPhone = '+$digits';
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 10-digit mobile number')),
+        const SnackBar(
+            content: Text('Please enter a valid 10-digit mobile number')),
       );
       return;
     }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    auth.sendOtp(
-      phoneNumber: digits,
-      onCodeSent: (String otp) {
-        setState(() => _otpSent = true);
+    await auth.verifyPhoneNumber(
+      phoneNumber: fullPhone,
+      onCodeSent: (verificationId, _) {
+        setState(() {
+          _verificationId = verificationId;
+          _otpSent = true;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OTP sent to +91 $digits')),
+          SnackBar(content: Text('OTP sent to $fullPhone')),
         );
-        // Show the OTP in a dialog (offline demo mode — no real SMS)
-        _showOtpDialog(otp);
       },
-    );
-  }
-
-  void _resendOtp() {
-    if (_phoneController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your mobile number first')),
-      );
-      return;
-    }
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    auth.sendOtp(
-      phoneNumber: _phoneController.text.trim(),
-      onCodeSent: (String otp) {
-        setState(() => _otpSent = true);
-        _showOtpDialog(otp);
+      onError: (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            duration: const Duration(seconds: 5),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
       },
     );
   }
@@ -282,21 +400,84 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    if (_verificationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please request OTP first')),
+      );
+      return;
+    }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final success = await auth.verifyOtp(smsCode: _otpController.text);
+    final success = await auth.verifyOtp(
+      verificationId: _verificationId!,
+      smsCode: _otpController.text,
+    );
 
     if (success && mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-      );
+      _routeAfterLogin();
     } else if (auth.errorMessage != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.errorMessage!),
           backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  // ==================== EMAIL AUTH METHODS ====================
+  void _emailAuth() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+    if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
+      );
+      return;
+    }
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+    if (_isSignUp && _nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your name')),
+      );
+      return;
+    }
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    bool success;
+    if (_isSignUp) {
+      success = await auth.signUpWithEmail(
+        email: email,
+        password: password,
+        name: _nameController.text.trim(),
+      );
+    } else {
+      success = await auth.signInWithEmail(
+        email: email,
+        password: password,
+      );
+    }
+
+    if (success && mounted) {
+      _routeAfterLogin();
+    } else if (auth.errorMessage != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.errorMessage!),
           duration: const Duration(seconds: 5),
+          backgroundColor: AppTheme.errorColor,
         ),
       );
     }

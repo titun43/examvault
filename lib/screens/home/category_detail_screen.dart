@@ -1,24 +1,21 @@
 // =============================================================================
-// ExamVault - Category Detail Screen (shows tests in a category) — offline
+// ExamVault - Category Detail Screen (shows subjects in a category)
 // =============================================================================
 
 import 'package:flutter/material.dart';
-import '../../services/local_data_service.dart';
+import '../../models/category_model.dart';
+import '../../models/subject_model.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
-import '../tests/take_test_screen.dart';
+import '../tests/test_list_screen.dart';
 
 class CategoryDetailScreen extends StatelessWidget {
-  final LocalCategory category;
+  final CategoryModel category;
 
   const CategoryDetailScreen({super.key, required this.category});
 
-  Color get _color => _parseColor(category.color);
-
   @override
   Widget build(BuildContext context) {
-    final tests = LocalDataService.testsByCategory(category.id);
-    final subjects = LocalDataService.subjectsByCategory(category.id);
-
     return Scaffold(
       appBar: AppBar(
         title: Text(category.name),
@@ -31,7 +28,11 @@ class CategoryDetailScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [_color, _color.withOpacity(0.7)],
+                colors: [
+                  AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor,
+                  (AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor)
+                      .withOpacity(0.7),
+                ],
               ),
             ),
             child: Column(
@@ -39,8 +40,10 @@ class CategoryDetailScreen extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(_iconFor(category.icon),
-                        color: Colors.white, size: 40),
+                    Text(
+                      category.icon ?? '📚',
+                      style: const TextStyle(fontSize: 40),
+                    ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -56,7 +59,7 @@ class CategoryDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${tests.length} Tests • ${subjects.length} Subjects',
+                            '${category.subjectCount} Subjects Available',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 14,
@@ -67,10 +70,10 @@ class CategoryDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (category.description.isNotEmpty) ...[
+                if (category.description != null) ...[
                   const SizedBox(height: 12),
                   Text(
-                    category.description,
+                    category.description!,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 13,
@@ -80,38 +83,36 @@ class CategoryDetailScreen extends StatelessWidget {
               ],
             ),
           ),
-          // Tests list
+          // Subjects List
           Expanded(
-            child: tests.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.quiz_outlined,
-                            size: 64, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        const Text('No tests available in this category yet.'),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Back'),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: tests.length,
-                    itemBuilder: (context, index) =>
-                        _buildTestCard(context, tests[index]),
-                  ),
+            child: StreamBuilder<List<SubjectModel>>(
+              stream: FirestoreService.getSubjectsStream(categoryId: category.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(
+                    child: Text('No subjects available'),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: snapshot.data!.length,
+                  itemBuilder: (context, index) {
+                    final subject = snapshot.data![index];
+                    return _buildSubjectCard(context, subject);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTestCard(BuildContext context, LocalTest test) {
+  Widget _buildSubjectCard(BuildContext context, SubjectModel subject) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -120,55 +121,65 @@ class CategoryDetailScreen extends StatelessWidget {
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            color: _color.withOpacity(0.1),
+            color: AppTheme.primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(Icons.quiz, color: _color),
+          child: Center(
+            child: Text(
+              subject.icon ?? '📚',
+              style: const TextStyle(fontSize: 24),
+            ),
+          ),
         ),
         title: Text(
-          test.title,
+          subject.name,
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            '${test.totalQuestions} Qs • ${test.durationMinutes} min • ${test.totalMarks} marks',
-            style: const TextStyle(fontSize: 12),
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subject.description != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  subject.description!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${subject.testCount} Tests',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.primaryColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+            MaterialPageRoute(
+              builder: (_) => TestListScreen(subject: subject),
+            ),
           );
         },
       ),
     );
-  }
-
-  // ---------------------- helpers ----------------------
-  Color _parseColor(String hex) {
-    var h = hex.replaceAll('#', '');
-    if (h.length == 6) h = 'FF$h';
-    return Color(int.parse(h, radix: 16));
-  }
-
-  IconData _iconFor(String name) {
-    const map = <String, IconData>{
-      'school': Icons.school,
-      'train': Icons.train,
-      'work': Icons.work,
-      'account_balance': Icons.account_balance,
-      'savings': Icons.savings,
-      'public': Icons.public,
-      'book': Icons.book,
-      'calculate': Icons.calculate,
-      'psychology': Icons.psychology,
-      'menu_book': Icons.menu_book,
-      'library_books': Icons.library_books,
-      'timeline': Icons.timeline,
-    };
-    return map[name] ?? Icons.school;
   }
 }

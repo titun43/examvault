@@ -86,6 +86,7 @@ class UserModel {
       'phoneNumber': phoneNumber,
       'photoUrl': photoUrl,
       'role': role == UserRole.admin ? 'admin' : 'user',
+      'isPremium': isPremium, // denormalized boolean for easy Firestore/Storage rule checks
       'subscriptionStatus': subscriptionStatus.name,
       'subscriptionExpiry': subscriptionExpiry != null
           ? Timestamp.fromDate(subscriptionExpiry!)

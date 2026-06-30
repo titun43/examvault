@@ -1,12 +1,14 @@
 // =============================================================================
-// ExamVault - Leaderboard Screen (offline — computed from local users+results)
+// ExamVault - Leaderboard Screen
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/local_data_service.dart';
+import '../../models/leaderboard_model.dart';
+import '../../services/firestore_service.dart';
 
 class LeaderboardScreen extends StatelessWidget {
   const LeaderboardScreen({super.key});
@@ -28,63 +30,52 @@ class LeaderboardScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            _buildLeaderboard(context),
-            _buildLeaderboard(context),
-            _buildLeaderboard(context),
+            _buildLeaderboard(context, LeaderboardType.weekly),
+            _buildLeaderboard(context, LeaderboardType.monthly),
+            _buildLeaderboard(context, LeaderboardType.allTime),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLeaderboard(BuildContext context) {
+  Widget _buildLeaderboard(BuildContext context, LeaderboardType type) {
     final currentUserId = Provider.of<AuthProvider>(context).user?.id;
-    final users = LocalDataService.getAllUsers()
-        .where((u) => u.role == 'student')
-        .toList();
-    final entries = <_LeaderEntry>[];
-    for (final u in users) {
-      final results = LocalDataService.resultsByUser(u.id);
-      final totalScore = results.fold<int>(0, (s, r) => s + r.score);
-      final totalMax = results.fold<int>(0, (s, r) => s + r.total);
-      final attempted = results.length;
-      final avg = totalMax > 0 ? (totalScore / totalMax) * 100 : 0.0;
-      entries.add(_LeaderEntry(
-        userId: u.id,
-        userName: u.name,
-        totalXp: totalScore,
-        totalTestsAttempted: attempted,
-        averageScore: avg,
-      ));
-    }
-    entries.sort((a, b) => b.totalXp.compareTo(a.totalXp));
-    for (var i = 0; i < entries.length; i++) {
-      entries[i] = entries[i].copyWith(rank: i + 1);
-    }
 
-    if (entries.isEmpty) {
-      return const Center(child: Text('No leaderboard data available'));
-    }
+    return StreamBuilder<List<LeaderboardModel>>(
+      stream: FirestoreService.getLeaderboardStream(type: type),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('No leaderboard data available'));
+        }
+        final leaderboard = snapshot.data!;
 
-    return Column(
-      children: [
-        if (entries.length >= 3) _buildTopThree(entries),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
-              final isCurrentUser = entry.userId == currentUserId;
-              return _buildRankCard(context, entry, isCurrentUser);
-            },
-          ),
-        ),
-      ],
+        return Column(
+          children: [
+            // Top 3
+            if (leaderboard.length >= 3) _buildTopThree(context, leaderboard),
+            // List
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: leaderboard.length,
+                itemBuilder: (context, index) {
+                  final entry = leaderboard[index];
+                  final isCurrentUser = entry.userId == currentUserId;
+                  return _buildRankCard(context, entry, isCurrentUser);
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildTopThree(List<_LeaderEntry> leaderboard) {
+  Widget _buildTopThree(BuildContext context, List<LeaderboardModel> leaderboard) {
     final top3 = leaderboard.take(3).toList();
     return Container(
       padding: const EdgeInsets.all(20),
@@ -97,19 +88,22 @@ class LeaderboardScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // 2nd place
           _buildTopPlayer(top3[1], 2, 80),
+          // 1st place
           _buildTopPlayer(top3[0], 1, 100),
+          // 3rd place
           _buildTopPlayer(top3[2], 3, 70),
         ],
       ),
     );
   }
 
-  Widget _buildTopPlayer(_LeaderEntry player, int rank, double height) {
+  Widget _buildTopPlayer(LeaderboardModel player, int rank, double height) {
     final colors = [
-      Colors.yellow,
-      Colors.grey.shade300,
-      Colors.orange.shade300,
+      Colors.yellow, // 1st
+      Colors.grey.shade300, // 2nd
+      Colors.orange.shade300, // 3rd
     ];
     return Column(
       children: [
@@ -118,7 +112,14 @@ class LeaderboardScreen extends StatelessWidget {
             CircleAvatar(
               radius: 30,
               backgroundColor: colors[rank - 1],
-              child: const Icon(Icons.person, color: Colors.white),
+              child: player.userPhoto != null
+                  ? ClipOval(
+                      child: CachedNetworkImage(
+                        imageUrl: player.userPhoto!,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : const Icon(Icons.person, color: Colors.white),
             ),
             Positioned(
               top: -8,
@@ -160,8 +161,7 @@ class LeaderboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRankCard(
-      BuildContext context, _LeaderEntry entry, bool isCurrentUser) {
+  Widget _buildRankCard(BuildContext context, LeaderboardModel entry, bool isCurrentUser) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -189,10 +189,17 @@ class LeaderboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const CircleAvatar(
+          CircleAvatar(
             radius: 20,
-            backgroundColor: Colors.grey,
-            child: Icon(Icons.person, color: Colors.white),
+            backgroundColor: Colors.grey.shade200,
+            child: entry.userPhoto != null
+                ? ClipOval(
+                    child: CachedNetworkImage(
+                      imageUrl: entry.userPhoto!,
+                      fit: BoxFit.cover,
+                    ),
+                  )
+                : const Icon(Icons.person),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -201,7 +208,9 @@ class LeaderboardScreen extends StatelessWidget {
               children: [
                 Text(
                   entry.userName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   '${entry.totalTestsAttempted} tests • ${entry.averageScore.toStringAsFixed(1)}% avg',
@@ -225,7 +234,10 @@ class LeaderboardScreen extends StatelessWidget {
               ),
               const Text(
                 'XP',
-                style: TextStyle(fontSize: 10, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
@@ -233,31 +245,4 @@ class LeaderboardScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-class _LeaderEntry {
-  final String userId;
-  final String userName;
-  final int totalXp;
-  final int totalTestsAttempted;
-  final double averageScore;
-  final int rank;
-
-  _LeaderEntry({
-    required this.userId,
-    required this.userName,
-    required this.totalXp,
-    required this.totalTestsAttempted,
-    required this.averageScore,
-    this.rank = 0,
-  });
-
-  _LeaderEntry copyWith({int? rank}) => _LeaderEntry(
-        userId: userId,
-        userName: userName,
-        totalXp: totalXp,
-        totalTestsAttempted: totalTestsAttempted,
-        averageScore: averageScore,
-        rank: rank ?? this.rank,
-      );
 }

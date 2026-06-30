@@ -35,8 +35,7 @@ class RazorpayService {
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
   }) async {
-    // Create payment record in Firestore (best-effort — local store is the
-    // source of truth now; Firestore is optional in this build).
+    // Create payment record in Firestore
     final paymentRecord = PaymentModel(
       id: '',
       userId: userId,
@@ -50,14 +49,8 @@ class RazorpayService {
       createdAt: DateTime.now(),
     );
 
-    String paymentId = 'local-${DateTime.now().millisecondsSinceEpoch}';
-    try {
-      final docRef = await FirebaseService.paymentsRef
-          .add(paymentRecord.toFirestore());
-      paymentId = docRef.id;
-    } catch (_) {
-      // Firestore unavailable — continue with a local-only payment id.
-    }
+    final docRef = await FirebaseService.paymentsRef.add(paymentRecord.toFirestore());
+    final paymentId = docRef.id;
 
     // Setup callbacks
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
@@ -118,33 +111,29 @@ class RazorpayService {
     required String planName,
     required int durationMonths,
   }) async {
-    try {
-      await _updatePaymentStatus(
-        paymentId,
-        PaymentStatus.captured,
-        razorpayPaymentId: response.paymentId,
-        razorpayOrderId: response.orderId,
-        razorpaySignature: response.signature,
-        rawResponse: {
-          'paymentId': response.paymentId,
-          'orderId': response.orderId,
-          'signature': response.signature,
-        },
-      );
+    await _updatePaymentStatus(
+      paymentId,
+      PaymentStatus.captured,
+      razorpayPaymentId: response.paymentId,
+      razorpayOrderId: response.orderId,
+      razorpaySignature: response.signature,
+      rawResponse: {
+        'paymentId': response.paymentId,
+        'orderId': response.orderId,
+        'signature': response.signature,
+      },
+    );
 
-      // Update user subscription (best-effort)
-      final now = DateTime.now();
-      final expiry = DateTime(now.year, now.month + durationMonths, now.day);
+    // Update user subscription
+    final now = DateTime.now();
+    final expiry = DateTime(now.year, now.month + durationMonths, now.day);
 
-      await FirebaseService.usersRef.doc(userId).update({
-        'subscriptionStatus': 'premium',
-        'subscriptionExpiry': Timestamp.fromDate(expiry),
-        'subscriptionPlanId': planName,
-        'updatedAt': Timestamp.fromDate(now),
-      });
-    } catch (_) {
-      // Firestore unavailable — local store is the source of truth.
-    }
+    await FirebaseService.usersRef.doc(userId).update({
+      'subscriptionStatus': 'premium',
+      'subscriptionExpiry': Timestamp.fromDate(expiry),
+      'subscriptionPlanId': planName,
+      'updatedAt': Timestamp.fromDate(now),
+    });
   }
 
   // ==================== PAYMENT ERROR HANDLER ====================
@@ -156,19 +145,15 @@ class RazorpayService {
     PaymentFailureResponse response, {
     required String paymentId,
   }) async {
-    try {
-      await _updatePaymentStatus(
-        paymentId,
-        PaymentStatus.failed,
-        rawResponse: {
-          'code': response.code,
-          'message': response.message,
-          'error': response.error,
-        },
-      );
-    } catch (_) {
-      // Firestore unavailable — best-effort only.
-    }
+    await _updatePaymentStatus(
+      paymentId,
+      PaymentStatus.failed,
+      rawResponse: {
+        'code': response.code,
+        'message': response.message,
+        'error': response.error,
+      },
+    );
   }
 
   // ==================== EXTERNAL WALLET HANDLER ====================

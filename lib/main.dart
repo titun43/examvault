@@ -13,7 +13,6 @@ import 'services/firebase_service.dart';
 import 'services/admob_service.dart';
 import 'services/razorpay_service.dart';
 import 'services/notification_service.dart';
-import 'services/local_data_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
@@ -21,30 +20,17 @@ import 'screens/splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize local data (auth + admin-editable content) — REQUIRED, offline-first
-  await LocalDataService.initialize();
-
-  // Initialize Firebase (best-effort; app works without it)
-  try {
-    await FirebaseService.initialize();
-  } catch (_) {
-    // Firebase optional in this build
-  }
+  // Initialize Firebase
+  await FirebaseService.initialize();
 
   // Initialize AdMob
-  try {
-    await AdMobService.initialize();
-  } catch (_) {}
+  await AdMobService.initialize();
 
   // Initialize Razorpay
-  try {
-    RazorpayService.initialize();
-  } catch (_) {}
+  RazorpayService.initialize();
 
   // Initialize Notifications
-  try {
-    await NotificationService.initialize();
-  } catch (_) {}
+  await NotificationService.initialize();
 
   runApp(const ExamVaultApp());
 }

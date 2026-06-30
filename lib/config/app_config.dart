@@ -19,37 +19,19 @@ class AppConfig {
   static const String ownerEmail = 'lkstudeoandcomputering@gmail.com';
 
   // ==================== FIREBASE ====================
-  // Real values from google-services.json (Android app) + Firebase Console (Web app).
-  // On Android, the google-services.json file is the source of truth — Flutter's
-  // Firebase plugin reads it at build time. The values below are used for
-  // explicit FirebaseOptions initialization on non-Android platforms.
-  static const String firebaseProjectId = 'examvault-7fba8';
-  // Android API key (from google-services.json)
-  static const String firebaseApiKey = 'AIzaSyBLWPhLXCfnMw_o5u8rcBTovbmvy4jTTo0';
-  // Web API key (kept for reference / cross-platform use)
-  static const String firebaseWebApiKey = 'AIzaSyDumulPADTU0YigQ_w96-shb5i2ch6w8FY';
-  // Android App ID (from google-services.json)
-  static const String firebaseAndroidAppId =
-      '1:134227461460:android:21f9de1b95991b0df734c1';
-  // Web App ID (kept for reference)
-  static const String firebaseWebAppId =
-      '1:134227461460:web:f8e6c4b012fce4c8f734c1';
-  static const String firebaseAppId = firebaseAndroidAppId;
-  static const String firebaseStorageBucket = 'examvault-7fba8.firebasestorage.app';
-  static const String firebaseMessagingSenderId = '134227461460';
-  static const String firebaseAuthDomain = 'examvault-7fba8.firebaseapp.com';
-  static const String firebaseMeasurementId = 'G-73WTWNYXSX';
-
-  // OAuth Client ID for Google Sign-In (Web Client, client_type 3)
-  static const String googleSignInClientId =
-      '134227461460-o624mprg5ol6c4qh90i9pm7md54783dr.apps.googleusercontent.com';
+  // NEW Firebase project: EXAMVAULTNEW (created fresh for this app).
+  // On Android, google-services.json is the source of truth. Values below are
+  // used for explicit FirebaseOptions init on non-Android platforms / fallback.
+  static const String firebaseProjectId = 'examvaultnew';
+  static const String firebaseApiKey = 'AIzaSyBKEUGs9r7Q71q7vCIh3Pz_mletXQCok6E';
+  static const String firebaseAppId =
+      '1:1047596633370:android:30d6b88cfed4b0bce8b0a3';
+  static const String firebaseStorageBucket = 'examvaultnew.firebasestorage.app';
+  static const String firebaseMessagingSenderId = '1047596633370';
+  static const String firebaseAuthDomain = 'examvaultnew.firebaseapp.com';
 
   // SHA-1 fingerprint of the release signing certificate (added to Firebase)
   static const String releaseSha1 = '939f8d49fb0b86520f7657a94ed37b352b198ea7';
-
-  // FCM Web Push private key (server-side only, used for VAPID pairs / push)
-  static const String fcmWebPushPrivateKey =
-      'boaw-M3SKxsl72jctheH9gWWuI4Qy7Jehd2sIf72p8w';
 
   // ==================== ADMOB ====================
   // Real AdMob IDs (production). Set admobTestMode=false before release.

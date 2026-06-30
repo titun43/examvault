@@ -1,12 +1,10 @@
-// =============================================================================
-// ExamVault - Test History Screen (offline)
-// =============================================================================
-
+// ExamVault - Test History Screen
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/local_data_service.dart';
+import '../../models/test_result_model.dart';
+import '../../services/firestore_service.dart';
 
 class TestHistoryScreen extends StatelessWidget {
   const TestHistoryScreen({super.key});
@@ -14,12 +12,17 @@ class TestHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userId = Provider.of<AuthProvider>(context).user?.id ?? '';
-    final results = LocalDataService.resultsByUser(userId);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Test History')),
-      body: results.isEmpty
-          ? const Center(
+      body: StreamBuilder<List<TestResultModel>>(
+        stream: FirestoreService.getUserResultsStream(userId),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -28,41 +31,35 @@ class TestHistoryScreen extends StatelessWidget {
                   Text('No tests attempted yet'),
                 ],
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: results.length,
-              itemBuilder: (context, index) {
-                final r = results[index];
-                final pct = r.total > 0 ? (r.score / r.total) * 100 : 0.0;
-                final isPassed = pct >= 40;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    title: Text(r.testTitle),
-                    subtitle: Text(
-                        '${r.score}/${r.total} correct • ${pct.toStringAsFixed(1)}%'),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isPassed
-                            ? AppTheme.successColor
-                            : AppTheme.errorColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        isPassed ? 'PASSED' : 'FAILED',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600),
-                      ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.length,
+            itemBuilder: (context, index) {
+              final result = snapshot.data![index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  title: Text(result.testTitle),
+                  subtitle: Text('${result.correctAnswers}/${result.totalQuestions} correct • ${result.percentage.toStringAsFixed(1)}%'),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: result.isPassed ? AppTheme.successColor : AppTheme.errorColor,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      result.isPassed ? 'PASSED' : 'FAILED',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

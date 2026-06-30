@@ -3,8 +3,10 @@
 # =============================================================================
 
 # ---- SENSITIVE: NEVER COMMIT THESE ----
-# Firebase config (download from Firebase Console per-platform)
-android/app/google-services.json
+# Firebase config — committed for this project (API keys ship in the APK anyway).
+# If you want to keep it secret instead, re-add this line and set a
+# GOOGLE_SERVICES_JSON secret in GitHub Actions.
+# android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 
 # Keystore & signing config

@@ -1,117 +1,144 @@
 // =============================================================================
 // ExamVault - Auth Provider
 // =============================================================================
-// User login: Local OTP (6-digit code generated on-device, shown in the UI).
-//             Works 100% offline — no Firebase setup required.
-//             (Firebase Phone Auth can be wired in later for real SMS; the
-//              local flow is the reliable fallback that always works.)
-// Admin login: local credentials (admin@examvault.com / admin123)
-// =============================================================================
 
-import 'dart:math';
 import 'package:flutter/material.dart';
-import '../services/local_data_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
+import '../services/firebase_service.dart';
+
+/// Converts raw Firebase auth exceptions into user-friendly messages.
+String _friendlyAuthError(Object e) {
+  final s = e.toString();
+  if (e is FirebaseAuthException) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'user-disabled':
+        return 'This account has been disabled. Contact support.';
+      case 'user-not-found':
+        return 'No account found with this email. Please sign up first.';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Incorrect email or password. Please try again.';
+      case 'email-already-in-use':
+        return 'This email is already registered. Please sign in instead.';
+      case 'weak-password':
+        return 'Password is too weak. Use at least 6 characters.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait a few minutes and try again.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'operation-not-allowed':
+        return 'This sign-in method is not enabled. Contact admin.';
+      case 'invalid-verification-code':
+        return 'Invalid OTP. Please check and enter the correct 6-digit code.';
+      case 'invalid-phone-number':
+        return 'Invalid phone number. Enter a valid 10-digit mobile number.';
+      case 'session-expired':
+        return 'OTP session expired. Please request a new OTP.';
+      case 'quota-exceeded':
+        return 'SMS quota exceeded. Please try again later.';
+      default:
+        return e.message ?? 'Authentication failed (${e.code}).';
+    }
+  }
+  if (s.contains('network')) {
+    return 'Network error. Check your internet connection.';
+  }
+  // Strip the "Exception:" prefix from generic Dart errors
+  final cleaned = s.replaceFirst(RegExp(r'^Exception:\s*'), '');
+  return cleaned.isEmpty ? 'Something went wrong. Please try again.' : cleaned;
+}
 
 class AuthProvider extends ChangeNotifier {
-  LocalUser? _user;
+  UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
-  String? _pendingPhone;      // phone number waiting for OTP
-  String? _generatedOtp;      // locally-generated OTP for the current session
-  int? _otpExpiresAt;         // epoch-millis expiry
 
-  LocalUser? get user => _user;
+  UserModel? get user => _user;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _user != null;
   bool get isPremium => _user?.isPremium ?? false;
-  bool get isAdmin => _user?.role == 'admin';
+  bool get isAdmin => _user?.isAdmin ?? false;
 
   AuthProvider() {
-    _init();
+    _initAuth();
   }
 
-  void _init() {
-    _user = LocalDataService.currentUser;
-    notifyListeners();
+  void _initAuth() {
+    AuthService.authStateChanges.listen((firebaseUser) async {
+      if (firebaseUser != null) {
+        await loadUserData();
+      } else {
+        _user = null;
+        notifyListeners();
+      }
+    });
   }
 
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
-
-  // ==================== LOCAL OTP (offline, always works) ====================
-  /// Sends a 6-digit OTP to the given phone number (locally generated).
-  /// [onCodeSent] is called with the generated OTP so the UI can display it
-  /// (since there's no real SMS in this offline-first flow).
-  Future<void> sendOtp({
-    required String phoneNumber,
-    required void Function(String otp) onCodeSent,
-  }) async {
+  Future<void> loadUserData() async {
     _isLoading = true;
-    _errorMessage = null;
     notifyListeners();
 
     try {
-      // Normalize to 10-digit Indian mobile
-      String digits = phoneNumber.replaceAll(RegExp(r'[^\d]'), '');
-      if (digits.length == 10) {
-        // ok
-      } else if (digits.length > 10) {
-        digits = digits.substring(digits.length - 10);
-      } else {
-        _errorMessage = 'Please enter a valid 10-digit mobile number.';
-        return;
-      }
-      if (!RegExp(r'^[6-9]').hasMatch(digits)) {
-        _errorMessage = 'Please enter a valid Indian mobile number.';
-        return;
-      }
-
-      _pendingPhone = '+91$digits';
-      // Generate a 6-digit OTP
-      final rnd = Random();
-      _generatedOtp = (100000 + rnd.nextInt(900000)).toString();
-      _otpExpiresAt = DateTime.now().millisecondsSinceEpoch + 5 * 60 * 1000;
-      onCodeSent(_generatedOtp!);
+      _user = await AuthService.getCurrentUserData();
     } catch (e) {
-      _errorMessage = 'Failed to send OTP. Please try again.';
+      _errorMessage = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Verifies the OTP entered by the user against the locally-generated one.
-  Future<bool> verifyOtp({required String smsCode}) async {
+  // ==================== PHONE AUTH ====================
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required void Function(String verificationId, int? resendToken) onCodeSent,
+    required void Function(String error) onError,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      if (_generatedOtp == null || _pendingPhone == null) {
-        _errorMessage = 'Please request OTP first.';
-        return false;
-      }
-      if (_otpExpiresAt != null &&
-          DateTime.now().millisecondsSinceEpoch > _otpExpiresAt!) {
-        _errorMessage = 'OTP expired. Please request a new OTP.';
-        _generatedOtp = null;
-        return false;
-      }
-      if (smsCode.trim() != _generatedOtp) {
-        _errorMessage = 'Invalid OTP. Please check and enter the correct 6-digit code.';
-        return false;
-      }
-      // OTP matched — find or create the local student record
-      _user = LocalDataService.findOrCreateByPhone(_pendingPhone!);
-      _generatedOtp = null;
-      _pendingPhone = null;
-      _otpExpiresAt = null;
+      await AuthService.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        onCodeSent: onCodeSent,
+        onVerificationFailed: (e) {
+          _errorMessage = e.message ?? 'Verification failed';
+          onError(_errorMessage!);
+        },
+        onCodeAutoRetrievalTimeout: (_) {},
+      );
+    } catch (e) {
+      _errorMessage = e.toString();
+      onError(e.toString());
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> verifyOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await AuthService.verifyOtp(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      await loadUserData();
       return true;
     } catch (e) {
-      _errorMessage = 'Verification failed. Please try again.';
+      _errorMessage = _friendlyAuthError(e);
       return false;
     } finally {
       _isLoading = false;
@@ -119,7 +146,55 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== ADMIN LOGIN (local) ====================
+  // ==================== EMAIL AUTH ====================
+  Future<bool> signUpWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await AuthService.signUpWithEmail(
+        email: email,
+        password: password,
+        name: name,
+      );
+      await loadUserData();
+      return true;
+    } catch (e) {
+      _errorMessage = _friendlyAuthError(e);
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await AuthService.signInWithEmail(email: email, password: password);
+      await loadUserData();
+      return true;
+    } catch (e) {
+      _errorMessage = _friendlyAuthError(e);
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ==================== ADMIN LOGIN ====================
   Future<bool> adminLogin({
     required String email,
     required String password,
@@ -129,25 +204,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await Future.delayed(const Duration(milliseconds: 300));
-      // Make sure the admin account exists (safety net — also done at app start)
-      await LocalDataService.ensureAdminAccount();
-      final u = LocalDataService.loginWithIdentifier(
-        identifier: email,
-        password: password,
-      );
-      if (u == null) {
+      final isAdmin = await AuthService.adminLogin(email: email, password: password);
+      if (isAdmin) {
+        await loadUserData();
+        return true;
+      } else {
         _errorMessage = 'Invalid admin credentials';
         return false;
       }
-      if (u.role != 'admin') {
-        _errorMessage = 'This account does not have admin access.';
-        return false;
-      }
-      _user = u;
-      return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+      _errorMessage = e.toString();
       return false;
     } finally {
       _isLoading = false;
@@ -155,19 +221,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== REFRESH USER ====================
-  void refreshUser() {
-    _user = LocalDataService.currentUser;
+  // ==================== LOGOUT ====================
+  Future<void> logout() async {
+    await AuthService.logout();
+    _user = null;
     notifyListeners();
   }
 
-  // ==================== LOGOUT ====================
-  Future<void> logout() async {
-    await LocalDataService.logout();
-    _user = null;
-    _generatedOtp = null;
-    _pendingPhone = null;
-    _otpExpiresAt = null;
+  void clearError() {
+    _errorMessage = null;
     notifyListeners();
   }
 }

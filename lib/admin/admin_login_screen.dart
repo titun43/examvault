@@ -137,8 +137,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 24),
-                  // Default credential hint (helps first-time setup)
+                  const SizedBox(height: 20),
+                  // Default admin credential hint (first-time setup help)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),

@@ -1,12 +1,10 @@
 // =============================================================================
 // ExamVault - Authentication Service
-// Mobile OTP, Email/Password, Google Sign-In
+// Mobile OTP (real SMS via Firebase Phone Auth) + Email/Password (admin)
 // =============================================================================
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../config/app_config.dart';
 import '../models/user_model.dart';
 import 'firebase_service.dart';
 
@@ -18,7 +16,7 @@ class AuthService {
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
   static User? get currentUser => _auth.currentUser;
 
-  // ==================== PHONE AUTH (OTP) ====================
+  // ==================== PHONE AUTH (real SMS OTP) ====================
   static Future<void> verifyPhoneNumber({
     required String phoneNumber,
     required void Function(String verificationId, int? resendToken) onCodeSent,
@@ -51,7 +49,7 @@ class AuthService {
     return result;
   }
 
-  // ==================== EMAIL/PASSWORD AUTH ====================
+  // ==================== EMAIL/PASSWORD AUTH (admin + optional user) ====================
   static Future<UserCredential> signUpWithEmail({
     required String email,
     required String password,
@@ -82,55 +80,62 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
-  // ==================== GOOGLE SIGN-IN ====================
-  static Future<UserCredential?> signInWithGoogle() async {
-    try {
-      // Use the Web OAuth Client ID (client_type 3) as serverClientId — this
-      // is the recommended setup for Google Sign-In on Android with Firebase.
-      final googleSignIn = GoogleSignIn(
-        serverClientId: AppConfig.googleSignInClientId,
-        scopes: const ['email', 'profile'],
-      );
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null;
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      final result = await _auth.signInWithCredential(credential);
-      await _createOrUpdateUser(result.user, authMethod: 'google');
-      return result;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // ==================== ADMIN LOGIN ====================
+  // ==================== ADMIN LOGIN (Firebase Auth Email/Password) ====================
+  /// Admin signs in with email/password via Firebase Auth.
+  /// If the authenticated user's Firestore doc has role == 'admin', returns true.
+  /// For the canonical admin email (admin@examvault.com), auto-creates the
+  /// Firestore admin doc on first login (bootstrap).
   static Future<bool> adminLogin({
     required String email,
     required String password,
   }) async {
-    // Admin login এর জন্য special collection চেক করবে
-    final adminDoc = await _db.collection('admins').doc(email).get();
-    if (!adminDoc.exists) return false;
+    try {
+      final result = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+      final uid = result.user!.uid;
+      final userDoc = FirebaseService.usersRef.doc(uid);
+      final docSnapshot = await userDoc.get();
 
-    final adminData = adminDoc.data() as Map<String, dynamic>;
-    if (adminData['password'] != password) return false;
-    if (adminData['isActive'] != true) return false;
+      if (!docSnapshot.exists) {
+        // Bootstrap: if logging in with the canonical admin email, create the
+        // admin Firestore doc automatically.
+        if (email.trim().toLowerCase() == 'admin@examvault.com') {
+          final adminUser = UserModel(
+            id: uid,
+            name: 'Admin',
+            email: email.trim(),
+            role: UserRole.admin,
+            subscriptionStatus: SubscriptionStatus.premium,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            isActive: true,
+          );
+          await userDoc.set(adminUser.toFirestore());
+          return true;
+        }
+        // Not admin and no user doc — sign out and reject
+        await _auth.signOut();
+        return false;
+      }
 
-    return true;
+      // Doc exists — check role
+      final data = docSnapshot.data() as Map<String, dynamic>;
+      if (data['role'] != 'admin') {
+        await _auth.signOut();
+        return false;
+      }
+      return true;
+    } on FirebaseAuthException {
+      return false;
+    } catch (e) {
+      return false;
+    }
   }
 
   // ==================== LOGOUT ====================
   static Future<void> logout() async {
-    try {
-      await GoogleSignIn(
-        serverClientId: AppConfig.googleSignInClientId,
-      ).signOut();
-    } catch (_) {}
     await _auth.signOut();
   }
 
@@ -163,16 +168,7 @@ class AuthService {
       // Existing user - update last active
       await userDoc.update({
         'lastActiveAt': FieldValue.serverTimestamp(),
-        'fcmToken': await _getFcmToken(),
       });
-    }
-  }
-
-  static Future<String?> _getFcmToken() async {
-    try {
-      return await FirebaseService.messaging.getToken();
-    } catch (_) {
-      return null;
     }
   }
 

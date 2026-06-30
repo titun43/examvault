@@ -38,23 +38,23 @@ class FirebaseService {
           projectId: AppConfig.firebaseProjectId,
           storageBucket: AppConfig.firebaseStorageBucket,
           authDomain: AppConfig.firebaseAuthDomain,
-          measurementId: AppConfig.firebaseMeasurementId,
         ),
       );
     } catch (_) {
-      // Fall back to default (auto) initialization if options init fails.
+      // Fall back to default (auto) initialization from google-services.json
       await Firebase.initializeApp();
     }
 
-    // Crashlytics: catch all framework errors
-    FlutterError.onError =
-        FirebaseCrashlytics.instance.recordFlutterFatalError;
-
-    // Catch async errors not handled by Flutter
-    PlatformDispatcher.instance.onError = (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
-      return true;
-    };
+    // Crashlytics: catch all framework errors (best-effort — won't crash if
+    // Crashlytics isn't configured)
+    try {
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
+        return true;
+      };
+    } catch (_) {}
 
     _initialized = true;
   }
