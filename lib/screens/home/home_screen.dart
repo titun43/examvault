@@ -27,6 +27,7 @@ import '../announcements/announcements_screen.dart';
 import '../upcoming_exams/upcoming_exams_screen.dart';
 import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
+import '../tests/test_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -513,7 +514,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             TextButton(
-              onPressed: () {},
+              // No dedicated "all categories" screen exists yet — categories
+              // are already shown in full on the home page. Scroll the user
+              // back up to the grid rather than leaving the button dead.
+              onPressed: () {
+                Scrollable.ensureVisible(
+                  context,
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeInOut,
+                );
+              },
               child: const Text('View All'),
             ),
           ],
@@ -525,8 +535,11 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerGrid();
             }
+            if (snapshot.hasError) {
+              return _buildSectionError('Couldn\'t load categories');
+            }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No categories available'));
+              return _buildSectionEmpty('No categories available');
             }
             return GridView.builder(
               shrinkWrap: true,
@@ -624,7 +637,21 @@ class _HomeScreenState extends State<HomeScreen> {
               'Popular Subjects',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
-            TextButton(onPressed: () {}, child: const Text('View All')),
+            // Wire up the 'View All' button to a full categories browse view.
+            // Previously this was a no-op `onPressed: () {}` so tapping did
+            // nothing — one of the "not clickable" bugs on the home page.
+            // There's no dedicated "all subjects" screen, so we scroll the
+            // user up to the "Exam Categories" section so they can pick a
+            // category and browse its subjects.
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()),
+                );
+              },
+              child: const Text('View All'),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -634,11 +661,18 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
+            // Surface stream errors instead of silently showing "No subjects
+            // available". This is the same root cause as the category detail
+            // screen — if the subjects stream errors out, the user sees an
+            // empty section and thinks "Start Now is not clickable".
+            if (snapshot.hasError) {
+              return _buildSectionError('Couldn\'t load subjects');
+            }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No subjects available'));
+              return _buildSectionEmpty('No subjects available yet');
             }
             return SizedBox(
-              height: 140,
+              height: 160,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: snapshot.data!.length,
@@ -655,83 +689,104 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSubjectCard(SubjectModel subject) {
-    return Container(
-      width: 200,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TestListScreen(subject: subject)),
+        );
+      },
+      child: Container(
+        width: 220,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: AppTheme.cardGradient,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    subject.icon ?? '📚',
+                    style: const TextStyle(fontSize: 20),
+                  ),
                 ),
-                child: Text(
-                  subject.icon ?? '📚',
-                  style: const TextStyle(fontSize: 20),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${subject.testCount} Tests',
+                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                  ),
                 ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subject.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subject.description ?? '',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 11,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            // "Start Now" CTA — the whole card is tappable, this is a visual
+            // affordance. Fixed-width container so the text never truncates.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${subject.testCount} Tests',
-                  style: const TextStyle(color: Colors.white, fontSize: 10),
-                ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Start Now',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.arrow_forward, color: Colors.white, size: 14),
+                ],
               ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                subject.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                subject.description ?? '',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 11,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-          const Row(
-            children: [
-              Text(
-                'Start Now',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.arrow_forward, color: Colors.white, size: 14),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -764,8 +819,19 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
+            if (snapshot.hasError) {
+              return _buildSectionError('Couldn\'t load upcoming exams');
+            }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No upcoming exams scheduled'));
+              return _buildSectionEmpty(
+                'No upcoming exams scheduled',
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const UpcomingExamsScreen()));
+                },
+              );
             }
             return Column(
               children: snapshot.data!.map((e) => _buildUpcomingExamMiniCard(e)).toList(),
@@ -779,7 +845,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildUpcomingExamMiniCard(UpcomingExamModel e) {
     final days = e.daysRemaining;
     final isPast = days < 0;
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -842,6 +914,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -874,8 +947,19 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
+            if (snapshot.hasError) {
+              return _buildSectionError('Couldn\'t load current affairs');
+            }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('No current affairs available'));
+              return _buildSectionEmpty(
+                'No current affairs available',
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CurrentAffairsScreen()));
+                },
+              );
             }
             return Column(
               children: snapshot.data!.map((affair) {
@@ -889,7 +973,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCurrentAffairCard(CurrentAffairModel affair) {
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -963,6 +1053,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1042,6 +1133,56 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
     );
+  }
+
+  /// Generic error state for a home-screen section. Shows a short message
+  /// instead of silently rendering an empty list (which made users think the
+  /// section "wasn't clickable" when in fact the stream had errored out).
+  Widget _buildSectionError(String message) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off, size: 18, color: Colors.grey.shade500),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Generic empty state for a home-screen section. Tappable when [onTap] is
+  /// provided so the user can navigate to the full screen even when there's
+  /// no preview content (another "not clickable" bug fixed).
+  Widget _buildSectionEmpty(String message, {VoidCallback? onTap}) {
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inbox, size: 18, color: Colors.grey.shade400),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onTap == null) return content;
+    return GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: content);
   }
 
   Widget _buildShimmerList() {

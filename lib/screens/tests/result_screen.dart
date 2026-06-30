@@ -5,18 +5,22 @@
 import 'package:flutter/material.dart';
 import '../../models/test_result_model.dart';
 import '../../models/question_model.dart';
+import '../../models/test_model.dart';
 import '../../theme/app_theme.dart';
+import 'take_test_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final TestResultModel result;
   final List<QuestionModel> questions;
   final List<int> userAnswers;
+  final TestModel? test; // optional — needed for "Retake Test"
 
   const ResultScreen({
     super.key,
     required this.result,
     required this.questions,
     required this.userAnswers,
+    this.test,
   });
 
   @override

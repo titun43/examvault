@@ -31,6 +31,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   int _timeRemaining = 0;
   bool _isLoading = true;
   bool _showSubmitDialog = false;
+  bool _isSubmitting = false; // guards against double-submission
 
   @override
   void initState() {
@@ -49,12 +50,14 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   void _loadQuestions() async {
     try {
       final questions = await FirestoreService.getQuestions(widget.test.id);
+      if (!mounted) return;
       setState(() {
         _questions = questions;
         _userAnswers = List.filled(questions.length, -1);
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
@@ -63,6 +66,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       setState(() {
         if (_timeRemaining > 0) {
           _timeRemaining--;
@@ -104,6 +111,9 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   }
 
   void _submitTest() {
+    // Guard against double-submission (e.g. timer fires while user taps Submit)
+    if (_isSubmitting) return;
+    _isSubmitting = true;
     _timer?.cancel();
 
     int correct = 0;
@@ -132,9 +142,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         ? (correct / (correct + wrong)) * 100
         : 0.0;
 
+    final userId = Provider.of<AuthProvider>(context, listen: false).user?.id ?? '';
+
     final result = TestResultModel(
       id: '',
-      userId: Provider.of<AuthProvider>(context, listen: false).user?.id ?? '',
+      userId: userId,
       testId: widget.test.id,
       testTitle: widget.test.title,
       totalQuestions: _questions.length,
@@ -153,13 +165,64 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       attemptedAt: DateTime.now(),
     );
 
-    // Save result
-    FirestoreService.saveResult(result);
+    // Save result + update user stats in the background. Wrap each in its own
+    // try/catch so a failure in one doesn't block the others, and so a
+    // Firestore/AdMob error never crashes the app after submission (which was
+    // the "app auto-closes after taking a test" bug). We navigate to the
+    // result screen regardless — the user already finished the test and
+    // deserves to see their score.
+    _persistAndNavigate(result, userId, correct, _questions.length, percentage);
+  }
 
-    // Show interstitial ad
-    AdMobService.showInterstitialAd();
+  Future<void> _persistAndNavigate(
+    TestResultModel result,
+    String userId,
+    int correctAnswers,
+    int totalQuestions,
+    double percentage,
+  ) async {
+    // 1) Save the result (best-effort).
+    try {
+      await FirestoreService.saveResult(result);
+    } catch (e) {
+      print('saveResult error (non-fatal): $e');
+    }
 
-    // Navigate to result
+    // 2) Update user aggregate stats (totalTestsAttempted, XP, level, streak,
+    //    averageScore). This is what makes the profile test-count update.
+    if (userId.isNotEmpty) {
+      try {
+        await FirestoreService.updateUserStatsAfterTest(
+          userId: userId,
+          correctAnswers: correctAnswers,
+          totalQuestions: totalQuestions,
+          percentage: percentage,
+        );
+      } catch (e) {
+        print('updateUserStatsAfterTest error (non-fatal): $e');
+      }
+
+      // 3) Refresh the in-memory AuthProvider user so the profile screen
+      //    reflects the new counts immediately without requiring a re-login.
+      try {
+        if (mounted) {
+          await Provider.of<AuthProvider>(context, listen: false).loadUserData();
+        }
+      } catch (e) {
+        print('loadUserData after test error (non-fatal): $e');
+      }
+    }
+
+    // 4) Show interstitial ad (best-effort — never crash if ad not ready).
+    try {
+      await AdMobService.showInterstitialAd();
+    } catch (e) {
+      print('showInterstitialAd error (non-fatal): $e');
+    }
+
+    // 5) Navigate to result screen. Use pushReplacement so the test screen is
+    //    popped off the stack (prevents "back" returning to a finished test).
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -194,7 +257,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.test.title),
+          title: Text(
+            widget.test.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           actions: [
             Center(
               child: Container(

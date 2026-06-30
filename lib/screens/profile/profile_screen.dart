@@ -5,11 +5,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../config/app_config.dart';
 import '../auth/login_screen.dart';
 import '../premium/premium_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
@@ -19,6 +22,78 @@ import 'bookmarks_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  // ==================== Action handlers ====================
+  // These were previously empty `// Share app` stubs, which is why tapping
+  // Share App / Rate Us / Help & Support / Privacy Policy did nothing.
+
+  Future<void> _shareApp(BuildContext context) async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final storeUrl = 'https://play.google.com/store/apps/details?id=${info.packageName}';
+      await Share.share(
+        'Check out ExamVault - India\'s #1 MCQ Mock Test app for Railway, SSC, UPSC, Banking & more!\n\n'
+        'Download now: $storeUrl',
+        subject: 'ExamVault - Mock Test App',
+      );
+    } catch (e) {
+      _showToast(context, 'Unable to share app right now');
+    }
+  }
+
+  Future<void> _rateApp(BuildContext context) async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final storeUrl = 'https://play.google.com/store/apps/details?id=${info.packageName}';
+      final uri = Uri.parse(storeUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _showToast(context, 'Opening Play Store...');
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      _showToast(context, 'Unable to open Play Store right now');
+    }
+  }
+
+  Future<void> _openHelpSupport(BuildContext context) async {
+    // Launch email client with a pre-filled support email.
+    try {
+      final uri = Uri(
+        scheme: 'mailto',
+        path: AppConfig.supportEmail,
+        query: 'subject=ExamVault Support Request&body=Hello ExamVault team,\n\nI need help with...',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else {
+        _showToast(context, 'Email app not available. Contact: ${AppConfig.supportEmail}');
+      }
+    } catch (e) {
+      _showToast(context, 'Unable to open email. Contact: ${AppConfig.supportEmail}');
+    }
+  }
+
+  Future<void> _openPrivacyPolicy(BuildContext context) async {
+    try {
+      final uri = Uri.parse(AppConfig.privacyPolicyUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _showToast(context, 'Unable to open Privacy Policy');
+      }
+    } catch (e) {
+      _showToast(context, 'Unable to open Privacy Policy');
+    }
+  }
+
+  void _showToast(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,36 +248,28 @@ class ProfileScreen extends StatelessWidget {
               Icons.share,
               'Share App',
               null,
-              onTap: () {
-                // Share app
-              },
+              onTap: () => _shareApp(context),
             ),
             _buildMenuTile(
               context,
               Icons.star,
               'Rate Us',
               null,
-              onTap: () {
-                // Rate app
-              },
+              onTap: () => _rateApp(context),
             ),
             _buildMenuTile(
               context,
               Icons.help,
               'Help & Support',
               null,
-              onTap: () {
-                // Help
-              },
+              onTap: () => _openHelpSupport(context),
             ),
             _buildMenuTile(
               context,
               Icons.description,
               'Privacy Policy',
               null,
-              onTap: () {
-                // Privacy policy
-              },
+              onTap: () => _openPrivacyPolicy(context),
             ),
             const SizedBox(height: 16),
             // Logout

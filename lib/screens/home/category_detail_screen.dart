@@ -9,16 +9,24 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../tests/test_list_screen.dart';
 
-class CategoryDetailScreen extends StatelessWidget {
+class CategoryDetailScreen extends StatefulWidget {
   final CategoryModel category;
 
   const CategoryDetailScreen({super.key, required this.category});
 
   @override
+  State<CategoryDetailScreen> createState() => _CategoryDetailScreenState();
+}
+
+class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
+  /// Bumped on pull-to-refresh to force the StreamBuilder to re-subscribe.
+  int _reloadKey = 0;
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(category.name),
+        title: Text(widget.category.name),
       ),
       body: Column(
         children: [
@@ -29,8 +37,8 @@ class CategoryDetailScreen extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor,
-                  (AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor)
+                  AppTheme.categoryColors[widget.category.name] ?? AppTheme.primaryColor,
+                  (AppTheme.categoryColors[widget.category.name] ?? AppTheme.primaryColor)
                       .withOpacity(0.7),
                 ],
               ),
@@ -41,7 +49,7 @@ class CategoryDetailScreen extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      category.icon ?? '📚',
+                      widget.category.icon ?? '📚',
                       style: const TextStyle(fontSize: 40),
                     ),
                     const SizedBox(width: 16),
@@ -50,7 +58,7 @@ class CategoryDetailScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            category.name,
+                            widget.category.name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
@@ -59,7 +67,7 @@ class CategoryDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${category.subjectCount} Subjects Available',
+                            '${widget.category.subjectCount} Subjects Available',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 14,
@@ -70,10 +78,10 @@ class CategoryDetailScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (category.description != null) ...[
+                if (widget.category.description != null) ...[
                   const SizedBox(height: 12),
                   Text(
-                    category.description!,
+                    widget.category.description!,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 13,
@@ -85,30 +93,108 @@ class CategoryDetailScreen extends StatelessWidget {
           ),
           // Subjects List
           Expanded(
-            child: StreamBuilder<List<SubjectModel>>(
-              stream: FirestoreService.getSubjectsStream(categoryId: category.id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text('No subjects available'),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.length,
-                  itemBuilder: (context, index) {
-                    final subject = snapshot.data![index];
-                    return _buildSubjectCard(context, subject);
-                  },
-                );
+            child: RefreshIndicator(
+              onRefresh: () async {
+                setState(() => _reloadKey++);
+                // Give the new stream a moment to emit.
+                await Future.delayed(const Duration(milliseconds: 600));
               },
+              child: StreamBuilder<List<SubjectModel>>(
+                key: ValueKey('subjects-${_reloadKey}'),
+                // Pass the category's doc id, name AND slug so the stream can
+                // match subjects regardless of whether the admin wrote
+                // categoryId as the doc id, the category name, or the slug.
+                // This is what fixes "no subject available" under Indian
+                // Railways when subjects were created via the Firestore
+                // console with a name/slug instead of the doc id.
+                stream: FirestoreService.getSubjectsStream(
+                  categoryId: widget.category.id,
+                  categoryName: widget.category.name,
+                  categorySlug: widget.category.slug,
+                ),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  // Surface stream errors instead of silently showing "No
+                  // subjects available" — this is the root cause of the user
+                  // seeing "no subject available" even when subjects exist.
+                  if (snapshot.hasError) {
+                    return _buildErrorState(snapshot.error.toString());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: snapshot.data!.length,
+                    itemBuilder: (context, index) {
+                      final subject = snapshot.data![index];
+                      return _buildSubjectCard(context, subject);
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return ListView(
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 40),
+        Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade400),
+        const SizedBox(height: 16),
+        const Text(
+          'Couldn\'t load subjects',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Please check your internet connection and try again.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton.icon(
+          onPressed: () => setState(() => _reloadKey++),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Retry'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return ListView(
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 40),
+        Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
+        const SizedBox(height: 16),
+        const Text(
+          'No subjects available yet',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Subjects for ${widget.category.name} will appear here. Pull down to refresh.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _reloadKey++),
+          icon: const Icon(Icons.refresh),
+          label: const Text('Refresh'),
+        ),
+      ],
     );
   }
 

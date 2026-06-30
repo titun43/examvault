@@ -80,7 +80,9 @@ class TestListScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Title + premium badge — title wraps, badge stays fixed width
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     child: Text(
@@ -92,39 +94,41 @@ class TestListScreen extends StatelessWidget {
                     ),
                   ),
                   if (test.isPremium)
-                    const Icon(Icons.workspace_premium, color: AppTheme.accentColor, size: 20),
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.workspace_premium, color: AppTheme.accentColor, size: 20),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+              // Test meta info — wraps cleanly on small screens
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   _buildInfo(Icons.help_outline, '${test.questionCount} Questions'),
-                  const SizedBox(width: 16),
                   _buildInfo(Icons.timer, '${test.duration} min'),
-                  const SizedBox(width: 16),
                   _buildInfo(Icons.star, '${test.totalMarks} marks'),
+                  _buildInfo(Icons.trending_up, '${test.attemptCount} attempts'),
                 ],
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildInfo(Icons.trending_up, '${test.attemptCount} attempts'),
-                  const Spacer(),
-                  SizedBox(
-                    height: 36,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TakeTestScreen(test: test),
-                          ),
-                        );
-                      },
-                      child: const Text('Start Test'),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              // Full-width Start Test button — no truncation, easy to tap
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TakeTestScreen(test: test),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.play_arrow, size: 20),
+                  label: const Text('Start Test'),
+                ),
               ),
             ],
           ),

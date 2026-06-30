@@ -130,32 +130,35 @@ class TestSeriesScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
+            // Test meta info — wraps cleanly on small screens (was a Row that
+            // overflowed/truncated the marks text on narrow devices).
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 _buildInfoChip(Icons.help_outline, '${test.questionCount} Qs'),
-                const SizedBox(width: 12),
                 _buildInfoChip(Icons.timer_outlined, '${test.duration} min'),
-                const SizedBox(width: 12),
                 _buildInfoChip(Icons.star_outline, '${test.totalMarks} marks'),
+                _buildDifficultyChip(test.difficulty),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildDifficultyChip(test.difficulty),
-                const Spacer(),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TestListScreen(testId: test.id),
-                      ),
-                    );
-                  },
-                  child: const Text('Start'),
-                ),
-              ],
+            const SizedBox(height: 16),
+            // Full-width Start button — no truncation, easy to tap.
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TestListScreen(testId: test.id),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.play_arrow, size: 20),
+                label: const Text('Start Test'),
+              ),
             ),
           ],
         ),
