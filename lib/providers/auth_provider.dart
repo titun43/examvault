@@ -40,9 +40,16 @@ String _friendlyAuthError(Object e) {
         return 'OTP session expired. Please request a new OTP.';
       case 'quota-exceeded':
         return 'SMS quota exceeded. Please try again later.';
+      case 'app-not-authorized':
+        return 'App signature not registered in Firebase. Contact admin.';
+      case 'captcha-check-failed':
+        return 'Verification challenge failed. Check your network and retry.';
       default:
         return e.message ?? 'Authentication failed (${e.code}).';
     }
+  }
+  if (e is AppAuthException) {
+    return e.message;
   }
   if (s.contains('network')) {
     return 'Network error. Check your internet connection.';
@@ -56,6 +63,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _user;
   bool _isLoading = false;
   String? _errorMessage;
+  int? _resendToken; // allows "Resend OTP" without burning quota
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -63,6 +71,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _user != null;
   bool get isPremium => _user?.isPremium ?? false;
   bool get isAdmin => _user?.isAdmin ?? false;
+  int? get resendToken => _resendToken;
 
   AuthProvider() {
     _initAuth();
@@ -85,6 +94,28 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       _user = await AuthService.getCurrentUserData();
+      // If user is authenticated in Firebase but their Firestore doc is missing
+      // (can happen right after auto-retrieval sign-in), try to (re)create it.
+      if (_user == null && AuthService.currentUser != null) {
+        final fbUser = AuthService.currentUser!;
+        final newUser = UserModel(
+          id: fbUser.uid,
+          name: fbUser.displayName ?? 'User',
+          email: fbUser.email,
+          phoneNumber: fbUser.phoneNumber,
+          photoUrl: fbUser.photoURL,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+          lastActiveAt: DateTime.now(),
+        );
+        try {
+          await FirebaseService.usersRef.doc(fbUser.uid).set(newUser.toFirestore());
+          _user = newUser;
+        } catch (_) {
+          // If Firestore write fails (e.g. rules), at least keep the user
+          // "authenticated" so they don't get kicked back to login.
+        }
+      }
     } catch (e) {
       _errorMessage = e.toString();
     } finally {
@@ -106,20 +137,31 @@ class AuthProvider extends ChangeNotifier {
     try {
       await AuthService.verifyPhoneNumber(
         phoneNumber: phoneNumber,
-        onCodeSent: onCodeSent,
+        forceResendingToken: _resendToken,
+        onCodeSent: (verificationId, resendToken) {
+          // Remember the resend token so "Resend OTP" can use it later.
+          _resendToken = resendToken;
+          onCodeSent(verificationId, resendToken);
+        },
         onVerificationFailed: (e) {
-          _errorMessage = e.message ?? 'Verification failed';
-          onError(_errorMessage!);
+          _errorMessage = e.message;
+          onError(e.message);
         },
         onCodeAutoRetrievalTimeout: (_) {},
       );
     } catch (e) {
-      _errorMessage = e.toString();
-      onError(e.toString());
+      _errorMessage = _friendlyAuthError(e);
+      onError(_errorMessage!);
     } finally {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Clears the resend token (call when the user changes their phone number
+  /// or successfully verifies, so the next "Send OTP" starts fresh).
+  void resetOtpState() {
+    _resendToken = null;
   }
 
   Future<bool> verifyOtp({
@@ -225,6 +267,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     await AuthService.logout();
     _user = null;
+    _resendToken = null;
     notifyListeners();
   }
 

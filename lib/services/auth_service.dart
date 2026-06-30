@@ -3,10 +3,23 @@
 // Mobile OTP (real SMS via Firebase Phone Auth) + Email/Password (admin)
 // =============================================================================
 
+import 'dart:developer' as devlog;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import 'firebase_service.dart';
+
+/// A structured auth error that carries the Firebase error code alongside the
+/// human-readable message — so the UI can show actionable hints (e.g. "App
+// signature not registered", "Quota exceeded", etc.).
+class AppAuthException implements Exception {
+  final String code;
+  final String message;
+  AppAuthException(this.code, this.message);
+
+  @override
+  String toString() => '[$code] $message';
+}
 
 class AuthService {
   static final FirebaseAuth _auth = FirebaseService.auth;
@@ -17,21 +30,41 @@ class AuthService {
   static User? get currentUser => _auth.currentUser;
 
   // ==================== PHONE AUTH (real SMS OTP) ====================
+  /// Kicks off Firebase Phone Auth verification.
+  ///
+  /// IMPORTANT: `verificationCompleted` (Android auto-retrieval) is also
+  /// handled here — when the OS auto-detects the SMS, we sign in *and* create
+  /// the user's Firestore doc, otherwise `loadUserData()` would return null
+  /// and the user would appear "not logged in".
   static Future<void> verifyPhoneNumber({
     required String phoneNumber,
     required void Function(String verificationId, int? resendToken) onCodeSent,
-    required void Function(FirebaseAuthException e) onVerificationFailed,
-    required void Function(String smsCode) onCodeAutoRetrievalTimeout,
+    required void Function(AppAuthException e) onVerificationFailed,
+    required void Function(String verificationId) onCodeAutoRetrievalTimeout,
     Duration timeout = const Duration(seconds: 60),
+    int? forceResendingToken,
   }) async {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
+      forceResendingToken: forceResendingToken,
       verificationCompleted: (PhoneAuthCredential credential) async {
-        await _auth.signInWithCredential(credential);
+        try {
+          final result = await _auth.signInWithCredential(credential);
+          await _createOrUpdateUser(result.user, authMethod: 'phone');
+        } catch (e, st) {
+          devlog.log('Auto-retrieval sign-in failed: $e\n$st');
+        }
       },
-      verificationFailed: onVerificationFailed,
+      verificationFailed: (FirebaseAuthException e) {
+        // Surface a structured error so the UI can show actionable hints
+        final friendly = _friendlyPhoneError(e);
+        onVerificationFailed(AppAuthException(e.code, friendly));
+      },
       codeSent: onCodeSent,
-      codeAutoRetrievalTimeout: onCodeAutoRetrievalTimeout,
+      codeAutoRetrievalTimeout: (String verificationId) {
+        // Auto-retrieval timed out — the user will have to enter the OTP manually.
+        onCodeAutoRetrievalTimeout(verificationId);
+      },
       timeout: timeout,
     );
   }
@@ -47,6 +80,34 @@ class AuthService {
     final result = await _auth.signInWithCredential(credential);
     await _createOrUpdateUser(result.user, authMethod: 'phone');
     return result;
+  }
+
+  /// Maps raw Firebase Phone Auth error codes to actionable messages.
+  static String _friendlyPhoneError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'Phone number is invalid. Enter a valid 10-digit mobile number.';
+      case 'too-many-requests':
+        return 'Too many OTP requests from this number. Please wait a few minutes and try again.';
+      case 'quota-exceeded':
+        return 'Daily SMS quota exceeded. Try again tomorrow or contact admin.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'operation-not-allowed':
+        return 'Phone Auth is not enabled in Firebase Console. Ask admin to enable it.';
+      case 'app-not-authorized':
+        return 'App signature (SHA-1) not registered in Firebase. Ask admin to add it.';
+      case 'captcha-check-failed':
+        return 'reCAPTCHA verification failed. Check your network and try again.';
+      case 'invalid-verification-code':
+        return 'Incorrect OTP. Please check and re-enter the 6-digit code.';
+      case 'session-expired':
+        return 'OTP session expired. Please request a new OTP.';
+      case 'credential-already-in-use':
+        return 'This phone number is already linked to another account.';
+      default:
+        return e.message ?? 'Phone verification failed (${e.code}).';
+    }
   }
 
   // ==================== EMAIL/PASSWORD AUTH (admin + optional user) ====================
@@ -113,6 +174,12 @@ class AuthService {
             isActive: true,
           );
           await userDoc.set(adminUser.toFirestore());
+          // Also mirror to admins/{uid} so Firestore isAdmin() rule works.
+          await FirebaseService.adminsRef.doc(uid).set({
+            'email': email.trim(),
+            'role': 'admin',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
           return true;
         }
         // Not admin and no user doc — sign out and reject
@@ -125,6 +192,15 @@ class AuthService {
       if (data['role'] != 'admin') {
         await _auth.signOut();
         return false;
+      }
+      // Ensure admins/{uid} mirror exists (so security rules work)
+      final adminMirror = await FirebaseService.adminsRef.doc(uid).get();
+      if (!adminMirror.exists) {
+        await FirebaseService.adminsRef.doc(uid).set({
+          'email': email.trim(),
+          'role': 'admin',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
       return true;
     } on FirebaseAuthException {

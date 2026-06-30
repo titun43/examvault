@@ -11,6 +11,9 @@ import '../models/test_result_model.dart';
 import '../models/current_affair_model.dart';
 import '../models/notification_model.dart';
 import '../models/leaderboard_model.dart';
+import '../models/announcement_model.dart';
+import '../models/upcoming_exam_model.dart';
+import '../models/banner_model.dart';
 import 'firebase_service.dart';
 
 class FirestoreService {
@@ -268,6 +271,143 @@ class FirestoreService {
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => LeaderboardModel.fromFirestore(doc))
+            .toList());
+  }
+
+  // ==================== ANNOUNCEMENTS ====================
+  static Future<List<AnnouncementModel>> getAnnouncements({int limit = 50}) async {
+    final snapshot = await _db.collection('announcements')
+        .where('isPublished', isEqualTo: true)
+        .orderBy('isPinned', descending: true)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snapshot.docs.map((doc) => AnnouncementModel.fromFirestore(doc)).toList();
+  }
+
+  static Stream<List<AnnouncementModel>> getAnnouncementsStream({int limit = 50}) {
+    return _db.collection('announcements')
+        .where('isPublished', isEqualTo: true)
+        .orderBy('isPinned', descending: true)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => AnnouncementModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Admin-only: includes drafts and unpublished items.
+  static Stream<List<AnnouncementModel>> getAllAnnouncementsStream() {
+    return _db.collection('announcements')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => AnnouncementModel.fromFirestore(doc))
+            .toList());
+  }
+
+  static Future<String?> addAnnouncement(AnnouncementModel a) async {
+    final docRef = await _db.collection('announcements').add(a.toFirestore());
+    return docRef.id;
+  }
+
+  static Future<void> updateAnnouncement(AnnouncementModel a) async {
+    await _db.collection('announcements').doc(a.id).update(a.toFirestore());
+  }
+
+  static Future<void> deleteAnnouncement(String id) async {
+    await _db.collection('announcements').doc(id).delete();
+  }
+
+  // ==================== UPCOMING EXAMS ====================
+  static Future<List<UpcomingExamModel>> getUpcomingExams({int limit = 50}) async {
+    final snapshot = await _db.collection('upcoming_exams')
+        .where('isPublished', isEqualTo: true)
+        .orderBy('examDate')
+        .limit(limit)
+        .get();
+    return snapshot.docs.map((doc) => UpcomingExamModel.fromFirestore(doc)).toList();
+  }
+
+  static Stream<List<UpcomingExamModel>> getUpcomingExamsStream({int limit = 50}) {
+    return _db.collection('upcoming_exams')
+        .where('isPublished', isEqualTo: true)
+        .orderBy('examDate')
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UpcomingExamModel.fromFirestore(doc))
+            .toList());
+  }
+
+  /// Admin-only: includes drafts and unpublished items.
+  static Stream<List<UpcomingExamModel>> getAllUpcomingExamsStream() {
+    return _db.collection('upcoming_exams')
+        .orderBy('examDate', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UpcomingExamModel.fromFirestore(doc))
+            .toList());
+  }
+
+  static Future<String?> addUpcomingExam(UpcomingExamModel e) async {
+    final docRef = await _db.collection('upcoming_exams').add(e.toFirestore());
+    return docRef.id;
+  }
+
+  static Future<void> updateUpcomingExam(UpcomingExamModel e) async {
+    await _db.collection('upcoming_exams').doc(e.id).update(e.toFirestore());
+  }
+
+  static Future<void> deleteUpcomingExam(String id) async {
+    await _db.collection('upcoming_exams').doc(id).delete();
+  }
+
+  // ==================== BANNERS ====================
+  static Stream<List<BannerModel>> getActiveBannersStream() {
+    return _db.collection('banners')
+        .where('isActive', isEqualTo: true)
+        .orderBy('order')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => BannerModel.fromFirestore(doc))
+            .where((b) => b.isVisible && b.imageUrl.isNotEmpty)
+            .toList());
+  }
+
+  /// Admin-only: includes inactive and scheduled banners.
+  static Stream<List<BannerModel>> getAllBannersStream() {
+    return _db.collection('banners')
+        .orderBy('order')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => BannerModel.fromFirestore(doc))
+            .toList());
+  }
+
+  static Future<String?> addBanner(BannerModel b) async {
+    final docRef = await _db.collection('banners').add(b.toFirestore());
+    return docRef.id;
+  }
+
+  static Future<void> updateBanner(BannerModel b) async {
+    await _db.collection('banners').doc(b.id).update(b.toFirestore());
+  }
+
+  static Future<void> deleteBanner(String id) async {
+    await _db.collection('banners').doc(id).delete();
+  }
+
+  // ==================== PREVIOUS PAPERS (Test type filter) ====================
+  static Stream<List<TestModel>> getPreviousPapersStream() {
+    return _db.collection('tests')
+        .where('type', isEqualTo: 'previousYear')
+        .where('isPublished', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => TestModel.fromFirestore(doc))
             .toList());
   }
 

@@ -101,6 +101,25 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ==================== ANNOUNCEMENTS ====================
+    // Public can read published announcements; only admins can write.
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== UPCOMING EXAMS ====================
+    match /upcoming_exams/{examId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== BANNERS ====================
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ==================== NOTIFICATIONS ====================
     match /notifications/{notificationId} {
       // Users can read their own notifications + broadcast ('all')

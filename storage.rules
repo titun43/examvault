@@ -1,0 +1,62 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper: check if user is admin (mirror of Firestore admins/{uid})
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ==================== CATEGORY IMAGES ====================
+    match /category_images/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== TEST IMAGES ====================
+    match /test_images/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== BANNER IMAGES ====================
+    match /banner_images/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== ANNOUNCEMENT IMAGES ====================
+    match /announcement_images/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== UPCOMING EXAM IMAGES ====================
+    match /upcoming_exam_images/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== CURRENT AFFAIRS PDF ====================
+    match /current_affairs_pdf/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ==================== USER AVATARS ====================
+    // Each user can read/write their own avatar
+    match /user_avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+  }
+}

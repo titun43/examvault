@@ -226,40 +226,87 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 16),
         Consumer<AuthProvider>(
           builder: (context, auth, _) {
-            return ElevatedButton(
-              onPressed: auth.isLoading
-                  ? null
-                  : () {
-                      if (_otpSent) {
-                        _verifyOtp();
-                      } else {
-                        _sendOtp();
-                      }
-                    },
-              child: auth.isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+            return Column(
+              children: [
+                ElevatedButton(
+                  onPressed: auth.isLoading
+                      ? null
+                      : () {
+                          if (_otpSent) {
+                            _verifyOtp();
+                          } else {
+                            _sendOtp();
+                          }
+                        },
+                  child: auth.isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
+                ),
+                if (_otpSent) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton(
+                        onPressed: auth.isLoading
+                            ? null
+                            : () {
+                                _otpController.clear();
+                                _sendOtp(); // resend uses forceResendingToken
+                              },
+                        child: const Text('Resend OTP'),
                       ),
-                    )
-                  : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
+                      const Text('•', style: TextStyle(color: Colors.grey)),
+                      TextButton(
+                        onPressed: () {
+                          final a = Provider.of<AuthProvider>(context, listen: false);
+                          a.resetOtpState();
+                          setState(() {
+                            _otpSent = false;
+                            _otpController.clear();
+                            _verificationId = null;
+                          });
+                        },
+                        child: const Text('Change number'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             );
           },
         ),
-        if (_otpSent)
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _otpSent = false;
-                _otpController.clear();
-                _verificationId = null;
-              });
-            },
-            child: const Text('Change mobile number'),
+        const SizedBox(height: 12),
+        // Help / troubleshooting hint
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.amber.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.amber.withOpacity(0.3)),
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Did not receive OTP? Make sure your number is active and not on DND. '
+                  'If still failing, ask admin to verify Firebase Phone Auth + SHA-1 are configured.',
+                  style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

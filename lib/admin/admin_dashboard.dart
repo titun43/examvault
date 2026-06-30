@@ -7,10 +7,14 @@ import '../../theme/app_theme.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/admin_categories_screen.dart';
 import 'screens/admin_tests_screen.dart';
+import 'screens/admin_previous_papers_screen.dart';
 import 'screens/admin_questions_screen.dart';
 import 'screens/admin_users_screen.dart';
 import 'screens/admin_payments_screen.dart';
 import 'screens/admin_analytics_screen.dart';
+import 'screens/admin_announcements_screen.dart';
+import 'screens/admin_upcoming_exams_screen.dart';
+import 'screens/admin_banners_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -26,7 +30,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const AdminHomeScreen(),
     const AdminCategoriesScreen(),
     const AdminTestsScreen(),
+    const AdminPreviousPapersScreen(),
     const AdminQuestionsScreen(),
+    const AdminAnnouncementsScreen(),
+    const AdminUpcomingExamsScreen(),
+    const AdminBannersScreen(),
     const AdminUsersScreen(),
     const AdminPaymentsScreen(),
     const AdminAnalyticsScreen(),
@@ -114,7 +122,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
     {'title': 'Dashboard', 'icon': Icons.dashboard},
     {'title': 'Categories', 'icon': Icons.category},
     {'title': 'Tests', 'icon': Icons.quiz},
+    {'title': 'Previous Papers', 'icon': Icons.history_edu},
     {'title': 'Questions', 'icon': Icons.question_answer},
+    {'title': 'Announcements', 'icon': Icons.campaign},
+    {'title': 'Upcoming Exams', 'icon': Icons.event_upcoming},
+    {'title': 'Banners', 'icon': Icons.view_carousel},
     {'title': 'Users', 'icon': Icons.people},
     {'title': 'Payments', 'icon': Icons.payment},
     {'title': 'Analytics', 'icon': Icons.analytics},

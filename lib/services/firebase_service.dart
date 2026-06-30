@@ -92,4 +92,11 @@ class FirebaseService {
       firestore.collection('leaderboard');
   static CollectionReference get adminsRef =>
       firestore.collection('admins');
+  // New collections (v1.5.0) — admin-managed content that flows to users
+  static CollectionReference get announcementsRef =>
+      firestore.collection('announcements');
+  static CollectionReference get upcomingExamsRef =>
+      firestore.collection('upcoming_exams');
+  static CollectionReference get bannersRef =>
+      firestore.collection('banners');
 }
