@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum NotificationType {
   testResult,
@@ -48,8 +49,8 @@ class NotificationModel {
       type: _parseType(data['type']),
       data: data['data'] ?? {},
       isRead: data['isRead'] ?? false,
-      scheduledAt: (data['scheduledAt'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      scheduledAt: parseTimestampNullable(data['scheduledAt']),
+      createdAt: parseTimestamp(data['createdAt']),
     );
   }
 

@@ -152,21 +152,27 @@ class FirestoreService {
 
   // ==================== QUESTIONS ====================
   static Future<List<QuestionModel>> getQuestions(String testId) async {
+    // Single-field filter only (testId) — sort client-side to avoid the
+    // composite index requirement (testId + createdAt).
     final snapshot = await _db.collection('questions')
         .where('testId', isEqualTo: testId)
-        .orderBy('createdAt')
         .get();
-    return snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+    final docs = snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+    docs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return docs;
   }
 
   static Stream<List<QuestionModel>> getQuestionsStream(String testId) {
+    // Single-field filter only (testId) — sort client-side to avoid the
+    // composite index requirement (testId + createdAt).
     return _db.collection('questions')
         .where('testId', isEqualTo: testId)
-        .orderBy('createdAt')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => QuestionModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return docs;
+        });
   }
 
   static Future<String?> addQuestion(QuestionModel question) async {
@@ -230,13 +236,17 @@ class FirestoreService {
   }
 
   static Stream<List<CurrentAffairModel>> getCurrentAffairsStream({int limit = 50}) {
+    // No server-side orderBy — Firestore's orderBy SKIPS documents that are
+    // missing the field, so a current affair without a `date` field would
+    // silently disappear. We fetch all and sort client-side instead.
     return _db.collection('current_affairs')
-        .orderBy('date', descending: true)
-        .limit(limit)
+        .limit(limit * 2)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => CurrentAffairModel.fromFirestore(doc))
-            .toList());
+        .map((snapshot) {
+          var docs = snapshot.docs.map((doc) => CurrentAffairModel.fromFirestore(doc)).toList();
+          docs.sort((a, b) => b.date.compareTo(a.date));
+          return docs.take(limit).toList();
+        });
   }
 
   // ==================== NOTIFICATIONS ====================

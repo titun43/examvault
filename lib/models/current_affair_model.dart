@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class CurrentAffairModel {
   final String id;
@@ -41,7 +42,7 @@ class CurrentAffairModel {
     final data = doc.data() as Map<String, dynamic>;
     return CurrentAffairModel(
       id: doc.id,
-      date: (data['date'] as Timestamp).toDate(),
+      date: parseTimestamp(data['date']),
       title: data['title'] ?? '',
       content: data['content'] ?? '',
       summary: data['summary'] ?? '',
@@ -52,8 +53,8 @@ class CurrentAffairModel {
       categoryId: data['categoryId'],
       isImportant: data['isImportant'] ?? false,
       tags: List<String>.from(data['tags'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class CategoryModel {
   final String id;
@@ -43,8 +44,8 @@ class CategoryModel {
       color: data['color'],
       order: data['order'] ?? 0,
       subjectCount: data['subjectCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

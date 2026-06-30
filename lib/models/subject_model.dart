@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class SubjectModel {
   final String id;
@@ -40,8 +41,8 @@ class SubjectModel {
       description: data['description'],
       order: data['order'] ?? 0,
       testCount: data['testCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

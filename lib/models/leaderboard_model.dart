@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum LeaderboardType { weekly, monthly, allTime, testSpecific }
 
@@ -53,9 +54,9 @@ class LeaderboardModel {
       streak: data['streak'] ?? 0,
       type: _parseType(data['type']),
       testId: data['testId'],
-      periodStart: (data['periodStart'] as Timestamp).toDate(),
-      periodEnd: (data['periodEnd'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      periodStart: parseTimestamp(data['periodStart']),
+      periodEnd: parseTimestamp(data['periodEnd']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

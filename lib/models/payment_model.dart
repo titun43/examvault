@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum PaymentStatus { created, authorized, captured, failed, refunded, pending }
 enum PaymentMethod { upi, card, netbanking, wallet, emi }
@@ -57,8 +58,8 @@ class PaymentModel {
       planId: data['planId'] ?? '',
       planName: data['planName'] ?? '',
       durationMonths: data['durationMonths'] ?? 1,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      completedAt: parseTimestampNullable(data['completedAt']),
       rawResponse: data['rawResponse'] ?? {},
     );
   }

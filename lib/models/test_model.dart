@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum TestType { mock, previousYear, dailyQuiz, practice, subjectwise }
 enum TestDifficulty { easy, medium, hard }
@@ -73,8 +74,8 @@ class TestModel {
       isPremium: data['isPremium'] ?? false,
       questionCount: data['questionCount'] ?? 0,
       attemptCount: data['attemptCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

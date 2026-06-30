@@ -1,6 +1,13 @@
 // =============================================================================
 // ExamVault - Splash Screen
 // =============================================================================
+// IMPORTANT: This screen waits for Firebase Auth to FINISH restoring any
+// persisted session before deciding where to navigate. Previously it used a
+// fixed 3-second delay, but Firebase Auth restores sessions asynchronously —
+// on a cold start (or slow device) the restore can take longer than 3s, so a
+// logged-in user would be wrongly sent to the login screen and forced to
+// log in again every time they reopened the app.
+// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,15 +26,55 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  static const Duration _minSplashTime = Duration(seconds: 2);
+  static const Duration _maxWaitTime = Duration(seconds: 10);
+
+  bool _navigated = false;
+  DateTime _startTime = DateTime.now();
+
   @override
   void initState() {
     super.initState();
-    _navigateAfterDelay();
+    _startTime = DateTime.now();
+    // Kick off the navigation check. It will listen to the auth provider and
+    // navigate as soon as auth is ready (or the safety timeout fires).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeNavigate());
   }
 
-  void _navigateAfterDelay() async {
-    await Future.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
+  void _maybeNavigate() {
+    if (!mounted || _navigated) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final authReady = authProvider.authInitialized && !authProvider.isLoading;
+
+    if (authReady) {
+      // Auth state is determined. Enforce a minimum splash display time for
+      // branding, then navigate.
+      final elapsed = DateTime.now().difference(_startTime);
+      final remaining = _minSplashTime - elapsed;
+      if (remaining.isNegative) {
+        _doNavigate();
+      } else {
+        Future.delayed(remaining, _doNavigate);
+      }
+      return;
+    }
+
+    // Auth not ready yet — check again shortly, but bail out after the safety
+    // timeout so the user is never stuck on the splash forever.
+    final elapsed = DateTime.now().difference(_startTime);
+    if (elapsed > _maxWaitTime) {
+      // Safety timeout: treat as not-authenticated and go to login.
+      _doNavigate();
+      return;
+    }
+
+    Future.delayed(const Duration(milliseconds: 200), _maybeNavigate);
+  }
+
+  void _doNavigate() {
+    if (!mounted || _navigated) return;
+    _navigated = true;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.isAuthenticated) {

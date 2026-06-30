@@ -5,6 +5,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class BannerModel {
   final String id;
@@ -46,10 +47,10 @@ class BannerModel {
       linkLabel: data['linkLabel'],
       order: data['order'] ?? 0,
       isActive: data['isActive'] ?? true,
-      startsAt: (data['startsAt'] as Timestamp?)?.toDate(),
-      endsAt: (data['endsAt'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      startsAt: parseTimestampNullable(data['startsAt']),
+      endsAt: parseTimestampNullable(data['endsAt']),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

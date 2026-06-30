@@ -65,6 +65,12 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   int? _resendToken; // allows "Resend OTP" without burning quota
+  // True once Firebase Auth has emitted its FIRST auth-state event. Before
+  // this, we don't yet know whether a persisted session will be restored, so
+  // the splash screen must NOT navigate the user to the login page (otherwise
+  // a logged-in user gets kicked to login on every cold start because the
+  // restore happens asynchronously and can take longer than a fixed delay).
+  bool _authInitialized = false;
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -73,13 +79,21 @@ class AuthProvider extends ChangeNotifier {
   bool get isPremium => _user?.isPremium ?? false;
   bool get isAdmin => _user?.isAdmin ?? false;
   int? get resendToken => _resendToken;
+  bool get authInitialized => _authInitialized;
 
   AuthProvider() {
     _initAuth();
   }
 
   void _initAuth() {
+    // Listen to the FIRST auth-state event to know when Firebase has finished
+    // restoring any persisted session. We keep listening for subsequent
+    // changes (sign-in / sign-out) afterwards.
     AuthService.authStateChanges.listen((firebaseUser) async {
+      // Mark auth as initialized on the very first event (user OR null).
+      if (!_authInitialized) {
+        _authInitialized = true;
+      }
       if (firebaseUser != null) {
         await loadUserData();
       } else {

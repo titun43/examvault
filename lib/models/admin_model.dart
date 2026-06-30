@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum AdminRole { superAdmin, contentManager, financeManager, support }
 
@@ -38,9 +39,9 @@ class AdminModel {
       phoneNumber: data['phoneNumber'],
       role: _parseRole(data['role']),
       isActive: data['isActive'] ?? true,
-      lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      lastLoginAt: parseTimestampNullable(data['lastLoginAt']) ?? DateTime.now(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

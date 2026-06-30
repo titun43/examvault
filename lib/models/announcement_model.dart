@@ -4,6 +4,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum AnnouncementType { info, success, warning, error, promo }
 
@@ -51,9 +52,9 @@ class AnnouncementModel {
       isPinned: data['isPinned'] ?? false,
       isPublished: data['isPublished'] ?? true,
       order: data['order'] ?? 0,
-      expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      expiresAt: parseTimestampNullable(data['expiresAt']),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

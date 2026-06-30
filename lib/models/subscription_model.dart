@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum SubscriptionPlan { monthly, quarterly, yearly }
 
@@ -37,10 +38,10 @@ class SubscriptionModel {
       plan: _parsePlan(data['plan']),
       amount: data['amount'] ?? 0,
       paymentId: data['paymentId'] ?? '',
-      startDate: (data['startDate'] as Timestamp).toDate(),
-      endDate: (data['endDate'] as Timestamp).toDate(),
+      startDate: parseTimestamp(data['startDate']),
+      endDate: parseTimestamp(data['endDate']),
       isActive: data['isActive'] ?? true,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
     );
   }
 

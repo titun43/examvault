@@ -4,6 +4,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class UpcomingExamModel {
   final String id;
@@ -49,9 +50,9 @@ class UpcomingExamModel {
       name: data['name'] ?? '',
       organization: data['organization'],
       categoryId: data['categoryId'],
-      examDate: (data['examDate'] as Timestamp).toDate(),
-      applicationStartDate: (data['applicationStartDate'] as Timestamp?)?.toDate(),
-      applicationEndDate: (data['applicationEndDate'] as Timestamp?)?.toDate(),
+      examDate: parseTimestamp(data['examDate']),
+      applicationStartDate: parseTimestampNullable(data['applicationStartDate']),
+      applicationEndDate: parseTimestampNullable(data['applicationEndDate']),
       notificationUrl: data['notificationUrl'],
       syllabusUrl: data['syllabusUrl'],
       imageUrl: data['imageUrl'],
@@ -59,8 +60,8 @@ class UpcomingExamModel {
       tags: List<String>.from(data['tags'] ?? []),
       isPublished: data['isPublished'] ?? true,
       order: data['order'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
     );
   }
 

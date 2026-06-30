@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 class TestResultModel {
   final String id;
@@ -68,7 +69,7 @@ class TestResultModel {
       correctAnswersList: List<int>.from(data['correctAnswersList'] ?? []),
       accuracy: (data['accuracy'] ?? 0).toDouble(),
       rank: data['rank'] ?? 0,
-      attemptedAt: (data['attemptedAt'] as Timestamp).toDate(),
+      attemptedAt: parseTimestamp(data['attemptedAt']),
     );
   }
 

@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/firestore_helpers.dart';
 
 enum UserRole { user, admin }
 
@@ -63,16 +64,16 @@ class UserModel {
       photoUrl: data['photoUrl'],
       role: data['role'] == 'admin' ? UserRole.admin : UserRole.user,
       subscriptionStatus: _parseSubscriptionStatus(data['subscriptionStatus']),
-      subscriptionExpiry: (data['subscriptionExpiry'] as Timestamp?)?.toDate(),
+      subscriptionExpiry: parseTimestampNullable(data['subscriptionExpiry']),
       subscriptionPlanId: data['subscriptionPlanId'],
       totalTestsAttempted: data['totalTestsAttempted'] ?? 0,
       averageScore: (data['averageScore'] ?? 0).toDouble(),
       totalXp: data['totalXp'] ?? 0,
       level: data['level'] ?? 1,
       streak: data['streak'] ?? 0,
-      lastActiveAt: (data['lastActiveAt'] as Timestamp?)?.toDate(),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      lastActiveAt: parseTimestampNullable(data['lastActiveAt']),
+      createdAt: parseTimestamp(data['createdAt']),
+      updatedAt: parseTimestamp(data['updatedAt']),
       isActive: data['isActive'] ?? true,
       fcmToken: data['fcmToken'],
       preferences: data['preferences'] ?? {},
