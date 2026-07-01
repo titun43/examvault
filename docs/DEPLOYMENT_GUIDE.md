@@ -13,7 +13,7 @@
 |-------------------------------|--------|------------------------------------------------------------------|
 | App name                      | ✅ Set | `ExamVault`                                                      |
 | Package name                  | ✅ Set | `com.examvault.education`                                        |
-| Firebase (Web config)         | ✅ Set | project `examvault-7fba8`, apiKey, senderId, appId, etc.         |
+| Firebase (Web config)         | ✅ Set | project `examvaultnew`, apiKey, senderId, appId, etc.            |
 | AdMob App ID                  | ✅ Set | `ca-app-pub-1742730064755213~7890219994`                         |
 | Banner Ad Unit ID             | ✅ Set | `ca-app-pub-1742730064755213/4499859652`                         |
 | Interstitial Ad Unit ID       | ✅ Set | `ca-app-pub-1742730064755213/5520307609`                         |
@@ -45,7 +45,7 @@ java -version            # should say 17.x
 You've already provided the **Web** Firebase config, but for an Android app
 you need the **Android** `google-services.json`.
 
-1. Go to <https://console.firebase.google.com> → project **`examvault-7fba8`**.
+1. Go to <https://console.firebase.google.com> → project **`examvaultnew`**.
 2. **Project Settings → Your apps → Add app → Android**.
 3. Android package name: **`com.examvault.education`** (must match exactly).
 4. App nickname: `ExamVault`.
@@ -61,7 +61,7 @@ you need the **Android** `google-services.json`.
    ```
    examvault-flutter/android/app/google-services.json
    ```
-   (a placeholder file already exists there — overwrite it).
+   (the real `google-services.json` for project `examvaultnew` is already in place — overwrite only if you regenerated it from Firebase Console).
 7. In Firebase Console, enable these services:
    - **Authentication** → Sign-in methods → enable **Phone**, **Email/Password**, **Google**
    - **Firestore Database** → Create (production mode, `asia-south1` Mumbai)

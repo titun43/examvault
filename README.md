@@ -4,7 +4,7 @@ India's #1 MCQ Mock Test platform for Railway, SSC, UPSC, Banking, ADRE & State 
 
 > **Package:** `com.examvault.education`
 > **Owner:** lkstudeoandcomputering@gmail.com
-> **Firebase Project:** examvault-7fba8
+> **Firebase Project:** examvaultnew
 
 ---
 
@@ -59,7 +59,7 @@ flutter pub get
 ```
 
 ### 1. Add `google-services.json`
-- Go to <https://console.firebase.google.com> → project `examvault-7fba8`
+- Go to <https://console.firebase.google.com> → project `examvaultnew`
 - Project Settings → Your apps → Add Android app
 - Package name: **`com.examvault.education`**
 - Download `google-services.json` and place it at `android/app/google-services.json`
@@ -89,8 +89,8 @@ All real values are in **`lib/config/app_config.dart`**:
 |---------------------------|------------------------------------------------------------------|
 | `appName`                 | `ExamVault`                                                      |
 | `packageName`             | `com.examvault.education`                                        |
-| `firebaseProjectId`       | `examvault-7fba8`                                                |
-| `firebaseApiKey`          | `AIzaSyDumulPADTU0YigQ_w96-shb5i2ch6w8FY`                        |
+| `firebaseProjectId`       | `examvaultnew`                                                  |
+| `firebaseApiKey`          | `AIzaSyBKEUGs9r7Q71q7vCIh3Pz_mletXQCok6E`                        |
 | `admobAppId`              | `ca-app-pub-1742730064755213~7890219994`                         |
 | `bannerAdUnitId`          | `ca-app-pub-1742730064755213/4499859652`                         |
 | `interstitialAdUnitId`    | `ca-app-pub-1742730064755213/5520307609`                         |
@@ -142,7 +142,7 @@ examvault-flutter/
 ├── android/                  Android configuration
 │   ├── app/
 │   │   ├── build.gradle      App-level Gradle config
-│   │   ├── google-services.json.placeholder  (rename to google-services.json)
+│   │   ├── google-services.json     Real Firebase config (project: examvaultnew)
 │   │   ├── key.properties    Keystore signing config (REAL)
 │   │   ├── proguard-rules.pro
 │   │   └── src/main/
