@@ -243,16 +243,23 @@ jobs:
           echo "=== apksigner output (first 20 lines) ==="
           echo "$CERTS_OUT" | head -20
 
+          # apksigner prints the digest as a bare lowercase hex string
+          # (e.g. "ba56a605a0d8a3e18175c733983174efc4716a6e"), while the
+          # EXPECTED_SHA1 secret is stored with colons in uppercase
+          # (e.g. "BA:56:A6:05:..."). Normalize BOTH by stripping colons
+          # (and any other punctuation) and uppercasing before comparing.
           ACTUAL_SHA1=$(echo "$CERTS_OUT" \
-            | grep -i 'SHA-1' | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
-          EXPECTED_SHA1_UP=$(echo "$EXPECTED_SHA1" | tr '[:lower:]' '[:upper:]')
-          echo "APK cert SHA-1: $ACTUAL_SHA1"
-          echo "Expected SHA-1: $EXPECTED_SHA1_UP"
+            | grep -i 'SHA-1' | head -1 | awk '{print $NF}' \
+            | tr -d '[:punct:]' | tr '[:lower:]' '[:upper:]')
+          EXPECTED_SHA1_NORM=$(echo "$EXPECTED_SHA1" \
+            | tr -d '[:punct:]' | tr '[:lower:]' '[:upper:]')
+          echo "APK cert SHA-1 (normalized): $ACTUAL_SHA1"
+          echo "Expected SHA-1 (normalized): $EXPECTED_SHA1_NORM"
           if [ -z "$ACTUAL_SHA1" ]; then
             echo "::error::Could not parse SHA-1 from apksigner output (see above)."
             exit 1
           fi
-          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_UP" ]; then
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_NORM" ]; then
             echo "::error::Built APK is NOT signed by the official key! Aborting."
             exit 1
           fi
