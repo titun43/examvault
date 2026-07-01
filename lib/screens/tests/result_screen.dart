@@ -7,7 +7,6 @@ import '../../models/test_result_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_model.dart';
 import '../../theme/app_theme.dart';
-import 'take_test_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final TestResultModel result;
@@ -25,6 +24,7 @@ class ResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Test Result'),
@@ -127,19 +127,20 @@ class ResultScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             // Solutions
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Solutions & Explanations',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.grey.shade50 : Colors.black87,
                 ),
               ),
             ),
             const SizedBox(height: 12),
             ...List.generate(questions.length, (index) {
-              return _buildSolutionCard(index);
+              return _buildSolutionCard(context, index);
             }),
             const SizedBox(height: 24),
             // Action buttons
@@ -204,10 +205,20 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSolutionCard(int index) {
+  Widget _buildSolutionCard(BuildContext context, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final question = questions[index];
     final userAnswer = userAnswers[index];
     final isCorrect = userAnswer == question.correctAnswerIndex;
+
+    // Theme-aware neutral colors so the "default" option (not correct, not
+    // user-selected) is readable in both light and dark mode. Previously
+    // this used Colors.grey.shade50 which is near-invisible on a dark card.
+    final Color neutralBg = isDark ? Colors.grey.shade800 : Colors.grey.shade50;
+    final Color neutralBorder = isDark ? Colors.grey.shade600 : Colors.grey.shade200;
+    final Color optionTextColor = isDark ? Colors.grey.shade50 : Colors.black87;
+    final Color questionTextColor = isDark ? Colors.grey.shade50 : Colors.black87;
+    final Color labelTextColor = isDark ? Colors.grey.shade100 : Colors.black87;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -243,7 +254,10 @@ class ResultScreen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Question ${index + 1}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: labelTextColor,
+                    ),
                   ),
                 ),
               ],
@@ -251,7 +265,7 @@ class ResultScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               question.question,
-              style: const TextStyle(fontSize: 14),
+              style: TextStyle(fontSize: 14, color: questionTextColor),
             ),
             const SizedBox(height: 12),
             // Show options
@@ -266,24 +280,32 @@ class ResultScreen extends StatelessWidget {
                       ? AppTheme.successColor.withOpacity(0.1)
                       : isUserAnswer
                           ? AppTheme.errorColor.withOpacity(0.1)
-                          : Colors.grey.shade50,
+                          : neutralBg,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isCorrectAnswer
                         ? AppTheme.successColor
                         : isUserAnswer
                             ? AppTheme.errorColor
-                            : Colors.grey.shade200,
+                            : neutralBorder,
                   ),
                 ),
                 child: Row(
                   children: [
                     Text(
                       '${String.fromCharCode(65 + i)}.',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: optionTextColor,
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(child: Text(question.options[i])),
+                    Expanded(
+                      child: Text(
+                        question.options[i],
+                        style: TextStyle(color: optionTextColor),
+                      ),
+                    ),
                     if (isCorrectAnswer)
                       const Icon(Icons.check_circle, color: AppTheme.successColor, size: 18)
                     else if (isUserAnswer)
@@ -303,10 +325,10 @@ class ResultScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(Icons.lightbulb, color: AppTheme.infoColor, size: 18),
-                        SizedBox(width: 8),
+                        const Icon(Icons.lightbulb, color: AppTheme.infoColor, size: 18),
+                        const SizedBox(width: 8),
                         Text(
                           'Explanation',
                           style: TextStyle(
@@ -317,7 +339,12 @@ class ResultScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Text(question.explanation!),
+                    Text(
+                      question.explanation!,
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade100 : Colors.black87,
+                      ),
+                    ),
                   ],
                 ),
               ),

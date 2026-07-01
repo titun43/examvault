@@ -42,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _bannerController = PageController();
   Timer? _bannerTimer;
   int _currentBannerPage = 0;
+  int _bannerCount = 0; // tracked so the auto-rotate can wrap with modulo
 
   @override
   void initState() {
@@ -59,7 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startBannerAutoScroll() {
     _bannerTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!_bannerController.hasClients) return;
-      final nextPage = _currentBannerPage + 1;
+      if (_bannerCount <= 1) return; // nothing to rotate through
+      // WRAP with modulo so we don't try to animate past the last banner
+      // (the old `+1` without modulo caused animateToPage to target an
+      // out-of-bounds index, which left the carousel stuck on the last
+      // banner — the "banner auto change hoi na" bug).
+      final nextPage = (_currentBannerPage + 1) % _bannerCount;
       _bannerController.animateToPage(
         nextPage,
         duration: const Duration(milliseconds: 500),
@@ -156,6 +162,14 @@ class _HomeScreenState extends State<HomeScreen> {
           return const SizedBox.shrink(); // no banners → hide carousel
         }
         final banners = snapshot.data!;
+        // Track the count so the auto-rotate timer can wrap with modulo.
+        // (Updated via addPostFrameCallback so we don't call setState during
+        // build.)
+        if (_bannerCount != banners.length) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _bannerCount = banners.length);
+          });
+        }
         return Column(
           children: [
             SizedBox(
@@ -217,6 +231,51 @@ class _HomeScreenState extends State<HomeScreen> {
                                     Colors.transparent,
                                   ],
                                   stops: const [0, 0.5],
+                                ),
+                              ),
+                            ),
+                            // LIVE badge (top-left) — pulsing red dot + "LIVE"
+                            // label, matching the admin preview so users see
+                            // the same "live" indicator the admin sees.
+                            Positioned(
+                              top: 10,
+                              left: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.9),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(0.4),
+                                      blurRadius: 8,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'LIVE',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -462,6 +521,46 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: Row(
               children: [
+                // LIVE pulsing badge — the "live" indicator the user saw in
+                // the admin preview but was missing in the user app.
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.4),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -1254,6 +1353,7 @@ class _MarqueeTextState extends State<_MarqueeText> {
   @override
   Widget build(BuildContext context) {
     if (widget.texts.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 400),
       child: Text(
@@ -1261,7 +1361,11 @@ class _MarqueeTextState extends State<_MarqueeText> {
         key: ValueKey(_index),
         style: TextStyle(
           fontSize: 12,
-          color: Colors.grey.shade800,
+          // Theme-aware so the ticker text is readable on both the light
+          // blue-ish ticker card (light mode) and the dark blue-ish card
+          // (dark mode). Previously hardcoded to grey.shade800 which was
+          // near-invisible in dark mode.
+          color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
           fontWeight: FontWeight.w500,
         ),
         maxLines: 1,

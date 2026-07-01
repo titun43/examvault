@@ -86,6 +86,10 @@ class _AnnouncementCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = announcement;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
+    final subtitleColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
+    final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade500;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -113,10 +117,44 @@ class _AnnouncementCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     a.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
+                      color: textColor,
                     ),
+                  ),
+                ),
+                // LIVE pulsing badge — shows on every active announcement so
+                // users see the same "LIVE" indicator the admin preview has.
+                Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.4),
+                        blurRadius: 4,
+                        spreadRadius: 0,
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 6, color: Colors.white),
+                      SizedBox(width: 3),
+                      Text(
+                        'LIVE',
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (a.isPinned)
@@ -142,7 +180,7 @@ class _AnnouncementCard extends StatelessWidget {
               a.message,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade700,
+                color: subtitleColor,
                 height: 1.4,
               ),
             ),
@@ -151,7 +189,7 @@ class _AnnouncementCard extends StatelessWidget {
               children: [
                 Text(
                   _timeAgo(a.createdAt),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: mutedColor),
                 ),
                 const Spacer(),
                 if (a.link != null && a.link!.isNotEmpty)

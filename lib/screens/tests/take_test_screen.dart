@@ -9,7 +9,6 @@ import '../../models/test_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
 import '../../services/firestore_service.dart';
-import '../../services/admob_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import 'result_screen.dart';
@@ -30,7 +29,6 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   Timer? _timer;
   int _timeRemaining = 0;
   bool _isLoading = true;
-  bool _showSubmitDialog = false;
   bool _isSubmitting = false; // guards against double-submission
 
   @override
@@ -167,10 +165,19 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
 
     // Save result + update user stats in the background. Wrap each in its own
     // try/catch so a failure in one doesn't block the others, and so a
-    // Firestore/AdMob error never crashes the app after submission (which was
+    // Firestore error never crashes the app after submission (which was
     // the "app auto-closes after taking a test" bug). We navigate to the
     // result screen regardless — the user already finished the test and
     // deserves to see their score.
+    //
+    // IMPORTANT (v1.9.0 crash fix): The previous version called
+    // AdMobService.showInterstitialAd() here. Showing an interstitial ad
+    // immediately after test submission was the #1 cause of the post-test
+    // native crash — the ad's fullScreenContentCallback was never wired,
+    // so a failed/dismissed ad could leave the activity in a broken state
+    // and the JVM would tear down the process. We now NEVER show an
+    // interstitial on the submit path. Ads may still be shown elsewhere
+    // (banners) but never as a blocking modal between test and result.
     _persistAndNavigate(result, userId, correct, _questions.length, percentage);
   }
 
@@ -213,26 +220,24 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       }
     }
 
-    // 4) Show interstitial ad (best-effort — never crash if ad not ready).
-    try {
-      await AdMobService.showInterstitialAd();
-    } catch (e) {
-      print('showInterstitialAd error (non-fatal): $e');
-    }
-
-    // 5) Navigate to result screen. Use pushReplacement so the test screen is
+    // 4) Navigate to result screen. Use pushReplacement so the test screen is
     //    popped off the stack (prevents "back" returning to a finished test).
+    //    No interstitial ad in between — see comment in _submitTest().
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ResultScreen(
-          result: result,
-          questions: _questions,
-          userAnswers: _userAnswers,
+    try {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(
+            result: result,
+            questions: _questions,
+            userAnswers: _userAnswers,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e) {
+      print('navigate to result error (non-fatal): $e');
+    }
   }
 
   @override
@@ -244,6 +249,37 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       );
     }
 
+    // Empty-questions guard: if questions failed to load, show a friendly
+    // message instead of crashing on _questions[_currentQuestionIndex].
+    if (_questions.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.test.title)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.inbox, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text(
+                  'No questions available for this test yet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final question = _questions[_currentQuestionIndex];
     final minutes = _timeRemaining ~/ 60;
     final seconds = _timeRemaining % 60;
@@ -291,7 +327,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             // Progress bar
             LinearProgressIndicator(
               value: (_currentQuestionIndex + 1) / _questions.length,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
               valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
             ),
             // Question counter
@@ -302,16 +338,17 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                 children: [
                   Text(
                     'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.grey.shade100 : Colors.black87,
                     ),
                   ),
                   Text(
                     'Marks: ${question.marks}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
                     ),
                   ),
                 ],
@@ -333,10 +370,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     ],
                     Text(
                       question.question,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         height: 1.5,
+                        color: isDark ? Colors.grey.shade50 : Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -358,7 +396,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                               border: Border.all(
                                 color: isSelected
                                     ? AppTheme.primaryColor
-                                    : Colors.grey.shade300,
+                                    : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
                                 width: isSelected ? 2 : 1,
                               ),
                             ),
@@ -370,7 +408,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                                   decoration: BoxDecoration(
                                     color: isSelected
                                         ? AppTheme.primaryColor
-                                        : Colors.grey.shade100,
+                                        : (isDark ? Colors.grey.shade700 : Colors.grey.shade100),
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   child: Center(
@@ -380,7 +418,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                                         fontWeight: FontWeight.w600,
                                         color: isSelected
                                             ? Colors.white
-                                            : Colors.grey.shade700,
+                                            : (isDark ? Colors.grey.shade100 : Colors.grey.shade700),
                                       ),
                                     ),
                                   ),
@@ -393,7 +431,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                                       fontSize: 14,
                                       color: isSelected
                                           ? AppTheme.primaryColor
-                                          : Colors.black87,
+                                          : (isDark ? Colors.grey.shade50 : Colors.black87),
                                     ),
                                   ),
                                 ),
@@ -455,6 +493,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   }
 
   void _showQuestionPalette() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (context) {
@@ -481,7 +520,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                           ? AppTheme.primaryColor
                           : isAnswered
                               ? AppTheme.successColor.withOpacity(0.2)
-                              : Colors.grey.shade200,
+                              : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
                       borderRadius: BorderRadius.circular(8),
                       border: isCurrent
                           ? Border.all(color: AppTheme.primaryColor, width: 2)
@@ -496,7 +535,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                               ? Colors.white
                               : isAnswered
                                   ? AppTheme.successColor
-                                  : Colors.grey.shade700,
+                                  : (isDark ? Colors.grey.shade100 : Colors.grey.shade700),
                         ),
                       ),
                     ),

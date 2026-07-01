@@ -3,6 +3,7 @@
 // Entry point of the application
 // =============================================================================
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -18,21 +19,39 @@ import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Run the app inside a zoned error handler so that any uncaught async
+  // exception (Firestore, AdMob, etc.) is logged instead of crashing the
+  // app. This is the global safety net that prevents the "app closes after
+  // test" bug even when an individual screen's try/catch misses something.
+  runZonedGuarded<Future<void>>(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await FirebaseService.initialize();
+    // Catch Flutter framework errors (build, layout, paint) so a render
+    // bug in one screen doesn't kill the whole app in release mode.
+    FlutterError.onError = (FlutterErrorDetails details) {
+      FlutterError.presentError(details);
+      print('FlutterError: ${details.exceptionAsString()}');
+    };
 
-  // Initialize AdMob
-  await AdMobService.initialize();
+    // Initialize Firebase
+    await FirebaseService.initialize();
 
-  // Initialize Razorpay
-  RazorpayService.initialize();
+    // Initialize AdMob
+    await AdMobService.initialize();
 
-  // Initialize Notifications
-  await NotificationService.initialize();
+    // Initialize Razorpay
+    RazorpayService.initialize();
 
-  runApp(const ExamVaultApp());
+    // Initialize Notifications
+    await NotificationService.initialize();
+
+    runApp(const ExamVaultApp());
+  }, (error, stackTrace) {
+    // Any uncaught async error lands here. We log it but DO NOT rethrow —
+    // rethrowing would crash the app, which is exactly what we're preventing.
+    print('Uncaught async error (suppressed): $error');
+    print(stackTrace);
+  });
 }
 
 class ExamVaultApp extends StatelessWidget {

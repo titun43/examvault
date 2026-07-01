@@ -1,139 +1,316 @@
 // =============================================================================
 // ExamVault - Daily Quiz Screen
+// Fetches daily quizzes from Firestore (tests where type == dailyQuiz).
+// The admin creates these from the admin panel (web or in-app) by selecting
+// "Daily Quiz" as the test type.
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
+import '../../models/test_model.dart';
+import '../../services/firestore_service.dart';
+import 'take_test_screen.dart';
 
 class DailyQuizScreen extends StatelessWidget {
   const DailyQuizScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('Daily Quiz')),
-      body: SingleChildScrollView(
+      body: StreamBuilder<List<TestModel>>(
+        stream: FirestoreService.getTestsStream(
+          type: TestType.dailyQuiz,
+          isPublished: true,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _buildErrorState(context, isDark);
+          }
+          final quizzes = snapshot.data ?? [];
+          if (quizzes.isEmpty) {
+            return _buildEmptyState(context, isDark);
+          }
+
+          final today = quizzes.first; // getTestsStream sorts by createdAt desc
+          final previous = quizzes.skip(1).toList();
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Streak / motivational card
+                _buildStreakCard(),
+                const SizedBox(height: 24),
+                // Today's Quiz
+                Text(
+                  "Today's Quiz",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.grey.shade50 : Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _DailyQuizCard(test: today, isFeatured: true),
+                if (previous.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text(
+                    'Previous Quizzes',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.grey.shade50 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...previous.map(
+                    (q) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _DailyQuizCard(test: q, isFeatured: false),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 24),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStreakCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: AppTheme.accentGradient,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.local_fire_department, color: Colors.white, size: 50),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Keep your streak going!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  "Take today's quiz to stay sharp.",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 64,
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No daily quizzes available yet.\nCheck back soon!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context, bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 64,
+              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load daily quizzes.\nPlease try again later.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card representing a single daily quiz. When tapped, navigates to
+/// TakeTestScreen with the full test.
+class _DailyQuizCard extends StatelessWidget {
+  final TestModel test;
+  final bool isFeatured; // true = "Today's Quiz" (larger, "Start Quiz" CTA)
+
+  const _DailyQuizCard({required this.test, required this.isFeatured});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
+    final subtitleColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
+    final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+
+    return Card(
+      child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Streak Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: AppTheme.accentGradient,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.local_fire_department, color: Colors.white, size: 50),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.bolt,
+                    color: AppTheme.accentColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    test.title,
+                    style: TextStyle(
+                      fontSize: isFeatured ? 16 : 15,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+                if (test.isPremium)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          '7 Day Streak!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                        Icon(Icons.star, size: 12, color: AppTheme.accentColor),
+                        SizedBox(width: 2),
                         Text(
-                          'Keep it up! Come back tomorrow.',
+                          'PREMIUM',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 13,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.accentColor,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
-            // Today's Quiz
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Today\'s Quiz',
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                _metaChip(Icons.help_outline, '${test.questionCount} Qs', mutedColor),
+                _metaChip(Icons.timer, '${test.duration} min', mutedColor),
+                _metaChip(
+                    Icons.star_border, '${test.totalMarks} marks', mutedColor),
+              ],
+            ),
+            if (test.instructions != null &&
+                test.instructions!.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                test.instructions!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: subtitleColor,
+                  fontStyle: FontStyle.italic,
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Daily Current Affairs Quiz',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TakeTestScreen(test: test),
                     ),
-                    const SizedBox(height: 8),
-                    const Text('10 Questions • 10 Minutes'),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          // Navigate to quiz
-                        },
-                        child: const Text('Start Quiz'),
-                      ),
-                    ),
-                  ],
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isFeatured ? AppTheme.accentColor : AppTheme.primaryColor,
                 ),
+                child: Text(isFeatured ? 'Start Quiz' : 'Start'),
               ),
             ),
-            const SizedBox(height: 24),
-            // Previous Quizzes
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Previous Quizzes',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...List.generate(5, (index) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: const Icon(Icons.calendar_today, color: AppTheme.primaryColor),
-                  title: Text('Quiz ${index + 1}'),
-                  subtitle: Text('${5 + index} days ago'),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '${80 + index}%',
-                      style: const TextStyle(
-                        color: AppTheme.successColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: color),
+        ),
+      ],
     );
   }
 }
