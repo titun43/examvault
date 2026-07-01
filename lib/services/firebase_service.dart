@@ -44,17 +44,12 @@ class FirebaseService {
       await Firebase.initializeApp();
     }
 
-    // Crashlytics: BEST-EFFORT only. We do NOT override FlutterError.onError
-    // or PlatformDispatcher.instance.onError here because those are already
-    // set safely in main.dart. If we overrode them with Crashlytics handlers
-    // and Crashlytics itself threw (e.g. not configured, network issue), the
-    // throw would be uncaught → app crash ("ExamVault keeps stopping").
-    // Instead we just record errors to Crashlytics from our safe handlers.
-    try {
-      // Sanity-touch: access the instance so any init error surfaces here
-      // (caught) instead of later during a build.
-      FirebaseCrashlytics.instance;
-    } catch (_) {}
+    // Crashlytics auto-collection is DISABLED in AndroidManifest (v1.13+)
+    // because the native Crashlytics pipeline was the most likely cause of
+    // the "ExamVault keeps stopping" native crash on login. We do NOT touch
+    // FirebaseCrashlytics.instance here at all — even accessing it can spin
+    // up the native pipeline. All Dart-level errors are handled safely by
+    // main.dart's runZonedGuarded + FlutterError.onError.
 
     _initialized = true;
   }

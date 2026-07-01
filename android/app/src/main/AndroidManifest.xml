@@ -43,6 +43,27 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${admobAppId}" />
 
+        <!-- ==================== DISABLE CRASHLYTICS AUTO-COLLECTION ==================== -->
+        <!-- Crashlytics auto-initialises a native crash pipeline at app start.
+             If that pipeline misconfigures (missing symbols, version mismatch,
+             network issue) it can crash the app natively with "ExamVault keeps
+             stopping" — and because it's native, Dart's runZonedGuarded can't
+             catch it. Disabling auto-collection here stops the native pipeline
+             from running. We still keep the dependency for manual reporting. -->
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
+
+        <!-- ==================== DISABLE ANALYTICS AUTO-COLLECTION ==================== -->
+        <!-- Same reasoning: Analytics auto-collects at native level and can
+             crash if Google Play Services / measurement is misconfigured. -->
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="google_analytics_adid_collection_enabled"
+            android:value="false" />
+
         <!-- ==================== FIREBASE MESSAGING ==================== -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
@@ -83,6 +104,15 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- ==================== DISABLE ADMOB AUTO-INIT ==================== -->
+        <!-- We initialise AdMob manually from Dart (AdMobService.initialize)
+             inside a try/catch. Disabling auto-init here prevents the AdMob
+             native SDK from initialising before our Dart code is ready, which
+             can cause a native crash if the App ID isn't yet resolvable. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.AUTO_INIT_IMPLICIT"
+            android:value="false" />
     </application>
 
     <!-- ==================== QUERIES ( Razorpay, etc) ==================== -->

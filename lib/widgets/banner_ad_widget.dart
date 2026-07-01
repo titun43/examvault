@@ -3,6 +3,10 @@
 // Shows an AdMob banner ad for FREE (non-premium) users. Premium users see
 // nothing — the widget returns a SizedBox.shrink(). This is used on the home
 // screen and can be dropped into any screen.
+// CRASH-SAFETY (v1.13+): NEVER creates a BannerAd until AdMobService.isInitialized
+// is true. Creating an ad before MobileAds.initialize() completes can crash
+// the app natively (below Dart's error handlers). Also wraps _loadAd in
+// try/catch so a native ad-load exception is contained.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -10,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../config/app_config.dart';
 import '../providers/auth_provider.dart';
+import '../services/admob_service.dart';
 
 class BannerAdWidget extends StatefulWidget {
   /// Optional size; defaults to the standard banner (320x50).
@@ -25,37 +30,60 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isLoaded = false;
   bool _disposed = false;
+  bool _loadFailed = false;
 
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    // Only attempt to load if AdMob is already initialised. If it isn't
+    // (e.g. init failed or hasn't completed yet), skip — the widget will
+    // render an empty SizedBox and no native crash can occur.
+    if (AdMobService.isInitialized) {
+      _loadAd();
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _bannerAd?.dispose();
+    try {
+      _bannerAd?.dispose();
+    } catch (_) {}
     super.dispose();
   }
 
   void _loadAd() {
-    _bannerAd = BannerAd(
-      adUnitId: AppConfig.admobTestMode
-          ? AppConfig.testBannerAdUnitId
-          : AppConfig.bannerAdUnitId,
-      size: widget.size,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (!_disposed) setState(() => _isLoaded = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          if (!_disposed) setState(() => _isLoaded = false);
-        },
-      ),
-    )..load();
+    try {
+      _bannerAd = BannerAd(
+        adUnitId: AppConfig.admobTestMode
+            ? AppConfig.testBannerAdUnitId
+            : AppConfig.bannerAdUnitId,
+        size: widget.size,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (_) {
+            if (!_disposed) setState(() => _isLoaded = true);
+          },
+          onAdFailedToLoad: (ad, error) {
+            try {
+              ad.dispose();
+            } catch (_) {}
+            if (!_disposed) {
+              setState(() {
+                _isLoaded = false;
+                _loadFailed = true;
+              });
+            }
+          },
+        ),
+      )..load();
+    } catch (e) {
+      // Native ad creation can throw if the SDK state is bad. Contain it.
+      print('BannerAd creation/load failed (non-fatal): $e');
+      if (!_disposed) {
+        setState(() => _loadFailed = true);
+      }
+    }
   }
 
   @override
@@ -63,6 +91,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     // Hide ads for premium users — they paid for an ad-free experience.
     final auth = Provider.of<AuthProvider>(context);
     if (auth.isPremium) return const SizedBox.shrink();
+
+    // If AdMob isn't initialised or the ad failed to load, render nothing
+    // rather than a placeholder — this keeps the home screen layout clean
+    // and guarantees no native crash path.
+    if (!AdMobService.isInitialized || _loadFailed) {
+      return const SizedBox.shrink();
+    }
 
     if (!_isLoaded || _bannerAd == null) {
       // Reserve space so the layout doesn't jump when the ad loads.
