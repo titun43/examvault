@@ -91,7 +91,16 @@ jobs:
 
           if [ "${#CLEAN_B64}" -lt 100 ]; then
             echo "::error::KEYSTORE_BASE64 secret is too short (${#CLEAN_B64} chars after cleaning)."
-            echo "::error::Expected ~3600+ chars. Did you paste the full content of KEYSTORE_BASE64.txt?"
+            echo "::error::Expected ~3648 chars. You appear to have pasted a filename, password,"
+            echo "::error::or some other short value instead of the actual base64-encoded keystore."
+            echo "::error::"
+            echo "::error::HOW TO FIX:"
+            echo "::error::  1. Open the KEYSTORE_BASE64.txt file in a text editor (it's at the"
+            echo "::error::     project root, generated alongside the keystore)."
+            echo "::error::  2. Select ALL the content (Ctrl+A) and copy (Ctrl+C)."
+            echo "::error::  3. In GitHub: Settings → Secrets and variables → Actions →"
+            echo "::error::     KEYSTORE_BASE64 → Update → paste the copied content → Save."
+            echo "::error::  4. Re-run this workflow."
             exit 1
           fi
 
