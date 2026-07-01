@@ -64,6 +64,11 @@ jobs:
       # STEP 1: Decode the REAL keystore from secret — NO temp fallback.
       # If the secret is missing, we FAIL HARD instead of creating a random key.
       # This is what guarantees every build uses the same signing identity.
+      #
+      # ROBUSTNESS: We strip any whitespace/newlines from the secret value
+      # before decoding — common copy-paste artefacts in the GitHub Secrets
+      # UI would otherwise cause "base64: invalid input". We also verify the
+      # decoded file is non-empty and is a valid keystore (PKCS12 magic bytes).
       # -------------------------------------------------------------------------
       - name: Decode Keystore (MANDATORY)
         env:
@@ -76,8 +81,37 @@ jobs:
             echo "::error::See SETUP_SECRETS.md for how to add the secret."
             exit 1
           fi
+
+          # Strip ALL whitespace (spaces, tabs, newlines, carriage returns)
+          # that may have been introduced when pasting the base64 string into
+          # the GitHub Secrets UI. Base64 itself never contains whitespace.
+          CLEAN_B64=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n')
+          echo "Original secret length: ${#KEYSTORE_BASE64}"
+          echo "Cleaned secret length : ${#CLEAN_B64}"
+
+          if [ "${#CLEAN_B64}" -lt 100 ]; then
+            echo "::error::KEYSTORE_BASE64 secret is too short (${#CLEAN_B64} chars after cleaning)."
+            echo "::error::Expected ~3600+ chars. Did you paste the full content of KEYSTORE_BASE64.txt?"
+            exit 1
+          fi
+
           echo "Decoding keystore from GitHub Secret..."
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/examvault-release.keystore
+          printf '%s' "$CLEAN_B64" | base64 --decode > android/app/examvault-release.keystore
+
+          # Verify the decoded file is non-empty and looks like a keystore.
+          KSIZE=$(stat -c%s android/app/examvault-release.keystore 2>/dev/null || stat -f%z android/app/examvault-release.keystore)
+          echo "Decoded keystore size: $KSIZE bytes"
+          if [ "$KSIZE" -lt 1000 ]; then
+            echo "::error::Decoded keystore is too small ($KSIZE bytes). The base64 secret may be corrupt."
+            exit 1
+          fi
+
+          # Quick magic-byte check: PKCS12 keystores start with 0x30 0x82.
+          HEX=$(xxd -p -l 2 android/app/examvault-release.keystore 2>/dev/null || true)
+          if [ "$HEX" != "3082" ] && [ "$HEX" != "3083" ]; then
+            echo "::warning::Decoded file does not start with PKCS12 magic bytes (got: $HEX)."
+            echo "::warning::This may still be a valid keystore, but verify the secret value."
+          fi
           ls -la android/app/examvault-release.keystore
 
       # -------------------------------------------------------------------------
