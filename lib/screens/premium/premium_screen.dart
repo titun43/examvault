@@ -1,9 +1,8 @@
 // =============================================================================
 // ExamVault - Premium/Payment Screen (Razorpay)
-// Premium plans are now admin-controllable: this screen fetches them from the
-// `premium_plans` Firestore collection. If Firestore returns no plans (or
-// errors), it falls back to the hardcoded AppConfig defaults so the screen
-// always works.
+// Premium plans are admin-controllable: this screen fetches them from the
+// `premium_plans` Firestore collection. If there are no plans in Firestore,
+// the screen shows an empty state — it NEVER shows fake/hardcoded plans.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -33,8 +32,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
     _loadPlans();
   }
 
-  /// Loads premium plans from Firestore. Falls back to the AppConfig defaults
-  /// if Firestore is empty or errors out, so the screen always works.
+  /// Loads premium plans from Firestore. Shows an empty state if Firestore
+  /// has no plans — NEVER substitutes hardcoded/fake plans.
   Future<void> _loadPlans() async {
     List<Map<String, dynamic>> plans = [];
     try {
@@ -43,10 +42,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         plans = fetched.map(_planToMap).toList();
       }
     } catch (_) {
-      // Swallow — fall back to defaults below.
-    }
-    if (plans.isEmpty) {
-      plans = _defaultPlans();
+      // Swallow — plans stays empty, empty state will be shown.
     }
     if (!mounted) return;
     setState(() {
@@ -81,50 +77,6 @@ class _PremiumScreenState extends State<PremiumScreen> {
       if (p.description != null && p.description!.isNotEmpty)
         'discount': p.description,
     };
-  }
-
-  /// Hardcoded fallback plans built from AppConfig — used when Firestore has
-  /// no `premium_plans` docs yet (e.g. before the admin creates them).
-  static List<Map<String, dynamic>> _defaultPlans() {
-    return [
-      {
-        'name': 'Monthly',
-        'price': AppConfig.premiumMonthlyPrice,
-        'duration': '1 Month',
-        'planId': AppConfig.monthlyPlanId,
-        'months': 1,
-        'features': ['All Premium Tests', 'Detailed Solutions', 'Ad-Free'],
-      },
-      {
-        'name': 'Quarterly',
-        'price': AppConfig.premiumQuarterlyPrice,
-        'duration': '3 Months',
-        'planId': AppConfig.quarterlyPlanId,
-        'months': 3,
-        'features': [
-          'All Premium Tests',
-          'Detailed Solutions',
-          'Ad-Free',
-          'Priority Support'
-        ],
-        'isPopular': true,
-      },
-      {
-        'name': 'Yearly',
-        'price': AppConfig.premiumYearlyPrice,
-        'duration': '12 Months',
-        'planId': AppConfig.yearlyPlanId,
-        'months': 12,
-        'features': [
-          'All Premium Tests',
-          'Detailed Solutions',
-          'Ad-Free',
-          'Priority Support',
-          'AI Insights'
-        ],
-        'discount': 'Save 33%',
-      },
-    ];
   }
 
   @override
@@ -206,6 +158,39 @@ class _PremiumScreenState extends State<PremiumScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_plans.isEmpty)
+              // Empty state — no plans configured in the admin panel.
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.card_giftcard,
+                        size: 56, color: Colors.grey.shade400),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No Plans Available Right Now',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'We are updating our premium plans.\nPlease check back later.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               )
             else ...[
               ...List.generate(_plans.length, (index) {
