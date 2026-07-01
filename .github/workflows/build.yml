@@ -211,11 +211,47 @@ jobs:
         run: |
           echo "=== Verifying the built APK signature ==="
           APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-          ACTUAL_SHA1=$(apksigner verify --print-certs "$APK_PATH" 2>/dev/null \
+          ls -la "$APK_PATH"
+
+          # Locate apksigner. On ubuntu-latest it lives under the Android SDK
+          # build-tools (NOT on $PATH by default). Try several candidates.
+          APKSIGNER=""
+          for cand in \
+            "$ANDROID_HOME/build-tools/*/apksigner" \
+            "$ANDROID_SDK_ROOT/build-tools/*/apksigner" \
+            /usr/local/lib/android/sdk/build-tools/*/apksigner; do
+            hit=$(ls $cand 2>/dev/null | sort -V | tail -1)
+            if [ -n "$hit" ] && [ -x "$hit" ]; then
+              APKSIGNER="$hit"
+              break
+            fi
+          done
+          if [ -z "$APKSIGNER" ]; then
+            # Last resort: PATH lookup (may still be missing).
+            APKSIGNER=$(command -v apksigner || true)
+          fi
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::apksigner not found anywhere. Cannot verify signature."
+            echo "::error::Listing build-tools dir for diagnostics:"
+            ls -la /usr/local/lib/android/sdk/build-tools/ 2>/dev/null || true
+            exit 1
+          fi
+          echo "Using apksigner: $APKSIGNER"
+
+          # Run verify — capture BOTH stdout and stderr so we can debug.
+          CERTS_OUT=$("$APKSIGNER" verify --print-certs "$APK_PATH" 2>&1 || true)
+          echo "=== apksigner output (first 20 lines) ==="
+          echo "$CERTS_OUT" | head -20
+
+          ACTUAL_SHA1=$(echo "$CERTS_OUT" \
             | grep -i 'SHA-1' | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
           EXPECTED_SHA1_UP=$(echo "$EXPECTED_SHA1" | tr '[:lower:]' '[:upper:]')
-          echo "APK cert SHA1: $ACTUAL_SHA1"
-          echo "Expected SHA1: $EXPECTED_SHA1_UP"
+          echo "APK cert SHA-1: $ACTUAL_SHA1"
+          echo "Expected SHA-1: $EXPECTED_SHA1_UP"
+          if [ -z "$ACTUAL_SHA1" ]; then
+            echo "::error::Could not parse SHA-1 from apksigner output (see above)."
+            exit 1
+          fi
           if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_UP" ]; then
             echo "::error::Built APK is NOT signed by the official key! Aborting."
             exit 1
