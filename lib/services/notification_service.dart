@@ -1,5 +1,10 @@
 // =============================================================================
 // ExamVault - Notification Service (Push Notifications)
+// CRASH-SAFETY (v1.14+): EVERY native call (FCM + local notifications) is
+// wrapped in its own try/catch. FCM getToken/requestPermission can crash
+// natively if Google Play Services is missing/outdated. The background
+// message handler is now a TOP-LEVEL function (required by firebase_messaging
+// — a static method crashes the background isolate in release mode).
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +13,24 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'firebase_service.dart';
+
+// =============================================================================
+// TOP-LEVEL BACKGROUND MESSAGE HANDLER
+// =============================================================================
+// firebase_messaging REQUIRES the background handler to be a TOP-LEVEL
+// function (not a static method or a class method). In release mode, the
+// background isolate runs in a separate entry point and can only resolve
+// top-level functions annotated with @pragma('vm:entry-point'). Using a
+// static method here was causing the "ExamVault keeps stopping" crash.
+@pragma('vm:entry-point')
+Future<void> examVaultBackgroundMessageHandler(RemoteMessage message) async {
+  // Best-effort: handle background messages. We do NOT do any Firestore or
+  // FCM operations here because this runs in a separate isolate where
+  // Firebase may not be initialised. Just print and return.
+  try {
+    print('BG message received: ${message.messageId}');
+  } catch (_) {}
+}
 
 class NotificationService {
   NotificationService._();
@@ -22,75 +45,116 @@ class NotificationService {
     importance: Importance.high,
   );
 
+  static bool _initialized = false;
+
   // ==================== INITIALIZE ====================
   static Future<void> initialize() async {
-    // Initialize timezone database
-    tz.initializeTimeZones();
+    if (_initialized) return;
 
-    // Request permission
-    await FirebaseService.messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Setup local notifications
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings();
-    await _localNotifications.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
-    );
-
-    // Create Android channel
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
-
-    // Foreground message handler
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Background message handler
-    FirebaseMessaging.onBackgroundMessage(_backgroundMessageHandler);
-
-    // Get FCM token
-    final token = await FirebaseService.messaging.getToken();
-    if (token != null) {
-      await _saveFcmToken(token);
+    // ---- timezone init (pure Dart, but wrap anyway) ----
+    try {
+      tz.initializeTimeZones();
+    } catch (e) {
+      print('tz.initializeTimeZones failed (non-fatal): $e');
     }
 
-    // Listen for token refresh
-    FirebaseService.messaging.onTokenRefresh.listen(_saveFcmToken);
+    // ---- FCM permission (can crash natively if Play Services missing) ----
+    try {
+      await FirebaseService.messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      print('FCM requestPermission failed (non-fatal): $e');
+    }
+
+    // ---- local notifications init ----
+    try {
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      await _localNotifications.initialize(
+        const InitializationSettings(
+            android: androidSettings, iOS: iosSettings),
+      );
+    } catch (e) {
+      print('localNotifications.initialize failed (non-fatal): $e');
+    }
+
+    // ---- create Android notification channel ----
+    try {
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(_channel);
+    } catch (e) {
+      print('createNotificationChannel failed (non-fatal): $e');
+    }
+
+    // ---- foreground message handler ----
+    try {
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    } catch (e) {
+      print('FCM onMessage listen failed (non-fatal): $e');
+    }
+
+    // ---- background message handler (TOP-LEVEL function) ----
+    try {
+      FirebaseMessaging.onBackgroundMessage(
+          examVaultBackgroundMessageHandler);
+    } catch (e) {
+      print('FCM onBackgroundMessage register failed (non-fatal): $e');
+    }
+
+    // ---- get FCM token (can crash natively if Play Services missing) ----
+    try {
+      final token = await FirebaseService.messaging.getToken();
+      if (token != null) {
+        await _saveFcmToken(token);
+      }
+    } catch (e) {
+      print('FCM getToken failed (non-fatal): $e');
+    }
+
+    // ---- listen for token refresh ----
+    try {
+      FirebaseService.messaging.onTokenRefresh.listen((token) {
+        _saveFcmToken(token);
+      });
+    } catch (e) {
+      print('FCM onTokenRefresh listen failed (non-fatal): $e');
+    }
+
+    _initialized = true;
   }
 
   // ==================== HANDLE FOREGROUND MESSAGE ====================
   static void _handleForegroundMessage(RemoteMessage message) {
-    final notification = message.notification;
-    if (notification != null) {
-      _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channel.id,
-            _channel.name,
-            channelDescription: _channel.description,
-            icon: '@mipmap/ic_launcher',
-            importance: Importance.high,
-            priority: Priority.high,
+    try {
+      final notification = message.notification;
+      if (notification != null) {
+        _localNotifications.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              _channel.id,
+              _channel.name,
+              channelDescription: _channel.description,
+              icon: '@mipmap/ic_launcher',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+            iOS: const DarwinNotificationDetails(),
           ),
-          iOS: const DarwinNotificationDetails(),
-        ),
-        payload: message.data.toString(),
-      );
+          payload: message.data.toString(),
+        );
+      }
+    } catch (e) {
+      print('_handleForegroundMessage error (non-fatal): $e');
     }
-  }
-
-  // ==================== BACKGROUND MESSAGE HANDLER ====================
-  @pragma('vm:entry-point')
-  static Future<void> _backgroundMessageHandler(RemoteMessage message) async {
-    // Handle background messages
   }
 
   // ==================== SAVE FCM TOKEN ====================
@@ -114,17 +178,30 @@ class NotificationService {
 
   // ==================== SUBSCRIBE TO TOPICS ====================
   static Future<void> subscribeToAllTopics() async {
-    await FirebaseService.messaging.subscribeToTopic('all_users');
-    await FirebaseService.messaging.subscribeToTopic('daily_quiz');
-    await FirebaseService.messaging.subscribeToTopic('current_affairs');
+    try {
+      await FirebaseService.messaging.subscribeToTopic('all_users');
+      await FirebaseService.messaging.subscribeToTopic('daily_quiz');
+      await FirebaseService.messaging.subscribeToTopic('current_affairs');
+    } catch (e) {
+      print('subscribeToAllTopics error (non-fatal): $e');
+    }
   }
 
   static Future<void> subscribeToCategory(String categoryId) async {
-    await FirebaseService.messaging.subscribeToTopic('category_$categoryId');
+    try {
+      await FirebaseService.messaging.subscribeToTopic('category_$categoryId');
+    } catch (e) {
+      print('subscribeToCategory error (non-fatal): $e');
+    }
   }
 
   static Future<void> unsubscribeFromCategory(String categoryId) async {
-    await FirebaseService.messaging.unsubscribeFromTopic('category_$categoryId');
+    try {
+      await FirebaseService.messaging
+          .unsubscribeFromTopic('category_$categoryId');
+    } catch (e) {
+      print('unsubscribeFromCategory error (non-fatal): $e');
+    }
   }
 
   // ==================== LOCAL NOTIFICATION ====================
@@ -133,23 +210,27 @@ class NotificationService {
     required String body,
     Map<String, dynamic>? data,
   }) async {
-    await _localNotifications.show(
-      title.hashCode,
-      title,
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
-          icon: '@mipmap/ic_launcher',
-          importance: Importance.high,
-          priority: Priority.high,
+    try {
+      await _localNotifications.show(
+        title.hashCode,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            channelDescription: _channel.description,
+            icon: '@mipmap/ic_launcher',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: const DarwinNotificationDetails(),
         ),
-        iOS: const DarwinNotificationDetails(),
-      ),
-      payload: data?.toString(),
-    );
+        payload: data?.toString(),
+      );
+    } catch (e) {
+      print('showLocalNotification error (non-fatal): $e');
+    }
   }
 
   // ==================== SCHEDULE NOTIFICATION ====================
@@ -158,21 +239,25 @@ class NotificationService {
     required String body,
     required DateTime scheduledTime,
   }) async {
-    await _localNotifications.zonedSchedule(
-      title.hashCode,
-      title,
-      body,
-      tz.TZDateTime.from(scheduledTime, tz.local),
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          icon: '@mipmap/ic_launcher',
+    try {
+      await _localNotifications.zonedSchedule(
+        title.hashCode,
+        title,
+        body,
+        tz.TZDateTime.from(scheduledTime, tz.local),
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channel.id,
+            _channel.name,
+            icon: '@mipmap/ic_launcher',
+          ),
         ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-    );
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      print('scheduleNotification error (non-fatal): $e');
+    }
   }
 }

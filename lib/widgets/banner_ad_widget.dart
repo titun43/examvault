@@ -35,12 +35,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void initState() {
     super.initState();
-    // Only attempt to load if AdMob is already initialised. If it isn't
-    // (e.g. init failed or hasn't completed yet), skip — the widget will
-    // render an empty SizedBox and no native crash can occur.
-    if (AdMobService.isInitialized) {
-      _loadAd();
-    }
+    // v1.14 DEBUGGING: AdMob BannerAd.load() is an ASYNC NATIVE call that
+    // can crash BELOW Dart's try/catch if the AdMob SDK has an issue (invalid
+    // ad unit, Play Services problem, etc.). To isolate whether AdMob is the
+    // crash source, we temporarily DISABLE ad loading entirely. The widget
+    // renders nothing. Once we confirm the crash is gone, we can re-enable
+    // ads with a safer approach (e.g. delayed init, or a dedicated ad screen).
+    // _loadAd is NOT called here.
   }
 
   @override
@@ -88,28 +89,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Hide ads for premium users — they paid for an ad-free experience.
-    final auth = Provider.of<AuthProvider>(context);
-    if (auth.isPremium) return const SizedBox.shrink();
-
-    // If AdMob isn't initialised or the ad failed to load, render nothing
-    // rather than a placeholder — this keeps the home screen layout clean
-    // and guarantees no native crash path.
-    if (!AdMobService.isInitialized || _loadFailed) {
-      return const SizedBox.shrink();
-    }
-
-    if (!_isLoaded || _bannerAd == null) {
-      // Reserve space so the layout doesn't jump when the ad loads.
-      return SizedBox(
-        height: widget.size.height.toDouble(),
-        width: widget.size.width.toDouble(),
-      );
-    }
-    return SizedBox(
-      height: _bannerAd!.size.height.toDouble(),
-      width: _bannerAd!.size.width.toDouble(),
-      child: AdWidget(ad: _bannerAd!),
-    );
+    // v1.14 DEBUGGING: AdMob disabled entirely to isolate crash source.
+    // Always return nothing. No native ad code runs at all.
+    return const SizedBox.shrink();
   }
 }

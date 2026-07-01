@@ -2,16 +2,20 @@
 // ExamVault - main.dart
 // Entry point of the application
 // =============================================================================
-// CRASH-SAFETY DESIGN (v1.12+):
-// In release mode, an uncaught Dart exception in the main isolate CRASHES
-// the app with the Android "ExamVault keeps stopping" dialog. The previous
-// setup set FlutterError.onError = Crashlytics.recordFlutterFatalError, but
-// if Crashlytics itself threw (e.g. not initialised, network issue), that
-// throw was uncaught → crash. This version wraps EVERY error sink in its own
-// try/catch so no single failure can bring down the app.
+// CRASH-SAFETY DESIGN (v1.14+):
+// Three layers of error containment:
+//   1. runZonedGuarded — catches all uncaught async Dart errors
+//   2. FlutterError.onError — catches build/layout/paint errors
+//   3. PlatformDispatcher.instance.onError — catches errors that escape the
+//      zone (e.g. from native callbacks, isolate errors)
+// Plus: ErrorWidget.builder ensures a failed widget build renders a simple
+// fallback instead of crashing the app.
+// Plus: ALL native SDK auto-init is DISABLED in AndroidManifest (Crashlytics,
+// Analytics, AdMob, FCM). Everything inits manually from Dart inside try/catch.
 // =============================================================================
 
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,7 +38,7 @@ void main() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     // ---- Framework error handler (build, layout, paint errors) ----
-    // Wrap in try/catch: if Crashlytics throws while recording, we still
+    // Wrap in try/catch: if FlutterError.presentError throws, we still
     // want to print the original error rather than crash the app.
     FlutterError.onError = (FlutterErrorDetails details) {
       try {
@@ -62,6 +66,16 @@ void main() async {
           ),
         ),
       );
+    };
+
+    // ---- PlatformDispatcher error handler ----
+    // Catches errors that escape the zone — e.g. from native callbacks,
+    // microtasks, or isolate errors. This is the LAST line of defense
+    // before a native crash. Returns true to suppress the error.
+    PlatformDispatcher.instance.onError = (error, stackTrace) {
+      print('PlatformDispatcher error (suppressed): $error');
+      print(stackTrace);
+      return true;
     };
 
     // ---- Initialize Firebase (best-effort, won't crash if it fails) ----

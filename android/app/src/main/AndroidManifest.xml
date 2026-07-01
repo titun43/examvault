@@ -113,6 +113,15 @@
         <meta-data
             android:name="com.google.android.gms.ads.flag.AUTO_INIT_IMPLICIT"
             android:value="false" />
+
+        <!-- ==================== DISABLE FCM AUTO-INIT ==================== -->
+        <!-- Firebase Messaging auto-initialises at app start and can crash
+             natively if Google Play Services is missing or outdated. We init
+             FCM manually from NotificationService.initialize() inside a
+             try/catch, so auto-init is not needed. -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
     </application>
 
     <!-- ==================== QUERIES ( Razorpay, etc) ==================== -->

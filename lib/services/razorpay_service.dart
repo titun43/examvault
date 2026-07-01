@@ -13,13 +13,16 @@ import 'firebase_service.dart';
 class RazorpayService {
   RazorpayService._();
 
-  static late Razorpay _razorpay;
+  // Nullable instead of late — if initialize() fails (caught in main.dart),
+  // _razorpay stays null and payment methods bail early instead of throwing
+  // LateInitializationError.
+  static Razorpay? _razorpay;
 
   static void initialize() {
     _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
   // ==================== START PAYMENT ====================
@@ -35,6 +38,9 @@ class RazorpayService {
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
   }) async {
+    if (_razorpay == null) {
+      throw Exception('Payment service not available. Please restart the app.');
+    }
     // Create payment record in Firestore
     final paymentRecord = PaymentModel(
       id: '',
@@ -53,7 +59,7 @@ class RazorpayService {
     final paymentId = docRef.id;
 
     // Setup callbacks
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
       _handlePaymentSuccessWithRecord(
         response,
         paymentId: paymentId,
@@ -64,7 +70,7 @@ class RazorpayService {
       onSuccess(response);
     });
 
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
       _handlePaymentErrorWithRecord(response, paymentId: paymentId);
       onError(response);
     });
@@ -88,7 +94,7 @@ class RazorpayService {
     };
 
     try {
-      _razorpay.open(options);
+      _razorpay!.open(options);
     } catch (e) {
       await _updatePaymentStatus(
         paymentId,
@@ -176,6 +182,9 @@ class RazorpayService {
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
   }) async {
+    if (_razorpay == null) {
+      throw Exception('Payment service not available. Please restart the app.');
+    }
     // Create payment record
     final paymentRecord = PaymentModel(
       id: '',
@@ -194,7 +203,7 @@ class RazorpayService {
         await FirebaseService.paymentsRef.add(paymentRecord.toFirestore());
     final paymentId = docRef.id;
 
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
       _handleTestPurchaseSuccess(
         response,
         paymentId: paymentId,
@@ -204,7 +213,7 @@ class RazorpayService {
       onSuccess(response);
     });
 
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
       _handlePaymentErrorWithRecord(response, paymentId: paymentId);
       onError(response);
     });
@@ -225,7 +234,7 @@ class RazorpayService {
     };
 
     try {
-      _razorpay.open(options);
+      _razorpay!.open(options);
     } catch (e) {
       await _updatePaymentStatus(
         paymentId,
@@ -293,6 +302,6 @@ class RazorpayService {
 
   // ==================== CLEANUP ====================
   static void clear() {
-    _razorpay.clear();
+    _razorpay?.clear();
   }
 }
