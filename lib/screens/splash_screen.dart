@@ -109,8 +109,10 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FadeInDown(
-                duration: const Duration(milliseconds: 800),
+              // Book logo with a ~1s zoom-in animation (replaces the old
+              // graduation-cap icon + circular progress spinner).
+              ZoomIn(
+                duration: const Duration(milliseconds: 1000),
                 child: Container(
                   width: 120,
                   height: 120,
@@ -126,7 +128,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     ],
                   ),
                   child: const Icon(
-                    Icons.school,
+                    Icons.menu_book,
                     size: 60,
                     color: Color(0xFF1565C0),
                   ),
@@ -149,7 +151,7 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 10),
               FadeInUp(
                 duration: const Duration(milliseconds: 800),
-                delay: const Duration(milliseconds: 500),
+                delay: const Duration(milliseconds: 600),
                 child: Text(
                   'MCQ Mock Test Platform',
                   style: TextStyle(
@@ -158,11 +160,8 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 60),
-              const CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2,
-              ),
+              // Loading spinner removed per user request — the 1s book-logo
+              // animation is the only motion on the splash now.
             ],
           ),
         ),
