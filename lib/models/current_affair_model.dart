@@ -39,20 +39,37 @@ class CurrentAffairModel {
   });
 
   factory CurrentAffairModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return CurrentAffairModel(
+        id: doc.id,
+        date: DateTime.now(),
+        title: '',
+        content: '',
+        summary: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return CurrentAffairModel(
       id: doc.id,
       date: parseTimestamp(data['date']),
-      title: data['title'] ?? '',
-      content: data['content'] ?? '',
-      summary: data['summary'] ?? '',
-      pdfUrl: data['pdfUrl'],
-      imageUrl: data['imageUrl'],
-      source: data['source'] ?? '',
-      category: data['category'] ?? '',
-      categoryId: data['categoryId'],
+      title: (data['title'] ?? '').toString(),
+      content: (data['content'] ?? '').toString(),
+      summary: (data['summary'] ?? '').toString(),
+      pdfUrl: data['pdfUrl']?.toString(),
+      imageUrl: data['imageUrl']?.toString(),
+      source: (data['source'] ?? '').toString(),
+      category: (data['category'] ?? '').toString(),
+      categoryId: data['categoryId']?.toString(),
       isImportant: data['isImportant'] ?? false,
-      tags: List<String>.from(data['tags'] ?? []),
+      tags: data['tags'] is List
+          ? List<String>.from(
+              (data['tags'] as List).map((e) => e.toString()))
+          : const [],
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );

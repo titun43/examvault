@@ -41,23 +41,58 @@ class LeaderboardModel {
   });
 
   factory LeaderboardModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return LeaderboardModel(
+        id: doc.id,
+        userId: '',
+        userName: '',
+        totalXp: 0,
+        totalTestsAttempted: 0,
+        averageScore: 0,
+        rank: 0,
+        periodStart: DateTime.now(),
+        periodEnd: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return LeaderboardModel(
       id: doc.id,
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      userPhoto: data['userPhoto'],
-      totalXp: data['totalXp'] ?? 0,
-      totalTestsAttempted: data['totalTestsAttempted'] ?? 0,
-      averageScore: (data['averageScore'] ?? 0).toDouble(),
-      rank: data['rank'] ?? 0,
-      streak: data['streak'] ?? 0,
-      type: _parseType(data['type']),
-      testId: data['testId'],
+      userId: (data['userId'] ?? '').toString(),
+      userName: (data['userName'] ?? '').toString(),
+      userPhoto: data['userPhoto']?.toString(),
+      totalXp: _toInt(data['totalXp'], 0),
+      totalTestsAttempted: _toInt(data['totalTestsAttempted'], 0),
+      averageScore: _toDouble(data['averageScore'], 0),
+      rank: _toInt(data['rank'], 0),
+      streak: _toInt(data['streak'], 0),
+      type: _parseType(data['type']?.toString()),
+      testId: data['testId']?.toString(),
       periodStart: parseTimestamp(data['periodStart']),
       periodEnd: parseTimestamp(data['periodEnd']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  static double _toDouble(dynamic v, double fallback) {
+    if (v == null) return fallback;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

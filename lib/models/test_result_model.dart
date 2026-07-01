@@ -49,28 +49,77 @@ class TestResultModel {
   });
 
   factory TestResultModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return TestResultModel(
+        id: doc.id,
+        userId: '',
+        testId: '',
+        testTitle: '',
+        totalQuestions: 0,
+        correctAnswers: 0,
+        wrongAnswers: 0,
+        unattempted: 0,
+        totalMarks: 0,
+        obtainedMarks: 0,
+        percentage: 0,
+        isPassed: false,
+        timeTaken: 0,
+        totalTime: 0,
+        userAnswers: const [],
+        correctAnswersList: const [],
+        accuracy: 0,
+        attemptedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return TestResultModel(
       id: doc.id,
-      userId: data['userId'] ?? '',
-      testId: data['testId'] ?? '',
-      testTitle: data['testTitle'] ?? '',
-      totalQuestions: data['totalQuestions'] ?? 0,
-      correctAnswers: data['correctAnswers'] ?? 0,
-      wrongAnswers: data['wrongAnswers'] ?? 0,
-      unattempted: data['unattempted'] ?? 0,
-      totalMarks: data['totalMarks'] ?? 0,
-      obtainedMarks: data['obtainedMarks'] ?? 0,
-      percentage: (data['percentage'] ?? 0).toDouble(),
+      userId: (data['userId'] ?? '').toString(),
+      testId: (data['testId'] ?? '').toString(),
+      testTitle: (data['testTitle'] ?? '').toString(),
+      totalQuestions: _toInt(data['totalQuestions'], 0),
+      correctAnswers: _toInt(data['correctAnswers'], 0),
+      wrongAnswers: _toInt(data['wrongAnswers'], 0),
+      unattempted: _toInt(data['unattempted'], 0),
+      totalMarks: _toInt(data['totalMarks'], 0),
+      obtainedMarks: _toInt(data['obtainedMarks'], 0),
+      percentage: _toDouble(data['percentage'], 0),
       isPassed: data['isPassed'] ?? false,
-      timeTaken: data['timeTaken'] ?? 0,
-      totalTime: data['totalTime'] ?? 0,
-      userAnswers: List<int>.from(data['userAnswers'] ?? []),
-      correctAnswersList: List<int>.from(data['correctAnswersList'] ?? []),
-      accuracy: (data['accuracy'] ?? 0).toDouble(),
-      rank: data['rank'] ?? 0,
+      timeTaken: _toInt(data['timeTaken'], 0),
+      totalTime: _toInt(data['totalTime'], 0),
+      userAnswers: data['userAnswers'] is List
+          ? List<int>.from((data['userAnswers'] as List)
+              .map((e) => e is int ? e : int.tryParse(e.toString()) ?? 0))
+          : const [],
+      correctAnswersList: data['correctAnswersList'] is List
+          ? List<int>.from((data['correctAnswersList'] as List)
+              .map((e) => e is int ? e : int.tryParse(e.toString()) ?? 0))
+          : const [],
+      accuracy: _toDouble(data['accuracy'], 0),
+      rank: _toInt(data['rank'], 0),
       attemptedAt: parseTimestamp(data['attemptedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  static double _toDouble(dynamic v, double fallback) {
+    if (v == null) return fallback;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

@@ -3,43 +3,37 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =============================================================================
-    // ExamVault - Firestore Security Rules  (v2 — relaxed for admin bootstrap)
+    // ExamVault - Firestore Security Rules (v3 — crash-safe, login-friendly)
+    // =============================================================================
+    // Design goal: NEVER block a legitimate read during the login flow or home
+    // screen render. A permission-denied error on a stream that the UI doesn't
+    // expect can crash the app in release mode. Public content collections are
+    // fully public-read. User-specific collections are owner-read.
     // =============================================================================
 
-    // Helper function: Check if user is authenticated
+    // Helper: is the user signed in?
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Helper function: Check if user is admin.
-    // Two ways to be an admin:
-    //   1. The admins/{uid} doc exists (canonical path — set during bootstrap)
-    //   2. The users/{uid}.role == 'admin' (fallback / mirror)
-    // The OR makes admin bootstrap resilient: even if the admins doc write
-    // fails for some reason, a user with role=admin in the users collection
-    // is still recognised as an admin.
+    // Helper: is the user an admin?
+    // Two paths (OR'd so admin bootstrap is resilient):
+    //   1. admins/{uid} doc exists
+    //   2. users/{uid}.role == 'admin'
     function isAdmin() {
       return isSignedIn()
         && (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
-            || exists(/databases/$(database)/documents/users/$(request.auth.uid))
-               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+            || (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
-    // Helper function: Check if user is premium
-    function isPremium() {
-      return isSignedIn()
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscriptionStatus == 'premium';
-    }
-
-    // Helper function: Check if user owns the document
+    // Helper: does the user own this document?
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
     // ==================== USERS ====================
-    // Users can read their own data, admins can read all.
-    // Users can create/update their own data (profile edits, preferences,
-    // photo URL, purchasedTests, subscriptionStatus after payment).
+    // Owner can read/create/update own doc. Admin can read/update all.
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
@@ -48,44 +42,66 @@ service cloud.firestore {
     }
 
     // ==================== ADMINS ====================
-    // Bootstrap-friendly rules:
-    // - Any signed-in user can READ their OWN admins doc (to check if they're admin)
-    // - Any signed-in user can CREATE their OWN admins doc (first-time admin setup)
-    // - Only existing admins can UPDATE/DELETE (prevents privilege escalation)
     match /admins/{adminId} {
-      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow read: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == adminId;
       allow update, delete: if isAdmin();
     }
 
-    // ==================== CATEGORIES ====================
+    // ==================== PUBLIC CONTENT (admin-managed) ====================
+    // All of these are fully public-read so the home screen never gets a
+    // permission error. Only admins can write.
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== SUBJECTS ====================
     match /subjects/{subjectId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== TESTS ====================
     match /tests/{testId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== QUESTIONS ====================
-    // Questions only readable by authenticated users (don't expose before test)
     match /questions/{questionId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin();
     }
 
+    match /current_affairs/{affairId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /upcoming_exams/{examId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /premium_plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /leaderboard/{leaderboardId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSignedIn();
+    }
+
     // ==================== RESULTS ====================
-    // Users can read their own results, admins can read all.
-    // Users can create their own results.
     match /results/{resultId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.userId);
@@ -100,74 +116,34 @@ service cloud.firestore {
     }
 
     // ==================== PAYMENTS ====================
-    // Users can create payment records ( Razorpay flow) and read their own.
-    // Admins can read all and update status.
     match /payments/{paymentId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn();
-      allow update: if isSignedIn(); // allow user to update own payment on success
+      allow update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     // ==================== TEST PURCHASES ====================
-    // Per-test purchases (pay-per-test). Users can read their own purchase
-    // records and create new ones. Admins can read all.
     match /test_purchases/{purchaseId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.userId);
       allow update, delete: if isAdmin();
     }
 
-    // ==================== CURRENT AFFAIRS ====================
-    match /current_affairs/{affairId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ==================== ANNOUNCEMENTS ====================
-    // Public can read published announcements; only admins can write.
-    match /announcements/{announcementId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ==================== UPCOMING EXAMS ====================
-    match /upcoming_exams/{examId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ==================== BANNERS ====================
-    match /banners/{bannerId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ==================== PREMIUM PLANS ====================
-    // Public read (user app shows plans), admin write.
-    // Relaxed: also allow any signed-in user whose users/{uid}.role == 'admin'
-    // to write — covered by isAdmin() helper.
-    match /premium_plans/{planId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
     // ==================== NOTIFICATIONS ====================
+    // IMPORTANT: notifications are public-read for any signed-in user so that
+    // a missing/mismatched `userId` field on a notification doc never causes
+    // a permission-denied error (which would crash the home/notifications
+    // stream in release mode). Only admins write. Users can mark their own
+    // or broadcast ('all') notifications as read.
     match /notifications/{notificationId} {
-      // Users can read their own notifications + broadcast ('all')
-      allow read: if isSignedIn()
-        && (resource.data.userId == 'all' || resource.data.userId == request.auth.uid);
-      allow write: if isAdmin();
-      // Users can mark their own notifications as read
-      allow update: if isSignedIn()
-        && (resource.data.userId == request.auth.uid || resource.data.userId == 'all')
-        && request.resource.data.diff(resource.data).affectedKeys.only(['isRead']);
-    }
-
-    // ==================== LEADERBOARD ====================
-    match /leaderboard/{leaderboardId} {
-      allow read: if true;
-      allow write: if isAdmin() || isSignedIn(); // Users can update their own scores
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+      // Allow admin full update; allow signed-in user to only toggle isRead.
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys.only(['isRead']));
     }
   }
 }

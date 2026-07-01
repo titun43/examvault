@@ -40,14 +40,28 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return NotificationModel(
+        id: doc.id,
+        userId: 'all',
+        title: '',
+        body: '',
+        createdAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return NotificationModel(
       id: doc.id,
-      userId: data['userId'] ?? 'all',
-      title: data['title'] ?? '',
-      body: data['body'] ?? '',
-      type: _parseType(data['type']),
-      data: data['data'] ?? {},
+      userId: (data['userId'] ?? 'all').toString(),
+      title: (data['title'] ?? '').toString(),
+      body: (data['body'] ?? '').toString(),
+      type: _parseType(data['type']?.toString()),
+      data: data['data'] is Map
+          ? Map<String, dynamic>.from(data['data'] as Map)
+          : const {},
       isRead: data['isRead'] ?? false,
       scheduledAt: parseTimestampNullable(data['scheduledAt']),
       createdAt: parseTimestamp(data['createdAt']),

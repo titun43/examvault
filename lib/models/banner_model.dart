@@ -37,21 +37,42 @@ class BannerModel {
   });
 
   factory BannerModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return BannerModel(
+        id: doc.id,
+        title: '',
+        imageUrl: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return BannerModel(
       id: doc.id,
-      title: data['title'] ?? '',
-      subtitle: data['subtitle'],
-      imageUrl: data['imageUrl'] ?? '',
-      link: data['link'],
-      linkLabel: data['linkLabel'],
-      order: data['order'] ?? 0,
+      title: (data['title'] ?? '').toString(),
+      subtitle: data['subtitle']?.toString(),
+      imageUrl: (data['imageUrl'] ?? '').toString(),
+      link: data['link']?.toString(),
+      linkLabel: data['linkLabel']?.toString(),
+      order: _toInt(data['order'], 0),
       isActive: data['isActive'] ?? true,
       startsAt: parseTimestampNullable(data['startsAt']),
       endsAt: parseTimestampNullable(data['endsAt']),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

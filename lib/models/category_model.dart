@@ -33,20 +33,41 @@ class CategoryModel {
   });
 
   factory CategoryModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return CategoryModel(
+        id: doc.id,
+        name: '',
+        slug: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return CategoryModel(
       id: doc.id,
-      name: data['name'] ?? '',
-      slug: data['slug'] ?? '',
-      icon: data['icon'],
-      description: data['description'],
-      image: data['image'],
-      color: data['color'],
-      order: data['order'] ?? 0,
-      subjectCount: data['subjectCount'] ?? 0,
+      name: (data['name'] ?? '').toString(),
+      slug: (data['slug'] ?? '').toString(),
+      icon: data['icon']?.toString(),
+      description: data['description']?.toString(),
+      image: data['image']?.toString(),
+      color: data['color']?.toString(),
+      order: _toInt(data['order'], 0),
+      subjectCount: _toInt(data['subjectCount'], 0),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

@@ -57,30 +57,72 @@ class UserModel {
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      // Doc has no data — return a minimal user so the caller doesn't crash.
+      // This can happen for a freshly-created doc that hasn't been written yet.
+      return UserModel(
+        id: doc.id,
+        name: 'User',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return UserModel(
       id: doc.id,
-      name: data['name'] ?? '',
-      email: data['email'],
-      phoneNumber: data['phoneNumber'],
-      photoUrl: data['photoUrl'],
+      name: (data['name'] ?? 'User').toString(),
+      email: data['email']?.toString(),
+      phoneNumber: data['phoneNumber']?.toString(),
+      photoUrl: data['photoUrl']?.toString(),
       role: data['role'] == 'admin' ? UserRole.admin : UserRole.user,
-      subscriptionStatus: _parseSubscriptionStatus(data['subscriptionStatus']),
+      subscriptionStatus: _parseSubscriptionStatus(
+          data['subscriptionStatus']?.toString()),
       subscriptionExpiry: parseTimestampNullable(data['subscriptionExpiry']),
-      subscriptionPlanId: data['subscriptionPlanId'],
-      totalTestsAttempted: data['totalTestsAttempted'] ?? 0,
-      averageScore: (data['averageScore'] ?? 0).toDouble(),
-      totalXp: data['totalXp'] ?? 0,
-      level: data['level'] ?? 1,
-      streak: data['streak'] ?? 0,
+      subscriptionPlanId: data['subscriptionPlanId']?.toString(),
+      // Numeric fields: be defensive — Firestore might store them as int,
+      // double, num, or even String (manual console edit). Parse safely.
+      totalTestsAttempted: _toInt(data['totalTestsAttempted'], 0),
+      averageScore: _toDouble(data['averageScore'], 0),
+      totalXp: _toInt(data['totalXp'], 0),
+      level: _toInt(data['level'], 1),
+      streak: _toInt(data['streak'], 0),
       lastActiveAt: parseTimestampNullable(data['lastActiveAt']),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
       isActive: data['isActive'] ?? true,
-      fcmToken: data['fcmToken'],
-      preferences: data['preferences'] ?? {},
-      purchasedTests: List<String>.from(data['purchasedTests'] ?? []),
+      fcmToken: data['fcmToken']?.toString(),
+      preferences: data['preferences'] is Map
+          ? Map<String, dynamic>.from(data['preferences'] as Map)
+          : const {},
+      purchasedTests: data['purchasedTests'] is List
+          ? List<String>.from(
+              (data['purchasedTests'] as List).map((e) => e.toString()))
+          : const [],
     );
+  }
+
+  /// Safely converts a dynamic value to int. Handles int, double, num, String,
+  /// and null. NEVER throws.
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  /// Safely converts a dynamic value to double. NEVER throws.
+  static double _toDouble(dynamic v, double fallback) {
+    if (v == null) return fallback;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

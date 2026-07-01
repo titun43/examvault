@@ -2,13 +2,9 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Helper: check if user is admin (mirror of Firestore admins/{uid})
-    function isAdmin() {
-      return request.auth != null
-        && (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
-            || firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-               && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
-    }
+    // =============================================================================
+    // ExamVault - Storage Security Rules (v3 — crash-safe)
+    // =============================================================================
 
     function isSignedIn() {
       return request.auth != null;
@@ -18,62 +14,69 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // ==================== CATEGORY IMAGES ====================
+    function isAdmin() {
+      return request.auth != null
+        && (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+            || (firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+                && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    // ==================== PUBLIC CONTENT IMAGES (admin-managed) ====================
+    // Public read so CachedNetworkImage always loads. Admin-only write.
     match /category_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== TEST IMAGES ====================
     match /test_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== BANNER IMAGES ====================
     match /banner_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== ANNOUNCEMENT IMAGES ====================
     match /announcement_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== UPCOMING EXAM IMAGES ====================
     match /upcoming_exam_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== CURRENT AFFAIRS PDF ====================
     match /current_affairs_pdf/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ==================== USER AVATARS (legacy path) ====================
-    // Each user can read/write their own avatar
+    // ==================== USER AVATARS ====================
+    // Each user can read/write their own avatar. Public read so avatars show
+    // in leaderboards and admin views.
     match /user_avatars/{userId}/{fileName} {
       allow read: if true;
       allow write: if isOwner(userId);
     }
 
     // ==================== USER PHOTOS (profile photos) ====================
-    // The EditProfileScreen uploads to user_photos/{userId}. Each user can
-    // read/write their own photo. Public read so avatars show in leaderboards
-    // and admin views.
     match /user_photos/{userId} {
       allow read: if true;
       allow write: if isOwner(userId);
     }
 
-    // ==================== USER PHOTOS (with filename variant) ====================
     match /user_photos/{userId}/{fileName} {
       allow read: if true;
       allow write: if isOwner(userId);
+    }
+
+    // ==================== CATCH-ALL (default deny) ====================
+    // Anything not explicitly allowed above is denied. This is the safe
+    // default but still lets the explicit rules above work.
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

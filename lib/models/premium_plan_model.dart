@@ -41,22 +41,49 @@ class PremiumPlanModel {
   });
 
   factory PremiumPlanModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return PremiumPlanModel(
+        id: doc.id,
+        name: '',
+        price: 0,
+        durationMonths: 1,
+        durationLabel: '',
+        planId: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return PremiumPlanModel(
       id: doc.id,
-      name: data['name'] ?? '',
-      price: (data['price'] ?? 0).toInt(),
-      durationMonths: (data['durationMonths'] ?? 1).toInt(),
-      durationLabel: data['durationLabel'] ?? '',
-      planId: data['planId'] ?? '',
-      description: data['description'],
-      features: List<String>.from(data['features'] ?? []),
+      name: (data['name'] ?? '').toString(),
+      price: _toInt(data['price'], 0),
+      durationMonths: _toInt(data['durationMonths'], 1),
+      durationLabel: (data['durationLabel'] ?? '').toString(),
+      planId: (data['planId'] ?? '').toString(),
+      description: data['description']?.toString(),
+      features: data['features'] is List
+          ? List<String>.from(
+              (data['features'] as List).map((e) => e.toString()))
+          : const [],
       isPopular: data['isPopular'] ?? false,
       isActive: data['isActive'] ?? true,
-      order: (data['order'] ?? 0).toInt(),
+      order: _toInt(data['order'], 0),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

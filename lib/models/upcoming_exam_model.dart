@@ -44,25 +44,49 @@ class UpcomingExamModel {
   });
 
   factory UpcomingExamModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return UpcomingExamModel(
+        id: doc.id,
+        name: '',
+        examDate: DateTime.now(),
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return UpcomingExamModel(
       id: doc.id,
-      name: data['name'] ?? '',
-      organization: data['organization'],
-      categoryId: data['categoryId'],
+      name: (data['name'] ?? '').toString(),
+      organization: data['organization']?.toString(),
+      categoryId: data['categoryId']?.toString(),
       examDate: parseTimestamp(data['examDate']),
       applicationStartDate: parseTimestampNullable(data['applicationStartDate']),
       applicationEndDate: parseTimestampNullable(data['applicationEndDate']),
-      notificationUrl: data['notificationUrl'],
-      syllabusUrl: data['syllabusUrl'],
-      imageUrl: data['imageUrl'],
-      description: data['description'] ?? '',
-      tags: List<String>.from(data['tags'] ?? []),
+      notificationUrl: data['notificationUrl']?.toString(),
+      syllabusUrl: data['syllabusUrl']?.toString(),
+      imageUrl: data['imageUrl']?.toString(),
+      description: (data['description'] ?? '').toString(),
+      tags: data['tags'] is List
+          ? List<String>.from(
+              (data['tags'] as List).map((e) => e.toString()))
+          : const [],
       isPublished: data['isPublished'] ?? true,
-      order: data['order'] ?? 0,
+      order: _toInt(data['order'], 0),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

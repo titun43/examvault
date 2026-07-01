@@ -2,6 +2,7 @@
 // ExamVault - Notification Service (Push Notifications)
 // =============================================================================
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -93,13 +94,22 @@ class NotificationService {
   }
 
   // ==================== SAVE FCM TOKEN ====================
+  // Uses set(merge:true) instead of update() because update() THROWS if the
+  // user doc doesn't exist yet (race condition: token refresh fires before
+  // the auth flow creates the users/{uid} doc). set(merge:true) creates the
+  // doc if missing and never throws.
   static Future<void> _saveFcmToken(String token) async {
     final userId = FirebaseService.auth.currentUser?.uid;
     if (userId == null) return;
-
-    await FirebaseService.usersRef.doc(userId).update({
-      'fcmToken': token,
-    });
+    try {
+      await FirebaseService.usersRef.doc(userId).set({
+        'fcmToken': token,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      // Best-effort — never crash the app on FCM token save failure.
+      print('_saveFcmToken error (non-fatal): $e');
+    }
   }
 
   // ==================== SUBSCRIBE TO TOPICS ====================

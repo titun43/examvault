@@ -15,7 +15,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 
@@ -45,15 +44,16 @@ class FirebaseService {
       await Firebase.initializeApp();
     }
 
-    // Crashlytics: catch all framework errors (best-effort — won't crash if
-    // Crashlytics isn't configured)
+    // Crashlytics: BEST-EFFORT only. We do NOT override FlutterError.onError
+    // or PlatformDispatcher.instance.onError here because those are already
+    // set safely in main.dart. If we overrode them with Crashlytics handlers
+    // and Crashlytics itself threw (e.g. not configured, network issue), the
+    // throw would be uncaught → app crash ("ExamVault keeps stopping").
+    // Instead we just record errors to Crashlytics from our safe handlers.
     try {
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
-        return true;
-      };
+      // Sanity-touch: access the instance so any init error surfaces here
+      // (caught) instead of later during a build.
+      FirebaseCrashlytics.instance;
     } catch (_) {}
 
     _initialized = true;

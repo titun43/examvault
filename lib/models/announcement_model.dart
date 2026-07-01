@@ -40,22 +40,43 @@ class AnnouncementModel {
   });
 
   factory AnnouncementModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return AnnouncementModel(
+        id: doc.id,
+        title: '',
+        message: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return AnnouncementModel(
       id: doc.id,
-      title: data['title'] ?? '',
-      message: data['message'] ?? '',
-      type: _parseType(data['type']),
-      imageUrl: data['imageUrl'],
-      link: data['link'],
-      linkLabel: data['linkLabel'],
+      title: (data['title'] ?? '').toString(),
+      message: (data['message'] ?? '').toString(),
+      type: _parseType(data['type']?.toString()),
+      imageUrl: data['imageUrl']?.toString(),
+      link: data['link']?.toString(),
+      linkLabel: data['linkLabel']?.toString(),
       isPinned: data['isPinned'] ?? false,
       isPublished: data['isPublished'] ?? true,
-      order: data['order'] ?? 0,
+      order: _toInt(data['order'], 0),
       expiresAt: parseTimestampNullable(data['expiresAt']),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

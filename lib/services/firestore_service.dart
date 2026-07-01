@@ -378,6 +378,8 @@ class FirestoreService {
       // Sort by createdAt desc (client-side)
       docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return docs;
+    }).handleError((e) {
+      print('getTestsStream error: $e');
     });
   }
 
@@ -402,14 +404,19 @@ class FirestoreService {
 
   // ==================== QUESTIONS ====================
   static Future<List<QuestionModel>> getQuestions(String testId) async {
-    // Single-field filter only (testId) — sort client-side to avoid the
-    // composite index requirement (testId + createdAt).
-    final snapshot = await _db.collection('questions')
-        .where('testId', isEqualTo: testId)
-        .get();
-    final docs = snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
-    docs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    return docs;
+    try {
+      // Single-field filter only (testId) — sort client-side to avoid the
+      // composite index requirement (testId + createdAt).
+      final snapshot = await _db.collection('questions')
+          .where('testId', isEqualTo: testId)
+          .get();
+      final docs = snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
+      docs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return docs;
+    } catch (e) {
+      print('getQuestions error: $e');
+      return [];
+    }
   }
 
   static Stream<List<QuestionModel>> getQuestionsStream(String testId) {
@@ -422,6 +429,9 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => QuestionModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => a.createdAt.compareTo(b.createdAt));
           return docs;
+        })
+        .handleError((e) {
+          print('getQuestionsStream error: $e');
         });
   }
 
@@ -440,11 +450,16 @@ class FirestoreService {
 
   // ==================== TEST RESULTS ====================
   static Future<List<TestResultModel>> getUserResults(String userId) async {
-    final snapshot = await _db.collection('results')
-        .where('userId', isEqualTo: userId)
-        .orderBy('attemptedAt', descending: true)
-        .get();
-    return snapshot.docs.map((doc) => TestResultModel.fromFirestore(doc)).toList();
+    try {
+      final snapshot = await _db.collection('results')
+          .where('userId', isEqualTo: userId)
+          .orderBy('attemptedAt', descending: true)
+          .get();
+      return snapshot.docs.map((doc) => TestResultModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('getUserResults error: $e');
+      return [];
+    }
   }
 
   static Stream<List<TestResultModel>> getUserResultsStream(String userId) {
@@ -457,6 +472,9 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => TestResultModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => b.attemptedAt.compareTo(a.attemptedAt));
           return docs;
+        })
+        .handleError((e) {
+          print('getUserResultsStream error: $e');
         });
   }
 
@@ -560,6 +578,9 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => CurrentAffairModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => b.date.compareTo(a.date));
           return docs.take(limit).toList();
+        })
+        .handleError((e) {
+          print('getCurrentAffairsStream error: $e');
         });
   }
 
@@ -575,6 +596,9 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => NotificationModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return docs.take(50).toList();
+        })
+        .handleError((e) {
+          print('getNotificationsStream error: $e');
         });
   }
 
@@ -600,12 +624,17 @@ class FirestoreService {
     LeaderboardType type = LeaderboardType.allTime,
     int limit = 100,
   }) async {
-    final snapshot = await _db.collection('leaderboard')
-        .where('type', isEqualTo: type.name)
-        .orderBy('rank')
-        .limit(limit)
-        .get();
-    return snapshot.docs.map((doc) => LeaderboardModel.fromFirestore(doc)).toList();
+    try {
+      final snapshot = await _db.collection('leaderboard')
+          .where('type', isEqualTo: type.name)
+          .orderBy('rank')
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) => LeaderboardModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('getLeaderboard error: $e');
+      return [];
+    }
   }
 
   static Stream<List<LeaderboardModel>> getLeaderboardStream({
@@ -621,18 +650,26 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => LeaderboardModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => a.rank.compareTo(b.rank));
           return docs.take(limit).toList();
+        })
+        .handleError((e) {
+          print('getLeaderboardStream error: $e');
         });
   }
 
   // ==================== ANNOUNCEMENTS ====================
   static Future<List<AnnouncementModel>> getAnnouncements({int limit = 50}) async {
-    final snapshot = await _db.collection('announcements')
-        .where('isPublished', isEqualTo: true)
-        .orderBy('isPinned', descending: true)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-    return snapshot.docs.map((doc) => AnnouncementModel.fromFirestore(doc)).toList();
+    try {
+      final snapshot = await _db.collection('announcements')
+          .where('isPublished', isEqualTo: true)
+          .orderBy('isPinned', descending: true)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) => AnnouncementModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('getAnnouncements error: $e');
+      return [];
+    }
   }
 
   static Stream<List<AnnouncementModel>> getAnnouncementsStream({int limit = 50}) {
@@ -650,6 +687,9 @@ class FirestoreService {
             return b.createdAt.compareTo(a.createdAt);
           });
           return docs.take(limit).toList();
+        })
+        .handleError((e) {
+          print('getAnnouncementsStream error: $e');
         });
   }
 
@@ -678,12 +718,17 @@ class FirestoreService {
 
   // ==================== UPCOMING EXAMS ====================
   static Future<List<UpcomingExamModel>> getUpcomingExams({int limit = 50}) async {
-    final snapshot = await _db.collection('upcoming_exams')
-        .where('isPublished', isEqualTo: true)
-        .orderBy('examDate')
-        .limit(limit)
-        .get();
-    return snapshot.docs.map((doc) => UpcomingExamModel.fromFirestore(doc)).toList();
+    try {
+      final snapshot = await _db.collection('upcoming_exams')
+          .where('isPublished', isEqualTo: true)
+          .orderBy('examDate')
+          .limit(limit)
+          .get();
+      return snapshot.docs.map((doc) => UpcomingExamModel.fromFirestore(doc)).toList();
+    } catch (e) {
+      print('getUpcomingExams error: $e');
+      return [];
+    }
   }
 
   static Stream<List<UpcomingExamModel>> getUpcomingExamsStream({int limit = 50}) {
@@ -696,6 +741,9 @@ class FirestoreService {
           var docs = snapshot.docs.map((doc) => UpcomingExamModel.fromFirestore(doc)).toList();
           docs.sort((a, b) => a.examDate.compareTo(b.examDate));
           return docs.take(limit).toList();
+        })
+        .handleError((e) {
+          print('getUpcomingExamsStream error: $e');
         });
   }
 
@@ -734,6 +782,9 @@ class FirestoreService {
               .toList();
           docs.sort((a, b) => (a.order).compareTo(b.order));
           return docs;
+        })
+        .handleError((e) {
+          print('getActiveBannersStream error: $e');
         });
   }
 
@@ -814,6 +865,9 @@ class FirestoreService {
           docs = docs.where((t) => t.isPublished).toList();
           docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return docs;
+        })
+        .handleError((e) {
+          print('getPreviousPapersStream error: $e');
         });
   }
 

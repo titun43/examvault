@@ -59,30 +59,64 @@ class TestModel {
   bool get isPaid => price > 0 || isPremium;
 
   factory TestModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return TestModel(
+        id: doc.id,
+        subjectId: '',
+        title: '',
+        slug: '',
+        duration: 60,
+        totalMarks: 100,
+        passingMarks: 40,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return TestModel(
       id: doc.id,
-      subjectId: data['subjectId'] ?? '',
-      title: data['title'] ?? '',
-      slug: data['slug'] ?? '',
-      type: _parseTestType(data['type']),
-      duration: data['duration'] ?? 60,
-      totalMarks: data['totalMarks'] ?? 100,
-      passingMarks: data['passingMarks'] ?? 40,
+      subjectId: (data['subjectId'] ?? '').toString(),
+      title: (data['title'] ?? '').toString(),
+      slug: (data['slug'] ?? '').toString(),
+      type: _parseTestType(data['type']?.toString()),
+      duration: _toInt(data['duration'], 60),
+      totalMarks: _toInt(data['totalMarks'], 100),
+      passingMarks: _toInt(data['passingMarks'], 40),
       isPublished: data['isPublished'] ?? true,
-      difficulty: _parseDifficulty(data['difficulty']),
+      difficulty: _parseDifficulty(data['difficulty']?.toString()),
       negativeMarking: data['negativeMarking'] ?? false,
-      negativeMarks: (data['negativeMarks'] ?? 0.25).toDouble(),
-      instructions: data['instructions'],
-      year: data['year'],
-      examSession: data['examSession'],
+      negativeMarks: _toDouble(data['negativeMarks'], 0.25),
+      instructions: data['instructions']?.toString(),
+      year: data['year'] is int ? data['year'] : null,
+      examSession: data['examSession']?.toString(),
       isPremium: data['isPremium'] ?? false,
-      price: (data['price'] ?? 0).toInt(),
-      questionCount: data['questionCount'] ?? 0,
-      attemptCount: data['attemptCount'] ?? 0,
+      price: _toInt(data['price'], 0),
+      questionCount: _toInt(data['questionCount'], 0),
+      attemptCount: _toInt(data['attemptCount'], 0),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
+  }
+
+  static double _toDouble(dynamic v, double fallback) {
+    if (v == null) return fallback;
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {

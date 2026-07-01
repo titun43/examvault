@@ -35,21 +35,47 @@ class QuestionModel {
   });
 
   factory QuestionModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final dynamic raw = doc.data();
+    if (raw == null) {
+      return QuestionModel(
+        id: doc.id,
+        testId: '',
+        question: '',
+        options: const [],
+        correctAnswerIndex: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    }
+    final data = raw is Map<String, dynamic>
+        ? raw
+        : Map<String, dynamic>.from(raw as Map);
     return QuestionModel(
       id: doc.id,
-      testId: data['testId'] ?? '',
-      question: data['question'] ?? '',
-      options: List<String>.from(data['options'] ?? []),
-      correctAnswerIndex: data['correctAnswerIndex'] ?? 0,
-      explanation: data['explanation'],
-      subjectTopic: data['subjectTopic'],
-      marks: data['marks'] ?? 1,
+      testId: (data['testId'] ?? '').toString(),
+      question: (data['question'] ?? '').toString(),
+      options: data['options'] is List
+          ? List<String>.from(
+              (data['options'] as List).map((e) => e.toString()))
+          : const [],
+      correctAnswerIndex: _toInt(data['correctAnswerIndex'], 0),
+      explanation: data['explanation']?.toString(),
+      subjectTopic: data['subjectTopic']?.toString(),
+      marks: _toInt(data['marks'], 1),
       isPremium: data['isPremium'] ?? false,
-      imageUrl: data['imageUrl'],
+      imageUrl: data['imageUrl']?.toString(),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
+  }
+
+  static int _toInt(dynamic v, int fallback) {
+    if (v == null) return fallback;
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? fallback;
+    return fallback;
   }
 
   Map<String, dynamic> toFirestore() {
