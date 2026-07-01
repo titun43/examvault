@@ -1,9 +1,20 @@
 # =============================================================================
-# ExamVault - Build Release APK on GitHub Actions
+# ExamVault - Build Release APK on GitHub Actions (LIFETIME STABLE SIGNING)
 # =============================================================================
-# This workflow builds a signed release APK automatically.
-# If KEYSTORE_BASE64 secret is NOT set, it creates a temporary self-signed
-# keystore (for testing). For Play Store upload, add the real keystore secret.
+# This workflow ALWAYS uses the SAME release keystore (stored as a GitHub
+# Secret), so every APK ever built here can update the previous one.
+# No more "package conflicts with an existing package" errors — ever.
+#
+# Required GitHub Secrets (see SETUP_SECRETS.md):
+#   KEYSTORE_BASE64      base64-encoded examvault-release.keystore
+#   KEYSTORE_PASSWORD    keystore store password (ExamVault2026!)
+#   KEY_PASSWORD         key password (ExamVault2026!)
+#   KEY_ALIAS            key alias (examvault)
+#   EXPECTED_SHA1        expected SHA1 fingerprint of the signing cert
+#                        (BA:56:A6:05:A0:D8:A3:E1:81:75:C7:33:98:31:74:EF:C4:71:6A:6E)
+#
+# Optional:
+#   GOOGLE_SERVICES_JSON  Firebase config JSON (if not committed in repo)
 # =============================================================================
 
 name: Build Release APK
@@ -15,7 +26,7 @@ on:
 
 jobs:
   build:
-    name: Build Signed APK
+    name: Build Signed APK (Stable Key)
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -39,32 +50,88 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
+      - name: Read app version from pubspec
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "App version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Download deps
         run: flutter pub get
 
-      - name: Decode Keystore (or create temp one)
+      # -------------------------------------------------------------------------
+      # STEP 1: Decode the REAL keystore from secret — NO temp fallback.
+      # If the secret is missing, we FAIL HARD instead of creating a random key.
+      # This is what guarantees every build uses the same signing identity.
+      # -------------------------------------------------------------------------
+      - name: Decode Keystore (MANDATORY)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "No KEYSTORE_BASE64 secret found. Creating temporary self-signed keystore for testing..."
-            keytool -genkey -v -keystore android/app/examvault-release.keystore \
-              -alias examvault -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass ExamVault2026! -keypass ExamVault2026! \
-              -dname "CN=ExamVault, OU=Dev, O=ExamVault, L=Kolkata, ST=WB, C=IN"
-            echo "Temporary keystore created."
-          else
-            echo "Decoding keystore from secret..."
-            echo "$KEYSTORE_BASE64" | base64 --decode > android/app/examvault-release.keystore
+            echo "::error::KEYSTORE_BASE64 secret is MISSING. "
+            echo "::error::Without it, the build would create a random keystore and cause "
+            echo "::error::'package conflicts' on user devices (cannot update existing installs)."
+            echo "::error::See SETUP_SECRETS.md for how to add the secret."
+            exit 1
           fi
+          echo "Decoding keystore from GitHub Secret..."
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/examvault-release.keystore
           ls -la android/app/examvault-release.keystore
 
-      - name: Write key.properties
+      # -------------------------------------------------------------------------
+      # STEP 2: Verify the keystore's SHA1 fingerprint matches the EXPECTED one.
+      # This is the SAFETY NET: if someone ever replaces the keystore secret with
+      # a different one, the build fails here — protecting users from getting an
+      # APK that can't update their existing install.
+      # -------------------------------------------------------------------------
+      - name: Verify Keystore Fingerprint (Safety Net)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          EXPECTED_SHA1: ${{ secrets.EXPECTED_SHA1 }}
         run: |
-          printf 'storePassword=ExamVault2026!\nkeyPassword=ExamVault2026!\nkeyAlias=examvault\nstoreFile=examvault-release.keystore\n' > android/key.properties
-          echo "=== key.properties ==="
-          cat android/key.properties
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$EXPECTED_SHA1" ]; then
+            echo "::error::KEYSTORE_PASSWORD / KEY_ALIAS / EXPECTED_SHA1 secrets are required."
+            exit 1
+          fi
+          echo "Verifying keystore SHA1 fingerprint..."
+          ACTUAL_SHA1=$(keytool -list -v -keystore android/app/examvault-release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" 2>/dev/null \
+            | grep -i 'SHA1:' | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
+          EXPECTED_SHA1_UP=$(echo "$EXPECTED_SHA1" | tr '[:lower:]' '[:upper:]')
 
+          echo "Expected SHA1: $EXPECTED_SHA1_UP"
+          echo "Actual   SHA1: $ACTUAL_SHA1"
+
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_UP" ]; then
+            echo "::error::FINGERPRINT MISMATCH!"
+            echo "::error::The keystore in GitHub Secrets is NOT the official ExamVault keystore."
+            echo "::error::Building with this would produce APKs that CANNOT update existing installs."
+            echo "::error::Fix the KEYSTORE_BASE64 secret to use the real examvault-release.keystore."
+            exit 1
+          fi
+          echo "✅ Keystore fingerprint verified — matches the official ExamVault signing key."
+
+      # -------------------------------------------------------------------------
+      # STEP 3: Write key.properties from secrets (no hardcoded passwords).
+      # -------------------------------------------------------------------------
+      - name: Write key.properties
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=examvault-release.keystore\n' \
+            "$KEYSTORE_PASSWORD" "$KEY_PASSWORD" "$KEY_ALIAS" > android/key.properties
+          echo "=== key.properties (passwords masked) ==="
+          sed 's/=.*/=***/' android/key.properties
+
+      # -------------------------------------------------------------------------
+      # STEP 4: google-services.json (Firebase) — from secret OR from repo.
+      # -------------------------------------------------------------------------
       - name: Write google-services.json
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -74,7 +141,7 @@ jobs:
             if [ -f android/app/google-services.json ]; then
               echo "Found existing google-services.json in repo."
             else
-              echo "ERROR: No google-services.json found! Build will fail."
+              echo "::error::No google-services.json found! Build will fail."
               exit 1
             fi
           else
@@ -82,23 +149,78 @@ jobs:
             echo "google-services.json written from secret."
           fi
 
+      # -------------------------------------------------------------------------
+      # STEP 5: Build the signed release APK + AAB.
+      # -------------------------------------------------------------------------
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Build AAB (Play Store bundle)
+        run: flutter build appbundle --release
+        continue-on-error: true
+
+      # -------------------------------------------------------------------------
+      # STEP 6: Verify the BUILT APK is actually signed by our key (final check).
+      # -------------------------------------------------------------------------
+      - name: Verify APK signature
+        env:
+          EXPECTED_SHA1: ${{ secrets.EXPECTED_SHA1 }}
+        run: |
+          echo "=== Verifying the built APK signature ==="
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          ACTUAL_SHA1=$(apksigner verify --print-certs "$APK_PATH" 2>/dev/null \
+            | grep -i 'SHA-1' | head -1 | awk '{print $NF}' | tr '[:lower:]' '[:upper:]')
+          EXPECTED_SHA1_UP=$(echo "$EXPECTED_SHA1" | tr '[:lower:]' '[:upper:]')
+          echo "APK cert SHA1: $ACTUAL_SHA1"
+          echo "Expected SHA1: $EXPECTED_SHA1_UP"
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_UP" ]; then
+            echo "::error::Built APK is NOT signed by the official key! Aborting."
+            exit 1
+          fi
+          echo "✅ APK is correctly signed by the official ExamVault key."
+
+      # -------------------------------------------------------------------------
+      # STEP 7: Generate checksum + rename APK with version for easy tracking.
+      # -------------------------------------------------------------------------
+      - name: Generate checksums
+        id: checksum
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          cp "$APK_PATH" "examvault-${VERSION}.apk"
+          sha256sum "examvault-${VERSION}.apk" > "examvault-${VERSION}.apk.sha256"
+          echo "=== SHA256 ==="
+          cat "examvault-${VERSION}.apk.sha256"
+          echo "sha=$(sha256sum "examvault-${VERSION}.apk" | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      # -------------------------------------------------------------------------
+      # STEP 8: Upload artifacts (APK + AAB + checksums).
+      # -------------------------------------------------------------------------
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: examvault-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
-
-      - name: Also build AAB (Play Store bundle)
-        run: flutter build appbundle --release
-        continue-on-error: true
+          name: examvault-apk-${{ steps.version.outputs.version }}
+          path: |
+            examvault-*.apk
+            examvault-*.apk.sha256
+          retention-days: 90
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: examvault-release-aab
+          name: examvault-aab-${{ steps.version.outputs.version }}
           path: build/app/outputs/bundle/release/app-release.aab
-          retention-days: 30
+          retention-days: 90
+          if-no-files-found: ignore
+
+      - name: Build Summary
+        run: |
+          echo "============================================"
+          echo "  ExamVault Build Summary"
+          echo "============================================"
+          echo "Version : ${{ steps.version.outputs.version }}"
+          echo "SHA1    : ${{ secrets.EXPECTED_SHA1 }}"
+          echo "SHA256  : ${{ steps.checksum.outputs.sha }}"
+          echo "APK     : examvault-${{ steps.version.outputs.version }}.apk"
+          echo "Status  : ✅ Signed with official keystore (updates work)"
+          echo "============================================"

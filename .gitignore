@@ -16,12 +16,15 @@ android/app/*.keystore
 android/app/*.jks
 *.keystore
 *.jks
+examvault-release.keystore.BACKUP
+*.keystore.BACKUP
 
 # Local env / secrets
 PROJECT_CONFIG.env
 .env
 .env.local
 secrets.json
+KEYSTORE_BASE64.txt
 
 # ---- FLUTTER / DART ----
 .dart_tool/

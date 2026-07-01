@@ -284,7 +284,8 @@ class _LoginScreenState extends State<LoginScreen> {
           },
         ),
         const SizedBox(height: 12),
-        // Help / troubleshooting hint
+        // Help / troubleshooting hint — user-friendly message only (no
+        // admin/Firebase/SHA-1 jargon exposed to end users).
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
@@ -299,8 +300,8 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Did not receive OTP? Make sure your number is active and not on DND. '
-                  'If still failing, ask admin to verify Firebase Phone Auth + SHA-1 are configured.',
+                  'Did not receive OTP? Make sure your number is active, has network, '
+                  'and is not on DND. Wait 30 seconds and try again.',
                   style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
                 ),
               ),

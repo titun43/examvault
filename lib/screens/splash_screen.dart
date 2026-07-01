@@ -7,6 +7,10 @@
 // on a cold start (or slow device) the restore can take longer than 3s, so a
 // logged-in user would be wrongly sent to the login screen and forced to
 // log in again every time they reopened the app.
+//
+// VISUALS: Book logo (Icons.menu_book) zooms in over ~1s, then a thin white
+// CircularProgressIndicator fades in below the tagline. Together they give a
+// 1-2s branded loading state while the auth state resolves.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -109,8 +113,8 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Book logo with a ~1s zoom-in animation (replaces the old
-              // graduation-cap icon + circular progress spinner).
+              // Book logo with a ~1s zoom-in animation. A thin loading spinner
+              // fades in below the tagline once this animation completes.
               ZoomIn(
                 duration: const Duration(milliseconds: 1000),
                 child: Container(
@@ -160,8 +164,25 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
               ),
-              // Loading spinner removed per user request — the 1s book-logo
-              // animation is the only motion on the splash now.
+              const SizedBox(height: 40),
+              // Loading spinner — appears after the book-logo zoom-in finishes,
+              // giving a 1-2s branded loading state while Firebase Auth restores
+              // any persisted session in the background.
+              FadeIn(
+                duration: const Duration(milliseconds: 400),
+                delay: const Duration(milliseconds: 1000),
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.white.withOpacity(0.85),
+                    ),
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

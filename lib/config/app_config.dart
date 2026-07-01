@@ -30,8 +30,18 @@ class AppConfig {
   static const String firebaseMessagingSenderId = '1047596633370';
   static const String firebaseAuthDomain = 'examvaultnew.firebaseapp.com';
 
-  // SHA-1 fingerprint of the release signing certificate (added to Firebase)
-  static const String releaseSha1 = '939f8d49fb0b86520f7657a94ed37b352b198ea7';
+  // SHA-1 fingerprint of the release signing certificate (added to Firebase).
+  // This MUST match the fingerprint of android/app/examvault-release.keystore.
+  // Verified value (Jul 1, 2026):
+  //   BA:56:A6:05:A0:D8:A3:E1:81:75:C7:33:98:31:74:EF:C4:71:6A:6E
+  // To re-verify:
+  //   keytool -list -v -keystore android/app/examvault-release.keystore \
+  //     -storepass 'ExamVault2026!'
+  // If you regenerate the keystore, update this AND add the new SHA-1 to:
+  //   Firebase Console → Project Settings → SHA certificate fingerprints
+  //   Then download a fresh google-services.json.
+  static const String releaseSha1 =
+      'BA:56:A6:05:A0:D8:A3:E1:81:75:C7:33:98:31:74:EF:C4:71:6A:6E';
 
   // ==================== ADMOB ====================
   // Real AdMob IDs (production). Set admobTestMode=false before release.

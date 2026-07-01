@@ -3,10 +3,14 @@
 // Shows an AdMob banner ad for FREE (non-premium) users. Premium users see
 // nothing — the widget returns a SizedBox.shrink(). This is used on the home
 // screen and can be dropped into any screen.
-// CRASH-SAFETY (v1.13+): NEVER creates a BannerAd until AdMobService.isInitialized
+// CRASH-SAFETY: NEVER creates a BannerAd until AdMobService.isInitialized
 // is true. Creating an ad before MobileAds.initialize() completes can crash
 // the app natively (below Dart's error handlers). Also wraps _loadAd in
 // try/catch so a native ad-load exception is contained.
+// RE-ENABLED (v1.19): The earlier "v1.14 DEBUGGING: disabled" code path was
+// meant to be temporary. It is now re-enabled with full crash-safety: ads
+// load only after init, on a post-frame callback, and any failure is silently
+// swallowed (widget just stays hidden — never crashes the app).
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -35,13 +39,12 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void initState() {
     super.initState();
-    // v1.14 DEBUGGING: AdMob BannerAd.load() is an ASYNC NATIVE call that
-    // can crash BELOW Dart's try/catch if the AdMob SDK has an issue (invalid
-    // ad unit, Play Services problem, etc.). To isolate whether AdMob is the
-    // crash source, we temporarily DISABLE ad loading entirely. The widget
-    // renders nothing. Once we confirm the crash is gone, we can re-enable
-    // ads with a safer approach (e.g. delayed init, or a dedicated ad screen).
-    // _loadAd is NOT called here.
+    // Load the ad after the first frame so the widget is fully mounted and
+    // the AdMob SDK has had a chance to initialize. We also re-check
+    // AdMobService.isInitialized right before creating the BannerAd.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed) _loadAd();
+    });
   }
 
   @override
@@ -54,6 +57,21 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _loadAd() {
+    // Don't attempt to load if AdMob SDK isn't initialized yet.
+    if (!AdMobService.isInitialized) {
+      // Retry once after a short delay — give init time to finish.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (!_disposed && !_isLoaded && !_loadFailed) _loadAd();
+      });
+      return;
+    }
+
+    // Skip if this user is premium — ads are for free users only.
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isAuthenticated && auth.user?.isPremium == true) {
+      return;
+    }
+
     try {
       _bannerAd = BannerAd(
         adUnitId: AppConfig.admobTestMode
@@ -75,6 +93,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
                 _loadFailed = true;
               });
             }
+            print('BannerAd failed to load (non-fatal): ${error.code} ${error.message}');
           },
         ),
       )..load();
@@ -89,8 +108,23 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // v1.14 DEBUGGING: AdMob disabled entirely to isolate crash source.
-    // Always return nothing. No native ad code runs at all.
-    return const SizedBox.shrink();
+    // Premium users never see ads.
+    final auth = Provider.of<AuthProvider>(context);
+    if (auth.isAuthenticated && auth.user?.isPremium == true) {
+      return const SizedBox.shrink();
+    }
+
+    // If ad failed to load or isn't loaded yet, render nothing rather than
+    // a blank box — keeps the UI clean.
+    if (!_isLoaded || _bannerAd == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      alignment: Alignment.center,
+      width: _bannerAd!.size.width.toDouble(),
+      height: _bannerAd!.size.height.toDouble(),
+      child: AdWidget(ad: _bannerAd!),
+    );
   }
 }

@@ -82,23 +82,30 @@ class AuthService {
     return result;
   }
 
-  /// Maps raw Firebase Phone Auth error codes to actionable messages.
+  /// Maps raw Firebase Phone Auth error codes to actionable, user-friendly
+  /// messages. Admin/technical details (Firebase Console, SHA-1, etc.) are
+  /// NEVER exposed to end users — they only see what they can act on.
+  /// The original technical context is logged for debugging separately.
   static String _friendlyPhoneError(FirebaseAuthException e) {
+    // Log the raw code for developer debugging (not shown to user).
+    print('PhoneAuth error code: ${e.code}');
     switch (e.code) {
       case 'invalid-phone-number':
         return 'Phone number is invalid. Enter a valid 10-digit mobile number.';
       case 'too-many-requests':
         return 'Too many OTP requests from this number. Please wait a few minutes and try again.';
       case 'quota-exceeded':
-        return 'Daily SMS quota exceeded. Try again tomorrow or contact admin.';
+        return 'Daily SMS quota exceeded. Please try again tomorrow.';
       case 'network-request-failed':
         return 'Network error. Check your internet connection and try again.';
       case 'operation-not-allowed':
-        return 'Phone Auth is not enabled in Firebase Console. Ask admin to enable it.';
+        // Real cause: Phone Auth not enabled in Firebase Console.
+        return 'OTP service is temporarily unavailable. Please try again later or use Email sign-in.';
       case 'app-not-authorized':
-        return 'App signature (SHA-1) not registered in Firebase. Ask admin to add it.';
+        // Real cause: SHA-1 not registered in Firebase.
+        return 'OTP service is temporarily unavailable. Please try again later or use Email sign-in.';
       case 'captcha-check-failed':
-        return 'reCAPTCHA verification failed. Check your network and try again.';
+        return 'Verification failed. Check your network and try again.';
       case 'invalid-verification-code':
         return 'Incorrect OTP. Please check and re-enter the 6-digit code.';
       case 'session-expired':
@@ -106,7 +113,7 @@ class AuthService {
       case 'credential-already-in-use':
         return 'This phone number is already linked to another account.';
       default:
-        return e.message ?? 'Phone verification failed (${e.code}).';
+        return 'Unable to send OTP right now. Please try again in a moment.';
     }
   }
 
