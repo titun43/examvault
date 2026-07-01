@@ -15,6 +15,7 @@ import '../models/leaderboard_model.dart';
 import '../models/announcement_model.dart';
 import '../models/upcoming_exam_model.dart';
 import '../models/banner_model.dart';
+import '../models/premium_plan_model.dart';
 import 'firebase_service.dart';
 
 class FirestoreService {
@@ -725,6 +726,48 @@ class FirestoreService {
 
   static Future<void> deleteBanner(String id) async {
     await _db.collection('banners').doc(id).delete();
+  }
+
+  // ==================== PREMIUM PLANS ====================
+  // Admin-controllable premium subscription plans. The premium screen streams
+  // these and falls back to AppConfig defaults when the collection is empty.
+  // We use a single-field filter (isActive) and sort client-side by `order`
+  // to avoid Firestore composite-index requirements.
+  static Stream<List<PremiumPlanModel>> getActivePremiumPlansStream() {
+    try {
+      return _db.collection('premium_plans')
+          .where('isActive', isEqualTo: true)
+          .snapshots()
+          .map((snapshot) {
+            var docs = snapshot.docs
+                .map((doc) => PremiumPlanModel.fromFirestore(doc))
+                .toList();
+            docs.sort((a, b) => a.order.compareTo(b.order));
+            return docs;
+          })
+          .handleError((e) {
+            print('getActivePremiumPlansStream error: $e');
+          });
+    } catch (e) {
+      print('getActivePremiumPlansStream init error: $e');
+      return Stream.value(<PremiumPlanModel>[]);
+    }
+  }
+
+  static Future<List<PremiumPlanModel>> getActivePremiumPlans() async {
+    try {
+      final snapshot = await _db.collection('premium_plans')
+          .where('isActive', isEqualTo: true)
+          .get();
+      final docs = snapshot.docs
+          .map((doc) => PremiumPlanModel.fromFirestore(doc))
+          .toList();
+      docs.sort((a, b) => a.order.compareTo(b.order));
+      return docs;
+    } catch (e) {
+      print('getActivePremiumPlans error: $e');
+      return [];
+    }
   }
 
   // ==================== PREVIOUS PAPERS (Test type filter) ====================

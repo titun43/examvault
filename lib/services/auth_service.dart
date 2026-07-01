@@ -339,6 +339,50 @@ class AuthService {
     await FirebaseService.usersRef.doc(userId).update(updates);
   }
 
+  // ==================== UPDATE USER PROFILE (EXTENDED) ====================
+  /// Extended profile update used by the EditProfileScreen. Updates name +
+  /// photoUrl at the top level and deep-merges the supplied `preferences`
+  /// map (e.g. dateOfBirth, gender, qualification, city, targetExam) into the
+  /// user's existing preferences map.
+  ///
+  /// `dateOfBirth` (if non-null) is converted to a Firestore Timestamp before
+  /// being written into preferences.
+  ///
+  /// Uses dot-notation keys (`preferences.<key>`) with `SetOptions(merge: true)`
+  /// so only the supplied preference keys are written — existing preference
+  /// keys that aren't being edited are preserved. Also works if the user doc
+  /// somehow doesn't exist yet (creates it).
+  static Future<void> updateProfileExtended({
+    required String userId,
+    String? name,
+    String? photoUrl,
+    Map<String, dynamic>? preferences,
+  }) async {
+    final data = <String, dynamic>{
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (name != null) data['name'] = name;
+    if (photoUrl != null) data['photoUrl'] = photoUrl;
+
+    if (preferences != null && preferences.isNotEmpty) {
+      for (final entry in preferences.entries) {
+        // Convert any DateTime values to Timestamp before writing. The
+        // EditProfileScreen passes DOB as a DateTime for type-safety.
+        final value = entry.value is DateTime
+            ? Timestamp.fromDate(entry.value as DateTime)
+            : entry.value;
+        // Dot-notation key → Firestore writes only this preference field,
+        // leaving all other preference keys untouched.
+        data['preferences.${entry.key}'] = value;
+      }
+    }
+
+    await FirebaseService.usersRef.doc(userId).set(
+      data,
+      SetOptions(merge: true),
+    );
+  }
+
   // ==================== DELETE ACCOUNT ====================
   static Future<void> deleteAccount() async {
     if (currentUser != null) {

@@ -1,5 +1,9 @@
 // =============================================================================
 // ExamVault - Premium/Payment Screen (Razorpay)
+// Premium plans are now admin-controllable: this screen fetches them from the
+// `premium_plans` Firestore collection. If Firestore returns no plans (or
+// errors), it falls back to the hardcoded AppConfig defaults so the screen
+// always works.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -8,6 +12,8 @@ import '../../theme/app_theme.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/razorpay_service.dart';
+import '../../services/firestore_service.dart';
+import '../../models/premium_plan_model.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -18,15 +24,75 @@ class PremiumScreen extends StatefulWidget {
 
 class _PremiumScreenState extends State<PremiumScreen> {
   int _selectedPlanIndex = 1; // Default: Quarterly (popular)
+  List<Map<String, dynamic>> _plans = const [];
+  bool _isLoadingPlans = true;
 
   @override
-  Widget build(BuildContext context) {
-    final plans = [
+  void initState() {
+    super.initState();
+    _loadPlans();
+  }
+
+  /// Loads premium plans from Firestore. Falls back to the AppConfig defaults
+  /// if Firestore is empty or errors out, so the screen always works.
+  Future<void> _loadPlans() async {
+    List<Map<String, dynamic>> plans = [];
+    try {
+      final fetched = await FirestoreService.getActivePremiumPlans();
+      if (fetched.isNotEmpty) {
+        plans = fetched.map(_planToMap).toList();
+      }
+    } catch (_) {
+      // Swallow — fall back to defaults below.
+    }
+    if (plans.isEmpty) {
+      plans = _defaultPlans();
+    }
+    if (!mounted) return;
+    setState(() {
+      _plans = plans;
+      // Clamp the selected index to the available range. If a "popular" plan
+      // exists, prefer it; otherwise default to the first plan.
+      final popularIdx = plans.indexWhere((p) => p['isPopular'] == true);
+      if (popularIdx >= 0) {
+        _selectedPlanIndex = popularIdx;
+      } else if (_selectedPlanIndex >= plans.length) {
+        _selectedPlanIndex = 0;
+      }
+      _isLoadingPlans = false;
+    });
+  }
+
+  /// Converts a Firestore-fetched PremiumPlanModel into the map shape the UI
+  /// expects (same keys as the default plans below).
+  static Map<String, dynamic> _planToMap(PremiumPlanModel p) {
+    return {
+      'name': p.name,
+      'price': p.price,
+      'duration': p.durationLabel.isNotEmpty
+          ? p.durationLabel
+          : '${p.durationMonths} Month${p.durationMonths == 1 ? '' : 's'}',
+      'planId': p.planId,
+      'months': p.durationMonths,
+      'features': p.features.isNotEmpty
+          ? p.features
+          : <String>['All Premium Tests', 'Detailed Solutions'],
+      if (p.isPopular) 'isPopular': true,
+      if (p.description != null && p.description!.isNotEmpty)
+        'discount': p.description,
+    };
+  }
+
+  /// Hardcoded fallback plans built from AppConfig — used when Firestore has
+  /// no `premium_plans` docs yet (e.g. before the admin creates them).
+  static List<Map<String, dynamic>> _defaultPlans() {
+    return [
       {
         'name': 'Monthly',
         'price': AppConfig.premiumMonthlyPrice,
         'duration': '1 Month',
         'planId': AppConfig.monthlyPlanId,
+        'months': 1,
         'features': ['All Premium Tests', 'Detailed Solutions', 'Ad-Free'],
       },
       {
@@ -34,7 +100,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
         'price': AppConfig.premiumQuarterlyPrice,
         'duration': '3 Months',
         'planId': AppConfig.quarterlyPlanId,
-        'features': ['All Premium Tests', 'Detailed Solutions', 'Ad-Free', 'Priority Support'],
+        'months': 3,
+        'features': [
+          'All Premium Tests',
+          'Detailed Solutions',
+          'Ad-Free',
+          'Priority Support'
+        ],
         'isPopular': true,
       },
       {
@@ -42,11 +114,21 @@ class _PremiumScreenState extends State<PremiumScreen> {
         'price': AppConfig.premiumYearlyPrice,
         'duration': '12 Months',
         'planId': AppConfig.yearlyPlanId,
-        'features': ['All Premium Tests', 'Detailed Solutions', 'Ad-Free', 'Priority Support', 'AI Insights'],
+        'months': 12,
+        'features': [
+          'All Premium Tests',
+          'Detailed Solutions',
+          'Ad-Free',
+          'Priority Support',
+          'AI Insights'
+        ],
         'discount': 'Save 33%',
       },
     ];
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ExamVault Premium'),
@@ -102,7 +184,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.check_circle, color: AppTheme.successColor, size: 20),
+                    const Icon(Icons.check_circle,
+                        color: AppTheme.successColor, size: 20),
                     const SizedBox(width: 12),
                     Expanded(child: Text(feature)),
                   ],
@@ -119,22 +202,29 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            ...List.generate(plans.length, (index) {
-              final plan = plans[index];
-              return _buildPlanCard(plan, index);
-            }),
-            const SizedBox(height: 24),
-            // Subscribe Button
-            ElevatedButton(
-              onPressed: _startPayment,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+            if (_isLoadingPlans)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              ...List.generate(_plans.length, (index) {
+                final plan = _plans[index];
+                return _buildPlanCard(plan, index);
+              }),
+              const SizedBox(height: 24),
+              // Subscribe Button
+              ElevatedButton(
+                onPressed: _startPayment,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text(
+                  'Subscribe for ₹${_plans[_selectedPlanIndex]['price']}',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
-              child: Text(
-                'Subscribe for ₹${plans[_selectedPlanIndex]['price']}',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
+            ],
             const SizedBox(height: 16),
             // Payment info
             const Row(
@@ -199,7 +289,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
             Row(
               children: [
                 Icon(
-                  isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
                   color: isSelected ? AppTheme.primaryColor : Colors.grey,
                 ),
                 const SizedBox(width: 12),
@@ -210,7 +302,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                       Row(
                         children: [
                           Text(
-                            plan['name'],
+                            plan['name'] ?? '',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
@@ -219,7 +311,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           if (isPopular) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppTheme.accentColor,
                                 borderRadius: BorderRadius.circular(4),
@@ -237,7 +330,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                           if (hasDiscount) ...[
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
                                 color: AppTheme.successColor,
                                 borderRadius: BorderRadius.circular(4),
@@ -291,7 +385,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 padding: const EdgeInsets.only(bottom: 4, left: 36),
                 child: Row(
                   children: [
-                    const Icon(Icons.check, size: 14, color: AppTheme.successColor),
+                    const Icon(Icons.check,
+                        size: 14, color: AppTheme.successColor),
                     const SizedBox(width: 8),
                     Text(
                       plan['features'][i],
@@ -310,14 +405,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
   void _startPayment() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (auth.user == null) return;
+    if (_plans.isEmpty) return;
 
-    final plans = [
-      {'name': 'Monthly', 'price': AppConfig.premiumMonthlyPrice, 'planId': AppConfig.monthlyPlanId, 'months': 1},
-      {'name': 'Quarterly', 'price': AppConfig.premiumQuarterlyPrice, 'planId': AppConfig.quarterlyPlanId, 'months': 3},
-      {'name': 'Yearly', 'price': AppConfig.premiumYearlyPrice, 'planId': AppConfig.yearlyPlanId, 'months': 12},
-    ];
-
-    final selectedPlan = plans[_selectedPlanIndex];
+    final selectedPlan = _plans[_selectedPlanIndex];
 
     RazorpayService.startPayment(
       userId: auth.user!.id,

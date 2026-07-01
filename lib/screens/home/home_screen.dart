@@ -29,6 +29,8 @@ import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../profile/bookmarks_screen.dart';
+import '../search/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -93,6 +95,18 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         actions: [
+          // Global search — opens a full-screen SearchScreen that searches
+          // across categories, subjects, tests and current affairs.
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            tooltip: 'Search',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+            },
+          ),
           Consumer<ThemeProvider>(
             builder: (context, themeProvider, _) {
               final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -425,7 +439,7 @@ class _HomeScreenState extends State<HomeScreen> {
       {'icon': Icons.quiz, 'label': 'Daily Quiz', 'color': const Color(0xFFFF6F00)},
       {'icon': Icons.event_available, 'label': 'Exams', 'color': const Color(0xFF43A047)},
       {'icon': Icons.newspaper, 'label': 'Current Affairs', 'color': const Color(0xFF8E24AA)},
-      {'icon': Icons.campaign, 'label': 'Updates', 'color': const Color(0xFF1E88E5)},
+      {'icon': Icons.bookmark, 'label': 'Bookmarks', 'color': const Color(0xFFE65100)},
     ];
 
     return GridView.builder(
@@ -449,8 +463,8 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
             } else if (label == 'Exams') {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
-            } else if (label == 'Updates') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AnnouncementsScreen()));
+            } else if (label == 'Bookmarks') {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const BookmarksScreen()));
             }
           },
           child: Container(

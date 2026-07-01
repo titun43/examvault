@@ -13,12 +13,14 @@ import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../config/app_config.dart';
+import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
 import '../premium/premium_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import 'settings_screen.dart';
 import 'test_history_screen.dart';
 import 'bookmarks_screen.dart';
+import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -104,6 +106,16 @@ class ProfileScreen extends StatelessWidget {
         title: const Text('Profile'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Profile',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () {
               Navigator.push(
@@ -169,7 +181,11 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            // Personal Info card — shows DOB, qualification, city, target exam
+            // if the user has filled them in via EditProfileScreen.
+            _buildPersonalInfoCard(context, auth.user),
+            const SizedBox(height: 16),
             // Premium card if not premium
             if (!auth.isPremium)
               Card(
@@ -322,6 +338,90 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// Personal Info card — shows the user's extended profile fields (DOB,
+  /// gender, qualification, city, target exam) if any have been set. Returns
+  /// an empty widget if the user hasn't filled any of these yet, so new users
+  /// don't see an empty card.
+  Widget _buildPersonalInfoCard(BuildContext context, UserModel? user) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final rows = <Widget>[];
+
+    void addRow(IconData icon, String label, String? value) {
+      if (value == null || value.trim().isEmpty) return;
+      rows.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: AppTheme.primaryColor),
+            const SizedBox(width: 10),
+            Text(
+              '$label: ',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: const TextStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+
+    // DOB
+    final dob = user?.dateOfBirth;
+    if (dob != null) {
+      addRow(Icons.cake_outlined, 'DOB',
+          '${dob.day}/${dob.month}/${dob.year}');
+    }
+    // Gender
+    addRow(Icons.wc_outlined, 'Gender', user?.gender);
+    // Qualification
+    addRow(Icons.school_outlined, 'Qualification', user?.qualification);
+    // City
+    addRow(Icons.location_city_outlined, 'City', user?.city);
+    // Target Exam
+    addRow(Icons.flag_outlined, 'Target Exam', user?.targetExam);
+
+    if (rows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.info_outline, color: AppTheme.primaryColor, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'Personal Info',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.grey.shade200 : Colors.grey.shade800,
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 16),
+            ...rows,
+          ],
+        ),
+      ),
     );
   }
 

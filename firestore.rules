@@ -123,6 +123,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ==================== PREMIUM PLANS ====================
+    match /premium_plans/{planId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ==================== NOTIFICATIONS ====================
     match /notifications/{notificationId} {
       // Users can read their own notifications + broadcast ('all')

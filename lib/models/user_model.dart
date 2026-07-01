@@ -113,6 +113,27 @@ class UserModel {
 
   bool get isAdmin => role == UserRole.admin;
 
+  // ==================== PREFERENCE CONVENIENCE GETTERS ====================
+  // The `preferences` map holds optional profile fields set from the
+  // EditProfileScreen (DOB, gender, qualification, etc.). These getters give
+  // typed access so screens don't need to remember the string keys.
+
+  /// Date of birth stored as a Firestore Timestamp in preferences['dateOfBirth'].
+  DateTime? get dateOfBirth {
+    final v = preferences['dateOfBirth'];
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    return null;
+  }
+
+  String? get gender => preferences['gender'] as String?;
+
+  String? get qualification => preferences['qualification'] as String?;
+
+  String? get city => preferences['city'] as String?;
+
+  String? get targetExam => preferences['targetExam'] as String?;
+
   static SubscriptionStatus _parseSubscriptionStatus(String? status) {
     switch (status) {
       case 'premium':
@@ -143,7 +164,30 @@ class UserModel {
     bool? isActive,
     String? fcmToken,
     Map<String, dynamic>? preferences,
+    // Individual preference overrides — these are merged into the preferences
+    // map on top of any `preferences` value passed above. `null` means "leave
+    // unchanged" (use [clearPreference] semantics by setting an explicit
+    // removal in [preferences] if you need to wipe one).
+    DateTime? dateOfBirth,
+    String? gender,
+    String? qualification,
+    String? city,
+    String? targetExam,
   }) {
+    // Build the merged preferences map. Start from the existing one, layer on
+    // the explicit `preferences` arg, then apply individual overrides.
+    final merged = Map<String, dynamic>.from(this.preferences);
+    if (preferences != null) {
+      merged.addAll(preferences);
+    }
+    if (dateOfBirth != null) {
+      merged['dateOfBirth'] = Timestamp.fromDate(dateOfBirth);
+    }
+    if (gender != null) merged['gender'] = gender;
+    if (qualification != null) merged['qualification'] = qualification;
+    if (city != null) merged['city'] = city;
+    if (targetExam != null) merged['targetExam'] = targetExam;
+
     return UserModel(
       id: id,
       name: name ?? this.name,
@@ -164,7 +208,7 @@ class UserModel {
       updatedAt: updatedAt ?? this.updatedAt,
       isActive: isActive ?? this.isActive,
       fcmToken: fcmToken ?? this.fcmToken,
-      preferences: preferences ?? this.preferences,
+      preferences: merged,
     );
   }
 }
