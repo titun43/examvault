@@ -39,6 +39,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void initState() {
     super.initState();
+    // MASTER KILL SWITCH — if AdMob is disabled at the config level, do not
+    // schedule any ad loading at all. This prevents the post-frame callback
+    // from ever calling _loadAd(), which in turn never touches the native
+    // SDK. This is the primary defense against native AdMob crashes.
+    if (!AppConfig.admobEnabled) return;
     // Load the ad after the first frame so the widget is fully mounted and
     // the AdMob SDK has had a chance to initialize. We also re-check
     // AdMobService.isInitialized right before creating the BannerAd.
@@ -108,6 +113,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    // MASTER KILL SWITCH — render nothing when AdMob is disabled. This is a
+    // belt-and-suspenders check alongside the initState guard: even if some
+    // code path somehow schedules a load, the build method still never
+    // instantiates an AdWidget.
+    if (!AppConfig.admobEnabled) {
+      return const SizedBox.shrink();
+    }
     // Premium users never see ads.
     final auth = Provider.of<AuthProvider>(context);
     if (auth.isAuthenticated && auth.user?.isPremium == true) {

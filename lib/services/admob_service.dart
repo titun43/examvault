@@ -28,6 +28,17 @@ class AdMobService {
   // ==================== INITIALIZE ====================
   static Future<void> initialize() async {
     if (_initialized) return;
+
+    // MASTER KILL SWITCH — when admobEnabled is false, do NOT touch the
+    // native AdMob SDK at all. Calling MobileAds.instance.initialize() can
+    // crash the app natively (below Dart's runZonedGuarded) if the SDK /
+    // ad units are not ready, so we short-circuit here entirely.
+    if (!AppConfig.admobEnabled) {
+      _initialized = false;
+      print('AdMob disabled via AppConfig.admobEnabled — skipping SDK init.');
+      return;
+    }
+
     try {
       await MobileAds.instance.initialize();
       _initialized = true;
@@ -80,6 +91,7 @@ class AdMobService {
   // ==================== INTERSTITIAL AD ====================
   static void loadInterstitialAd() {
     if (!_initialized) return; // don't try if SDK isn't ready
+    if (!AppConfig.admobEnabled) return; // master kill switch
     InterstitialAd.load(
       adUnitId: interstitialAdUnitId,
       request: const AdRequest(),
@@ -101,6 +113,7 @@ class AdMobService {
 
   static Future<bool> showInterstitialAd() async {
     if (!_initialized) return false;
+    if (!AppConfig.admobEnabled) return false; // master kill switch
     if (_interstitialAd == null) {
       loadInterstitialAd();
       return false;

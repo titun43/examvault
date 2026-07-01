@@ -47,6 +47,19 @@ class AppConfig {
   // Real AdMob IDs (production). Set admobTestMode=false before release.
   static const bool admobTestMode = false;
 
+  // ===== ADMOB MASTER KILL SWITCH =====
+  // Set to false to COMPLETELY disable AdMob: no SDK init, no banner ads,
+  // no interstitials. Use this when AdMob is crashing the app natively
+  // (native crashes bypass Dart's runZonedGuarded and cannot be caught).
+  //
+  // HISTORY: v1.14 disabled AdMob for crash debugging. v1.19 re-enabled it,
+  // which reintroduced a native crash on login (HomeScreen's BannerAdWidget
+  // calls BannerAd.load() with the real ad unit ID; the native SDK can crash
+  // below Dart if the ad unit / account is not fully approved/serving yet).
+  // Keep this false until the AdMob ad units are verified serving real ads
+  // in the AdMob console, then flip to true and rebuild.
+  static const bool admobEnabled = false;
+
   // Test AdMob IDs (Google sample — for development only)
   static const String testAdmobAppId = 'ca-app-pub-3940256099942544~3347511713';
   static const String testBannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
