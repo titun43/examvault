@@ -161,6 +161,112 @@ class RazorpayService {
     // Handle external wallet payments
   }
 
+  // ==================== START TEST PURCHASE PAYMENT ====================
+  /// Pay-per-test purchase. Charges the user the test's price and, on success,
+  /// adds the testId to the user's `purchasedTests` list in Firestore so they
+  /// can attempt the test any time. Premium users bypass this entirely.
+  static Future<void> startTestPurchase({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String userPhone,
+    required String testId,
+    required String testTitle,
+    required int amount, // in INR
+    required void Function(PaymentSuccessResponse response) onSuccess,
+    required void Function(PaymentFailureResponse response) onError,
+  }) async {
+    // Create payment record
+    final paymentRecord = PaymentModel(
+      id: '',
+      userId: userId,
+      razorpayOrderId: '',
+      amount: amount * 100, // paise
+      currency: 'INR',
+      status: PaymentStatus.created,
+      planId: 'test_purchase_$testId',
+      planName: testTitle,
+      durationMonths: 0,
+      createdAt: DateTime.now(),
+    );
+
+    final docRef =
+        await FirebaseService.paymentsRef.add(paymentRecord.toFirestore());
+    final paymentId = docRef.id;
+
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
+      _handleTestPurchaseSuccess(
+        response,
+        paymentId: paymentId,
+        userId: userId,
+        testId: testId,
+      );
+      onSuccess(response);
+    });
+
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
+      _handlePaymentErrorWithRecord(response, paymentId: paymentId);
+      onError(response);
+    });
+
+    final options = {
+      'key': AppConfig.razorpayKeyId,
+      'amount': amount * 100,
+      'name': AppConfig.appName,
+      'description': 'Test: $testTitle',
+      'prefill': {
+        'name': userName,
+        'email': userEmail,
+        'contact': userPhone,
+      },
+      'theme': {'color': '#1565C0'},
+      'currency': 'INR',
+      'timeout': 300,
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      await _updatePaymentStatus(
+        paymentId,
+        PaymentStatus.failed,
+        rawResponse: {'error': e.toString()},
+      );
+      rethrow;
+    }
+  }
+
+  /// On successful test purchase, mark the payment captured AND add the testId
+  /// to the user's purchasedTests list (using FieldValue.arrayUnion so it's
+  /// idempotent — buying the same test twice doesn't create duplicates).
+  static Future<void> _handleTestPurchaseSuccess(
+    PaymentSuccessResponse response, {
+    required String paymentId,
+    required String userId,
+    required String testId,
+  }) async {
+    await _updatePaymentStatus(
+      paymentId,
+      PaymentStatus.captured,
+      razorpayPaymentId: response.paymentId,
+      razorpayOrderId: response.orderId,
+      razorpaySignature: response.signature,
+      rawResponse: {
+        'paymentId': response.paymentId,
+        'orderId': response.orderId,
+        'signature': response.signature,
+        'type': 'test_purchase',
+        'testId': testId,
+      },
+    );
+
+    // Add the test to the user's purchasedTests list.
+    await FirebaseService.usersRef.doc(userId).set({
+      'purchasedTests': FieldValue.arrayUnion([testId]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   // ==================== UPDATE PAYMENT STATUS ====================
   static Future<void> _updatePaymentStatus(
     String paymentId,

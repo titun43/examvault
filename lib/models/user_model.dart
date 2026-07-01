@@ -30,6 +30,7 @@ class UserModel {
   final bool isActive;
   final String? fcmToken;
   final Map<String, dynamic> preferences;
+  final List<String> purchasedTests; // test IDs the user has bought (pay-per-test)
 
   UserModel({
     required this.id,
@@ -52,6 +53,7 @@ class UserModel {
     this.isActive = true,
     this.fcmToken,
     this.preferences = const {},
+    this.purchasedTests = const [],
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
@@ -77,6 +79,7 @@ class UserModel {
       isActive: data['isActive'] ?? true,
       fcmToken: data['fcmToken'],
       preferences: data['preferences'] ?? {},
+      purchasedTests: List<String>.from(data['purchasedTests'] ?? []),
     );
   }
 
@@ -104,12 +107,18 @@ class UserModel {
       'isActive': isActive,
       'fcmToken': fcmToken,
       'preferences': preferences,
+      'purchasedTests': purchasedTests,
     };
   }
 
   bool get isPremium =>
       subscriptionStatus == SubscriptionStatus.premium &&
       (subscriptionExpiry == null || subscriptionExpiry!.isAfter(DateTime.now()));
+
+  /// Whether the user has bought a specific test (pay-per-test) OR is premium
+  /// (premium users get all tests unlocked).
+  bool hasTestAccess(String testId) =>
+      isPremium || purchasedTests.contains(testId);
 
   bool get isAdmin => role == UserRole.admin;
 
@@ -164,6 +173,7 @@ class UserModel {
     bool? isActive,
     String? fcmToken,
     Map<String, dynamic>? preferences,
+    List<String>? purchasedTests,
     // Individual preference overrides — these are merged into the preferences
     // map on top of any `preferences` value passed above. `null` means "leave
     // unchanged" (use [clearPreference] semantics by setting an explicit
@@ -209,6 +219,7 @@ class UserModel {
       isActive: isActive ?? this.isActive,
       fcmToken: fcmToken ?? this.fcmToken,
       preferences: merged,
+      purchasedTests: purchasedTests ?? this.purchasedTests,
     );
   }
 }

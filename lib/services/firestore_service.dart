@@ -314,13 +314,38 @@ class FirestoreService {
     TestType? type,
     bool? isPublished,
   }) async {
-    Query query = _db.collection('tests').orderBy('createdAt', descending: true);
-    if (subjectId != null) query = query.where('subjectId', isEqualTo: subjectId);
-    if (type != null) query = query.where('type', isEqualTo: type.name);
-    if (isPublished != null) query = query.where('isPublished', isEqualTo: isPublished);
+    try {
+      // IMPORTANT: Avoid combining .orderBy() with .where() — that requires a
+      // composite index which may not exist. Use single-field filter only and
+      // sort client-side. This is the root cause of the "could not load search
+      // data" error in the SearchScreen (the orderBy+where combo threw an
+      // error that Future.wait propagated up because there was no try/catch).
+      Query query = _db.collection('tests');
+      // Prefer the most selective single filter to stay within auto-index limits.
+      if (subjectId != null) {
+        query = query.where('subjectId', isEqualTo: subjectId);
+      } else if (type != null) {
+        query = query.where('type', isEqualTo: type.name);
+      } else if (isPublished != null) {
+        query = query.where('isPublished', isEqualTo: isPublished);
+      }
 
-    final snapshot = await query.get();
-    return snapshot.docs.map((doc) => TestModel.fromFirestore(doc)).toList();
+      final snapshot = await query.get();
+      var docs = snapshot.docs.map((doc) => TestModel.fromFirestore(doc)).toList();
+      // Client-side filters for remaining conditions
+      if (type != null && subjectId != null) {
+        docs = docs.where((t) => t.type == type).toList();
+      }
+      if (isPublished != null) {
+        docs = docs.where((t) => t.isPublished == isPublished).toList();
+      }
+      // Sort client-side by createdAt desc
+      docs.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return docs;
+    } catch (e) {
+      print('getTests error: $e');
+      return [];
+    }
   }
 
   static Stream<List<TestModel>> getTestsStream({
@@ -503,18 +528,25 @@ class FirestoreService {
     DateTime? toDate,
     int limit = 50,
   }) async {
-    Query query = _db.collection('current_affairs')
-        .orderBy('date', descending: true)
-        .limit(limit);
-    if (fromDate != null) {
-      query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(fromDate));
-    }
-    if (toDate != null) {
-      query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(toDate));
-    }
+    try {
+      // Avoid server-side orderBy (skips docs missing the field + may need
+      // composite index with where clauses). Fetch + sort client-side.
+      Query query = _db.collection('current_affairs').limit(limit * 3);
+      if (fromDate != null) {
+        query = query.where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(fromDate));
+      }
+      if (toDate != null) {
+        query = query.where('date', isLessThanOrEqualTo: Timestamp.fromDate(toDate));
+      }
 
-    final snapshot = await query.get();
-    return snapshot.docs.map((doc) => CurrentAffairModel.fromFirestore(doc)).toList();
+      final snapshot = await query.get();
+      var docs = snapshot.docs.map((doc) => CurrentAffairModel.fromFirestore(doc)).toList();
+      docs.sort((a, b) => b.date.compareTo(a.date));
+      return docs.take(limit).toList();
+    } catch (e) {
+      print('getCurrentAffairs error: $e');
+      return [];
+    }
   }
 
   static Stream<List<CurrentAffairModel>> getCurrentAffairsStream({int limit = 50}) {

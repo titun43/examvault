@@ -118,12 +118,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     setState(() => _isUploadingPhoto = true);
     try {
-      // Upload to user_photos/{userId}. Reuse the same path each time so the
-      // user doesn't accumulate orphaned files in Storage.
+      // Upload to user_avatars/{userId}/photo.jpg — this path is allowed by
+      // the EXISTING storage rules (user_avatars/{userId}/{fileName} where
+      // write: if isOwner(userId)). The user_photos path would require a
+      // storage rules redeploy, so we use the already-allowed path.
+      // Reuse the same filename each time so the user doesn't accumulate
+      // orphaned files in Storage.
       final ref = FirebaseService.storage
           .ref()
-          .child('user_photos')
-          .child(_currentUser!.id);
+          .child('user_avatars')
+          .child(_currentUser!.id)
+          .child('photo.jpg');
       if (kIsWeb) {
         final bytes = await xfile.readAsBytes();
         await ref.putData(

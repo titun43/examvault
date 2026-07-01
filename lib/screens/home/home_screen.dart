@@ -31,6 +31,8 @@ import '../tests/test_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/bookmarks_screen.dart';
 import '../search/search_screen.dart';
+import 'all_subjects_screen.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -159,6 +161,12 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildCurrentAffairs(),
               const SizedBox(height: 24),
               _buildPremiumBanner(),
+              const SizedBox(height: 24),
+              // AdMob banner ad — only shows for free (non-premium) users.
+              // The BannerAdWidget internally checks auth.isPremium and returns
+              // a zero-size widget for premium users, so this line is safe to
+              // keep for everyone.
+              Center(child: BannerAdWidget()),
               const SizedBox(height: 24),
             ],
           ),
@@ -627,14 +635,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             TextButton(
-              // No dedicated "all categories" screen exists yet — categories
-              // are already shown in full on the home page. Scroll the user
-              // back up to the grid rather than leaving the button dead.
+              // Navigate to the All Subjects screen where users can browse
+              // every subject and filter by category. Previously this just
+              // scrolled up which was confusing UX.
               onPressed: () {
-                Scrollable.ensureVisible(
+                Navigator.push(
                   context,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeInOut,
+                  MaterialPageRoute(builder: (_) => const AllSubjectsScreen()),
                 );
               },
               child: const Text('View All'),
@@ -750,17 +757,14 @@ class _HomeScreenState extends State<HomeScreen> {
               'Popular Subjects',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
-            // Wire up the 'View All' button to a full categories browse view.
-            // Previously this was a no-op `onPressed: () {}` so tapping did
-            // nothing — one of the "not clickable" bugs on the home page.
-            // There's no dedicated "all subjects" screen, so we scroll the
-            // user up to the "Exam Categories" section so they can pick a
-            // category and browse its subjects.
+            // Wire up the 'View All' button to the All Subjects screen where
+            // the user can browse every subject, filter by category, and search.
+            // Previously this wrongly opened the UpcomingExamsScreen — fixed.
             TextButton(
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()),
+                  MaterialPageRoute(builder: (_) => const AllSubjectsScreen()),
                 );
               },
               child: const Text('View All'),
@@ -1171,6 +1175,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPremiumBanner() {
+    // Hide the "Upgrade to Premium" CTA for users who are already premium.
+    final auth = Provider.of<AuthProvider>(context);
+    if (auth.isPremium) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

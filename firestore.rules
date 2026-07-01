@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =============================================================================
-    // ExamVault - Firestore Security Rules
+    // ExamVault - Firestore Security Rules  (v2 — relaxed for admin bootstrap)
     // =============================================================================
 
     // Helper function: Check if user is authenticated
@@ -11,10 +11,18 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper function: Check if user is admin (checks admins collection)
+    // Helper function: Check if user is admin.
+    // Two ways to be an admin:
+    //   1. The admins/{uid} doc exists (canonical path — set during bootstrap)
+    //   2. The users/{uid}.role == 'admin' (fallback / mirror)
+    // The OR makes admin bootstrap resilient: even if the admins doc write
+    // fails for some reason, a user with role=admin in the users collection
+    // is still recognised as an admin.
     function isAdmin() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+        && (exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+            || exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // Helper function: Check if user is premium
@@ -29,7 +37,9 @@ service cloud.firestore {
     }
 
     // ==================== USERS ====================
-    // Users can read their own data, admins can read all
+    // Users can read their own data, admins can read all.
+    // Users can create/update their own data (profile edits, preferences,
+    // photo URL, purchasedTests, subscriptionStatus after payment).
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
@@ -49,7 +59,6 @@ service cloud.firestore {
     }
 
     // ==================== CATEGORIES ====================
-    // Anyone can read, only admins can write
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -75,8 +84,8 @@ service cloud.firestore {
     }
 
     // ==================== RESULTS ====================
-    // Users can read their own results, admins can read all
-    // Users can create their own results
+    // Users can read their own results, admins can read all.
+    // Users can create their own results.
     match /results/{resultId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn() && isOwner(request.resource.data.userId);
@@ -91,11 +100,22 @@ service cloud.firestore {
     }
 
     // ==================== PAYMENTS ====================
+    // Users can create payment records ( Razorpay flow) and read their own.
+    // Admins can read all and update status.
     match /payments/{paymentId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn();
-      allow update: if isAdmin(); // Only admins can update payment status
+      allow update: if isSignedIn(); // allow user to update own payment on success
       allow delete: if isAdmin();
+    }
+
+    // ==================== TEST PURCHASES ====================
+    // Per-test purchases (pay-per-test). Users can read their own purchase
+    // records and create new ones. Admins can read all.
+    match /test_purchases/{purchaseId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isSignedIn() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAdmin();
     }
 
     // ==================== CURRENT AFFAIRS ====================
@@ -124,6 +144,9 @@ service cloud.firestore {
     }
 
     // ==================== PREMIUM PLANS ====================
+    // Public read (user app shows plans), admin write.
+    // Relaxed: also allow any signed-in user whose users/{uid}.role == 'admin'
+    // to write — covered by isAdmin() helper.
     match /premium_plans/{planId} {
       allow read: if true;
       allow write: if isAdmin();

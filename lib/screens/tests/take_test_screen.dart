@@ -9,6 +9,7 @@ import '../../models/test_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import 'result_screen.dart';
@@ -30,13 +31,33 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   int _timeRemaining = 0;
   bool _isLoading = true;
   bool _isSubmitting = false; // guards against double-submission
+  bool _accessGranted = false;
 
   @override
   void initState() {
     super.initState();
-    _loadQuestions();
+    _checkAccessAndLoad();
     _timeRemaining = widget.test.duration * 60;
-    _startTimer();
+  }
+
+  /// Checks whether the user has access to this test (free, purchased, or
+  /// premium). If the test is paid and the user hasn't bought it and isn't
+  /// premium, shows a paywall instead of loading questions.
+  void _checkAccessAndLoad() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    final isPremium = user?.isPremium ?? false;
+    final hasAccess = isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
+
+    if (!widget.test.isPaid || hasAccess) {
+      _accessGranted = true;
+      _loadQuestions();
+      _startTimer();
+    } else {
+      // Paid test, no access — don't load questions or start the timer.
+      _accessGranted = false;
+      _isLoading = false;
+    }
   }
 
   @override
@@ -240,6 +261,128 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     }
   }
 
+  /// Paywall shown when a user tries to open a paid test they haven't bought
+  /// and aren't premium for. Offers two paths: buy this test individually, or
+  /// upgrade to Premium for unlimited access.
+  Widget _buildPaywall(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.test.title)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock,
+                    size: 56, color: AppTheme.accentColor),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Premium Test',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.test.price > 0
+                    ? 'Buy this test for ₹${widget.test.price} or upgrade to Premium for unlimited access.'
+                    : 'Upgrade to Premium to attempt this test.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 28),
+              if (widget.test.price > 0)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: user == null
+                        ? null
+                        : () {
+                            RazorpayService.startTestPurchase(
+                              userId: user.id,
+                              userName: user.name,
+                              userEmail:
+                                  user.email ?? 'user@examvault.com',
+                              userPhone:
+                                  user.phoneNumber ?? '9999999999',
+                              testId: widget.test.id,
+                              testTitle: widget.test.title,
+                              amount: widget.test.price,
+                              onSuccess: (response) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Payment successful! "${widget.test.title}" unlocked.'),
+                                    backgroundColor: AppTheme.successColor,
+                                  ),
+                                );
+                                auth.loadUserData();
+                                // Re-check access and load questions.
+                                setState(() {
+                                  _accessGranted = true;
+                                  _isLoading = true;
+                                });
+                                _loadQuestions();
+                                _startTimer();
+                              },
+                              onError: (response) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                        'Payment failed: ${response.message}'),
+                                    backgroundColor: AppTheme.errorColor,
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.successColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    label: Text('Buy for ₹${widget.test.price}'),
+                  ),
+                ),
+              if (widget.test.price > 0) const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/premium');
+                  },
+                  icon: const Icon(Icons.workspace_premium,
+                      color: AppTheme.accentColor),
+                  label: const Text('Go Premium'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -247,6 +390,12 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         appBar: AppBar(title: const Text('Loading...')),
         body: const Center(child: CircularProgressIndicator()),
       );
+    }
+
+    // Paywall: if the test is paid and the user hasn't purchased it and isn't
+    // premium, show a purchase prompt instead of the test.
+    if (!_accessGranted) {
+      return _buildPaywall(context);
     }
 
     // Empty-questions guard: if questions failed to load, show a friendly

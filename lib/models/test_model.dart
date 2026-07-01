@@ -25,6 +25,7 @@ class TestModel {
   final int? year;
   final String? examSession;
   final bool isPremium;
+  final int price; // Per-test price in INR (0 = free)
   final int questionCount;
   final int attemptCount;
   final DateTime createdAt;
@@ -47,11 +48,15 @@ class TestModel {
     this.year,
     this.examSession,
     this.isPremium = false,
+    this.price = 0,
     this.questionCount = 0,
     this.attemptCount = 0,
     required this.createdAt,
     required this.updatedAt,
   });
+
+  /// Whether this test requires payment (either per-test or via premium).
+  bool get isPaid => price > 0 || isPremium;
 
   factory TestModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -72,6 +77,7 @@ class TestModel {
       year: data['year'],
       examSession: data['examSession'],
       isPremium: data['isPremium'] ?? false,
+      price: (data['price'] ?? 0).toInt(),
       questionCount: data['questionCount'] ?? 0,
       attemptCount: data['attemptCount'] ?? 0,
       createdAt: parseTimestamp(data['createdAt']),
@@ -96,6 +102,7 @@ class TestModel {
       'year': year,
       'examSession': examSession,
       'isPremium': isPremium,
+      'price': price,
       'questionCount': questionCount,
       'attemptCount': attemptCount,
       'createdAt': Timestamp.fromDate(createdAt),
@@ -137,6 +144,7 @@ class TestModel {
     int? year,
     String? examSession,
     bool? isPremium,
+    int? price,
     int? questionCount,
     int? attemptCount,
     DateTime? updatedAt,
@@ -158,6 +166,7 @@ class TestModel {
       year: year ?? this.year,
       examSession: examSession ?? this.examSession,
       isPremium: isPremium ?? this.isPremium,
+      price: price ?? this.price,
       questionCount: questionCount ?? this.questionCount,
       attemptCount: attemptCount ?? this.attemptCount,
       createdAt: createdAt,

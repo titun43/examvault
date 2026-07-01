@@ -5,7 +5,9 @@ service firebase.storage {
     // Helper: check if user is admin (mirror of Firestore admins/{uid})
     function isAdmin() {
       return request.auth != null
-        && firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+        && (firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid))
+            || firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+               && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     function isSignedIn() {
@@ -52,9 +54,24 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
-    // ==================== USER AVATARS ====================
+    // ==================== USER AVATARS (legacy path) ====================
     // Each user can read/write their own avatar
     match /user_avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // ==================== USER PHOTOS (profile photos) ====================
+    // The EditProfileScreen uploads to user_photos/{userId}. Each user can
+    // read/write their own photo. Public read so avatars show in leaderboards
+    // and admin views.
+    match /user_photos/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // ==================== USER PHOTOS (with filename variant) ====================
+    match /user_photos/{userId}/{fileName} {
       allow read: if true;
       allow write: if isOwner(userId);
     }

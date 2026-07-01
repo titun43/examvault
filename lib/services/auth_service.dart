@@ -348,36 +348,68 @@ class AuthService {
   /// `dateOfBirth` (if non-null) is converted to a Firestore Timestamp before
   /// being written into preferences.
   ///
-  /// Uses dot-notation keys (`preferences.<key>`) with `SetOptions(merge: true)`
-  /// so only the supplied preference keys are written — existing preference
-  /// keys that aren't being edited are preserved. Also works if the user doc
-  /// somehow doesn't exist yet (creates it).
+  /// This implementation reads the existing user doc first, merges the
+  /// preferences map locally (so we don't clobber existing preference keys),
+  /// then writes the full updated doc back with .set(merge: true). This is
+  /// more reliable than dot-notation writes which can fail silently if the
+  /// doc doesn't exist or if Firestore rules are misconfigured.
   static Future<void> updateProfileExtended({
     required String userId,
     String? name,
     String? photoUrl,
     Map<String, dynamic>? preferences,
   }) async {
+    final userDocRef = FirebaseService.usersRef.doc(userId);
+
+    // Build the top-level updates.
     final data = <String, dynamic>{
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (name != null) data['name'] = name;
     if (photoUrl != null) data['photoUrl'] = photoUrl;
 
+    // For preferences, read the existing doc and merge locally so we preserve
+    // any preference keys that aren't being edited.
     if (preferences != null && preferences.isNotEmpty) {
-      for (final entry in preferences.entries) {
-        // Convert any DateTime values to Timestamp before writing. The
-        // EditProfileScreen passes DOB as a DateTime for type-safety.
-        final value = entry.value is DateTime
-            ? Timestamp.fromDate(entry.value as DateTime)
-            : entry.value;
-        // Dot-notation key → Firestore writes only this preference field,
-        // leaving all other preference keys untouched.
-        data['preferences.${entry.key}'] = value;
+      try {
+        final existing = await userDocRef.get();
+        Map<String, dynamic> existingPrefs = {};
+        if (existing.exists) {
+          final existingData = existing.data();
+          if (existingData is Map) {
+            final prefsVal = existingData['preferences'];
+            if (prefsVal is Map) {
+              existingPrefs = Map<String, dynamic>.from(prefsVal);
+            }
+          }
+        }
+
+        // Layer the new preferences on top.
+        for (final entry in preferences.entries) {
+          // Convert any DateTime values to Timestamp before writing.
+          final value = entry.value is DateTime
+              ? Timestamp.fromDate(entry.value as DateTime)
+              : entry.value;
+          existingPrefs[entry.key] = value;
+        }
+
+        data['preferences'] = existingPrefs;
+      } catch (e) {
+        // If the read fails (e.g. doc doesn't exist or rules issue), fall back
+        // to writing just the new preferences as a fresh map. This still saves
+        // the user's edits, just without preserving old keys.
+        final freshPrefs = <String, dynamic>{};
+        for (final entry in preferences.entries) {
+          final value = entry.value is DateTime
+              ? Timestamp.fromDate(entry.value as DateTime)
+              : entry.value;
+          freshPrefs[entry.key] = value;
+        }
+        data['preferences'] = freshPrefs;
       }
     }
 
-    await FirebaseService.usersRef.doc(userId).set(
+    await userDocRef.set(
       data,
       SetOptions(merge: true),
     );
