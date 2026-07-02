@@ -87,8 +87,13 @@ class AuthService {
   /// NEVER exposed to end users — they only see what they can act on.
   /// The original technical context is logged for debugging separately.
   static String _friendlyPhoneError(FirebaseAuthException e) {
-    // Log the raw code for developer debugging (not shown to user).
-    print('PhoneAuth error code: ${e.code}');
+    // Log the raw code + message for developer debugging.
+    print('PhoneAuth error code: ${e.code}, message: ${e.message}');
+    // For configuration errors, append the raw code so the app admin can
+    // diagnose (e.g. add the signing SHA-1 to the Firebase Console). Regular
+    // users still see a friendly lead-in; the code in parentheses is the only
+    // technical bit and helps the admin act without us dumping raw Firebase
+    // Console instructions on the end user.
     switch (e.code) {
       case 'invalid-phone-number':
         return 'Phone number is invalid. Enter a valid 10-digit mobile number.';
@@ -100,10 +105,13 @@ class AuthService {
         return 'Network error. Check your internet connection and try again.';
       case 'operation-not-allowed':
         // Real cause: Phone Auth not enabled in Firebase Console.
-        return 'OTP service is temporarily unavailable. Please try again later or use Email sign-in.';
+        return 'OTP service is not enabled (code: operation-not-allowed). '
+            'Please use Email sign-in or contact support.';
       case 'app-not-authorized':
-        // Real cause: SHA-1 not registered in Firebase.
-        return 'OTP service is temporarily unavailable. Please try again later or use Email sign-in.';
+        // Real cause: app signing key (SHA-1) not registered in Firebase Console.
+        return 'OTP could not be sent (code: app-not-authorized). '
+            'The app signing key may not be registered. '
+            'Please use Email sign-in or contact support.';
       case 'captcha-check-failed':
         return 'Verification failed. Check your network and try again.';
       case 'invalid-verification-code':
@@ -112,8 +120,13 @@ class AuthService {
         return 'OTP session expired. Please request a new OTP.';
       case 'credential-already-in-use':
         return 'This phone number is already linked to another account.';
+      case 'missing-client-identifier':
+        // reCAPTCHA / SafetyNet could not be resolved — often a SHA-1 issue.
+        return 'OTP could not be sent (code: missing-client-identifier). '
+            'Please use Email sign-in or contact support.';
       default:
-        return 'Unable to send OTP right now. Please try again in a moment.';
+        return 'Unable to send OTP right now (code: ${e.code}). '
+            'Please try again or use Email sign-in.';
     }
   }
 

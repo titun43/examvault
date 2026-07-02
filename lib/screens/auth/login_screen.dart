@@ -232,6 +232,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: auth.isLoading
                       ? null
                       : () {
+                          // Clear any previous error so the inline message
+                          // disappears as soon as the user retries.
+                          auth.clearError();
                           if (_otpSent) {
                             _verifyOtp();
                           } else {
@@ -258,6 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         onPressed: auth.isLoading
                             ? null
                             : () {
+                                auth.clearError();
                                 _otpController.clear();
                                 _sendOtp(); // resend uses forceResendingToken
                               },
@@ -267,6 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextButton(
                         onPressed: () {
                           final a = Provider.of<AuthProvider>(context, listen: false);
+                          a.clearError();
                           a.resetOtpState();
                           setState(() {
                             _otpSent = false;
@@ -279,34 +284,42 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ],
+                // Inline error display — persists below the button so the user
+                // can read WHY the OTP did not arrive (e.g. app-not-authorized,
+                // quota-exceeded) instead of a fleeting SnackBar that is easy
+                // to miss. Replaces the old amber "Did not receive OTP?" hint.
+                if (auth.errorMessage != null && !_otpSent) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.errorColor.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.errorColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 16, color: AppTheme.errorColor),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            auth.errorMessage!,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.errorColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             );
           },
-        ),
-        const SizedBox(height: 12),
-        // Help / troubleshooting hint — user-friendly message only (no
-        // admin/Firebase/SHA-1 jargon exposed to end users).
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.withOpacity(0.3)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Did not receive OTP? Make sure your number is active, has network, '
-                  'and is not on DND. Wait 30 seconds and try again.',
-                  style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );

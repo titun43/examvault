@@ -8,14 +8,17 @@
 // logged-in user would be wrongly sent to the login screen and forced to
 // log in again every time they reopened the app.
 //
-// VISUALS: Book logo (Icons.menu_book) zooms in over ~1s, then a thin white
-// CircularProgressIndicator fades in below the tagline. Together they give a
-// 1-2s branded loading state while the auth state resolves.
+// VISUALS: Book logo (Icons.menu_book) zooms in over ~1s, then an animated
+// "opening book" plays on a loop below the tagline (replaces the old round
+// CircularProgressIndicator). The book cover swings open to reveal the pages,
+// then closes and re-opens — a branded loading state while auth resolves.
 // =============================================================================
 
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import 'auth/login_screen.dart';
@@ -113,8 +116,7 @@ class _SplashScreenState extends State<SplashScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Book logo with a ~1s zoom-in animation. A thin loading spinner
-              // fades in below the tagline once this animation completes.
+              // Book logo with a ~1s zoom-in animation.
               ZoomIn(
                 duration: const Duration(milliseconds: 1000),
                 child: Container(
@@ -165,28 +167,235 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              // Loading spinner — appears after the book-logo zoom-in finishes,
-              // giving a 1-2s branded loading state while Firebase Auth restores
-              // any persisted session in the background.
-              FadeIn(
-                duration: const Duration(milliseconds: 400),
-                delay: const Duration(milliseconds: 1000),
-                child: SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white.withOpacity(0.85),
-                    ),
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                  ),
-                ),
-              ),
+              // Animated opening book — replaces the old round
+              // CircularProgressIndicator. The cover swings open to reveal
+              // the pages, then closes and re-opens in a gentle loop, giving
+              // continuous branded loading feedback while Firebase Auth
+              // restores any persisted session in the background.
+              const _OpeningBook(),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+// =============================================================================
+// _OpeningBook — an animated book that opens and closes on a loop.
+// =============================================================================
+// Built with a custom AnimationController + 3D `rotateY` transform. The book
+// is a Stack:
+//   - Bottom: the open pages (two white panels with "text lines").
+//   - Top:    the front cover (gradient panel) which rotates open around its
+//             left edge (the spine).
+// As `t` goes 0 → 0.5 the cover opens (rotateY 0 → -92°); 0.5 → 1.0 it closes
+// back. A subtle scale "breathe" runs in parallel so the book feels alive.
+// =============================================================================
+class _OpeningBook extends StatefulWidget {
+  const _OpeningBook();
+
+  @override
+  State<_OpeningBook> createState() => _OpeningBookState();
+}
+
+class _OpeningBookState extends State<_OpeningBook>
+    with TickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _coverAngle;
+  late final Animation<double> _breathe;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+
+    // Cover rotation: 0 (closed) → -92° (open) at t=0.5, back to 0 at t=1.
+    // Using a CurveTween so the open/close has a natural ease-in-out.
+    _coverAngle = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOutCubic,
+      ),
+    );
+
+    // Gentle breathe: scale 1.0 → 1.04 → 1.0 over each full cycle.
+    _breathe = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.04)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.04, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double bookW = 88.0;
+    const double bookH = 64.0;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        // Map the 0..1 controller value to a cover-open fraction:
+        // 0 → 0.5: open (0 → 1); 0.5 → 1: close (1 → 0).
+        final double t = _coverAngle.value;
+        final double openFraction = t < 0.5 ? (t / 0.5) : (1.0 - (t - 0.5) / 0.5);
+        // Max open angle ~92° so the cover swings just past flat (looks like a
+        // real book lying open).
+        final double angleDeg = -92.0 * openFraction;
+        // Hide the pages while the cover is mostly closed (openFraction < 0.12)
+        // so the closed book looks like a solid cover, not two panels.
+        final double pagesOpacity =
+            openFraction < 0.12 ? 0.0 : ((openFraction - 0.12) / 0.25).clamp(0.0, 1.0);
+
+        return Transform.scale(
+          scale: _breathe.value,
+          child: SizedBox(
+            width: bookW + 16,
+            height: bookH + 16,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // ---- Open pages (visible once the cover starts opening) ----
+                Opacity(
+                  opacity: pagesOpacity,
+                  child: _buildPages(bookW, bookH),
+                ),
+                // ---- Front cover (rotates open around the left spine) ----
+                Transform(
+                  alignment: Alignment.centerLeft,
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.0012) // perspective
+                    ..rotateY(_toRadians(angleDeg)),
+                  child: _buildCover(bookW, bookH),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// The front cover — a gradient panel with the ExamVault "E" mark.
+  Widget _buildCover(double w, double h) {
+    return Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFFFF), Color(0xFFE3F2FD)],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(6),
+          topRight: Radius.circular(6),
+          bottomRight: Radius.circular(6),
+          bottomLeft: Radius.circular(6),
+        ),
+        border: Border.all(color: const Color(0xFF1565C0), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 10,
+            offset: const Offset(2, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          'E',
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF1565C0),
+            letterSpacing: -1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The open pages — two white panels with faint "text lines", shown once
+  /// the cover has swung open.
+  Widget _buildPages(double w, double h) {
+    return Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(child: _buildPageLines()),
+          // Spine line down the middle
+          Container(
+            width: 1,
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            color: const Color(0xFFBBBBBB),
+          ),
+          Expanded(child: _buildPageLines()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPageLines() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _line(w * 0.90),
+              _line(w * 0.70),
+              _line(w * 0.80),
+              _line(w * 0.60),
+              _line(w * 0.85),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _line(double width) {
+    return Container(
+      width: width,
+      height: 2.5,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1565C0).withOpacity(0.25),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+
+  double _toRadians(double deg) => deg * (math.pi / 180.0);
 }
