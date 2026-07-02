@@ -684,6 +684,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCategoryCard(CategoryModel category) {
     final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
+    // Show a small crown badge on premium categories so users can see which
+    // categories require a subscription before tapping in.
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final userIsPremium = auth.isPremium;
+    final categoryLocked = category.isPremium && !userIsPremium;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -693,55 +698,93 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
+      child: Stack(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(25),
-              ),
-              child: Center(
-                child: Text(
-                  category.icon ?? '📚',
-                  style: const TextStyle(fontSize: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Center(
+                    child: Text(
+                      category.icon ?? '📚',
+                      style: const TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  category.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${category.subjectCount} Subjects',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                // Premium price hint under the subject count for locked cats.
+                if (categoryLocked && category.premiumPrice > 0) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    '₹${category.premiumPrice}',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accentColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // Crown badge for premium categories (top-right corner).
+          if (category.isPremium)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: categoryLocked
+                      ? AppTheme.accentColor
+                      : AppTheme.accentColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  categoryLocked ? Icons.lock : Icons.workspace_premium,
+                  size: 12,
+                  color: categoryLocked
+                      ? Colors.white
+                      : AppTheme.accentColor,
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              category.name,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${category.subjectCount} Subjects',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

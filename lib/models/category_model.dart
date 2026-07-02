@@ -15,6 +15,12 @@ class CategoryModel {
   final String? color;
   final int order;
   final int subjectCount;
+  // Premium-category fields (set by admin). When isPremium is true, the
+  // category is locked behind a subscription. premiumPrice is the displayed
+  // price (INR); premiumDurationMonths is the subscription duration.
+  final bool isPremium;
+  final int premiumPrice;
+  final int premiumDurationMonths;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -28,6 +34,9 @@ class CategoryModel {
     this.color,
     this.order = 0,
     this.subjectCount = 0,
+    this.isPremium = false,
+    this.premiumPrice = 0,
+    this.premiumDurationMonths = 0,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -56,6 +65,9 @@ class CategoryModel {
       color: data['color']?.toString(),
       order: _toInt(data['order'], 0),
       subjectCount: _toInt(data['subjectCount'], 0),
+      isPremium: data['isPremium'] ?? false,
+      premiumPrice: _toInt(data['premiumPrice'], 0),
+      premiumDurationMonths: _toInt(data['premiumDurationMonths'], 0),
       createdAt: parseTimestamp(data['createdAt']),
       updatedAt: parseTimestamp(data['updatedAt']),
     );
@@ -80,6 +92,9 @@ class CategoryModel {
       'color': color,
       'order': order,
       'subjectCount': subjectCount,
+      'isPremium': isPremium,
+      'premiumPrice': premiumPrice,
+      'premiumDurationMonths': premiumDurationMonths,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -94,6 +109,9 @@ class CategoryModel {
     String? color,
     int? order,
     int? subjectCount,
+    bool? isPremium,
+    int? premiumPrice,
+    int? premiumDurationMonths,
     DateTime? updatedAt,
   }) {
     return CategoryModel(
@@ -106,6 +124,9 @@ class CategoryModel {
       color: color ?? this.color,
       order: order ?? this.order,
       subjectCount: subjectCount ?? this.subjectCount,
+      isPremium: isPremium ?? this.isPremium,
+      premiumPrice: premiumPrice ?? this.premiumPrice,
+      premiumDurationMonths: premiumDurationMonths ?? this.premiumDurationMonths,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

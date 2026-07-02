@@ -76,6 +76,11 @@ class TestListScreen extends StatelessWidget {
     final hasAccess = isPremium || (user?.hasTestAccess(test.id) ?? false);
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
+    // Distinguish "premium-only" (no individual price) from "buy individually".
+    // A premium test with price=0 cannot be bought per-test; the user must
+    // subscribe. Previously this showed "Buy for ₹0" which was broken.
+    final isPremiumOnly = test.isPremium && test.price <= 0;
+    final canBuyIndividually = test.price > 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -97,7 +102,7 @@ class TestListScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (isPremium)
+                if (test.isPremium)
                   Container(
                     margin: const EdgeInsets.only(left: 8),
                     padding:
@@ -113,7 +118,7 @@ class TestListScreen extends StatelessWidget {
                             color: AppTheme.accentColor, size: 14),
                         const SizedBox(width: 3),
                         Text(
-                          'Premium',
+                          canBuyIndividually ? '₹${test.price}' : 'Premium',
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -158,21 +163,15 @@ class TestListScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            // Action button — Buy or Start depending on access
+            // Action button — Buy / Go Premium / Start depending on access.
+            //  - premium-only test (price=0) + no access  → "Go Premium"
+            //  - test with price > 0 + no access          → "Buy for ₹X"
+            //  - user has access (premium or purchased)   → "Start Test"
             SizedBox(
               width: double.infinity,
               height: 44,
-              child: needsPurchase
+              child: !needsPurchase
                   ? ElevatedButton.icon(
-                      onPressed: () => _purchaseTest(context, test, user),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.successColor,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.shopping_cart_outlined, size: 20),
-                      label: Text('Buy for ₹${test.price}'),
-                    )
-                  : ElevatedButton.icon(
                       onPressed: () {
                         Navigator.push(
                           context,
@@ -183,16 +182,38 @@ class TestListScreen extends StatelessWidget {
                       },
                       icon: const Icon(Icons.play_arrow, size: 20),
                       label: const Text('Start Test'),
-                    ),
+                    )
+                  : isPremiumOnly
+                      ? ElevatedButton.icon(
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/premium'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.accentColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.workspace_premium,
+                              size: 20),
+                          label: const Text('Go Premium'),
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: () => _purchaseTest(context, test, user),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.successColor,
+                            foregroundColor: Colors.white,
+                          ),
+                          icon: const Icon(Icons.shopping_cart_outlined,
+                              size: 20),
+                          label: Text('Buy for ₹${test.price}'),
+                        ),
             ),
             // Hint text for paid tests
             if (needsPurchase)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  isPaid
-                      ? 'Buy this test to attempt it, or upgrade to Premium for unlimited access.'
-                      : '',
+                  isPremiumOnly
+                      ? 'Subscribe to Premium to attempt this test.'
+                      : 'Buy this test to attempt it, or upgrade to Premium for unlimited access.',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey.shade600,

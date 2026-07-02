@@ -3,8 +3,10 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../tests/test_list_screen.dart';
@@ -91,6 +93,71 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               ],
             ),
           ),
+          // Premium lock banner — shown when this category is marked premium
+          // in the admin panel AND the current user is not a premium
+          // subscriber. Users can still browse the subjects list, but the
+          // banner makes it clear they'll need to subscribe to access the
+          // tests inside. Previously the app ignored category.isPremium
+          // entirely (the field wasn't even in the model), so admins could
+          // mark a category premium but users saw no indication of it.
+          if (widget.category.isPremium && !Provider.of<AuthProvider>(context).isPremium)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.accentColor.withOpacity(0.12),
+                border: Border(
+                  bottom: BorderSide(
+                    color: AppTheme.accentColor.withOpacity(0.3),
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.workspace_premium,
+                      color: AppTheme.accentColor, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Premium Category',
+                          style: TextStyle(
+                            color: AppTheme.accentColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.category.premiumPrice > 0
+                              ? 'Subscribe for ₹${widget.category.premiumPrice} to access all tests here.'
+                              : 'Subscribe to Premium to access all tests in this category.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () => Navigator.pushNamed(context, '/premium'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: AppTheme.accentColor,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      minimumSize: const Size(0, 32),
+                    ),
+                    child: const Text('Unlock',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
           // Subjects List
           Expanded(
             child: RefreshIndicator(
