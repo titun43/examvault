@@ -14,16 +14,20 @@ class TestSeriesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 6,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Test Series'),
           bottom: const TabBar(
+            isScrollable: true,
+            tabSpacing: 12,
             tabs: [
               Tab(text: 'All'),
               Tab(text: 'Mock'),
               Tab(text: 'Previous Year'),
               Tab(text: 'Daily Quiz'),
+              Tab(text: 'Practice'),
+              Tab(text: 'Subject-wise'),
             ],
           ),
         ),
@@ -33,6 +37,8 @@ class TestSeriesScreen extends StatelessWidget {
             _buildTestList(context, TestType.mock),
             _buildTestList(context, TestType.previousYear),
             _buildTestList(context, TestType.dailyQuiz),
+            _buildTestList(context, TestType.practice),
+            _buildTestList(context, TestType.subjectwise),
           ],
         ),
       ),

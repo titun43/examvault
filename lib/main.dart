@@ -29,6 +29,7 @@ import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
+import 'screens/premium/premium_screen.dart';
 
 void main() async {
   // Run the app inside a zoned error handler so that any uncaught async
@@ -143,6 +144,13 @@ class ExamVaultApp extends StatelessWidget {
             color: themeProvider.isDarkMode
                 ? AppTheme.darkBackgroundColor
                 : AppTheme.backgroundColor,
+            // Named routes — registered so Navigator.pushNamed('/premium')
+            // actually navigates to the PremiumScreen. Previously NO routes
+            // were registered, so every "Go Premium" button in the app was
+            // silently broken (clicking did nothing / payment never opened).
+            routes: {
+              '/premium': (_) => const PremiumScreen(),
+            },
             // Builder wrapper so any uncaught error during navigation/build
             // is contained and never reaches the root MaterialApp.
             builder: (context, child) {

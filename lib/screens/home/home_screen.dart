@@ -27,11 +27,13 @@ import '../announcements/announcements_screen.dart';
 import '../upcoming_exams/upcoming_exams_screen.dart';
 import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
+import '../tests/test_series_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/bookmarks_screen.dart';
 import '../search/search_screen.dart';
 import 'all_subjects_screen.dart';
+import 'all_categories_screen.dart';
 import '../../widgets/banner_ad_widget.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -445,7 +447,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickActions() {
     final actions = [
       {'icon': Icons.quiz, 'label': 'Daily Quiz', 'color': const Color(0xFFFF6F00)},
-      {'icon': Icons.event_available, 'label': 'Exams', 'color': const Color(0xFF43A047)},
+      {'icon': Icons.assignment, 'label': 'Mock Tests', 'color': const Color(0xFF1565C0)},
+      {'icon': Icons.event_available, 'label': 'Upcoming', 'color': const Color(0xFF43A047)},
       {'icon': Icons.newspaper, 'label': 'Current Affairs', 'color': const Color(0xFF8E24AA)},
       {'icon': Icons.bookmark, 'label': 'Bookmarks', 'color': const Color(0xFFE65100)},
     ];
@@ -454,10 +457,10 @@ class _HomeScreenState extends State<HomeScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        crossAxisCount: 5,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 0.78,
       ),
       itemCount: actions.length,
       itemBuilder: (context, index) {
@@ -467,9 +470,16 @@ class _HomeScreenState extends State<HomeScreen> {
             final label = action['label'] as String;
             if (label == 'Daily Quiz') {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
+            } else if (label == 'Mock Tests') {
+              // Open the Test Series screen so users can browse ALL test
+              // types (Mock, Previous Year, Daily Quiz, Practice, Subject-wise)
+              // — not just upcoming exams. Previously the home screen had no
+              // direct entry to mock tests, so users only saw upcoming exams
+              // and previous-year papers in the app.
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const TestSeriesScreen()));
             } else if (label == 'Current Affairs') {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
-            } else if (label == 'Exams') {
+            } else if (label == 'Upcoming') {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
             } else if (label == 'Bookmarks') {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const BookmarksScreen()));
@@ -500,17 +510,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Icon(
                     action['icon'] as IconData,
                     color: action['color'] as Color,
-                    size: 24,
+                    size: 22,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   action['label'] as String,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: FontWeight.w600,
                   ),
                   textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -635,13 +647,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             TextButton(
-              // Navigate to the All Subjects screen where users can browse
-              // every subject and filter by category. Previously this just
-              // scrolled up which was confusing UX.
+              // Navigate to the All Categories screen (full grid of all exam
+              // categories). Previously this opened All Subjects, which was
+              // the wrong destination — users expected more categories.
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AllSubjectsScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const AllCategoriesScreen()),
                 );
               },
               child: const Text('View All'),
@@ -691,6 +704,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final categoryLocked = category.isPremium && !userIsPremium;
     return GestureDetector(
       onTap: () {
+        // REAL LOCK: if this is a premium category and the current user is
+        // NOT a premium subscriber, show a paywall dialog instead of opening
+        // the category. Previously the lock badge was decorative — users
+        // could tap in and access everything. Now they must subscribe first.
+        if (categoryLocked) {
+          _showCategoryPaywall(context, category);
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -786,6 +807,92 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
+    );
+  }
+
+  /// Real paywall for premium categories. Shown when a non-premium user taps
+  /// a premium category. Offers a "Go Premium" button that navigates to the
+  /// premium subscription screen (which has the Razorpay payment flow) and a
+  /// "Maybe later" button to dismiss. This is the REAL lock — without it,
+  /// users could browse premium categories freely.
+  void _showCategoryPaywall(BuildContext context, CategoryModel category) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock,
+                    size: 48, color: AppTheme.accentColor),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Premium Category',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                category.premiumPrice > 0
+                    ? 'Subscribe for ₹${category.premiumPrice} to unlock "${category.name}" and all its tests.'
+                    : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '✓ Unlimited Mock Tests\n✓ Detailed Solutions\n✓ Performance Analytics\n✓ Ad-Free Experience',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
+            ],
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pushNamed(context, '/premium');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accentColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.workspace_premium),
+                label: const Text('Go Premium'),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Maybe later'),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
