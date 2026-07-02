@@ -856,7 +856,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '✓ Unlimited Mock Tests\n✓ Detailed Solutions\n✓ Performance Analytics\n✓ Ad-Free Experience',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),

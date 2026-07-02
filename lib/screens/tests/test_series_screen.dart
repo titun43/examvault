@@ -20,7 +20,6 @@ class TestSeriesScreen extends StatelessWidget {
           title: const Text('Test Series'),
           bottom: const TabBar(
             isScrollable: true,
-            tabSpacing: 12,
             tabs: [
               Tab(text: 'All'),
               Tab(text: 'Mock'),
