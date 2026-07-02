@@ -304,6 +304,38 @@ class PaymentApiService {
     return Map<String, dynamic>.from(res);
   }
 
+  /// `GET /api/payments/order-status?orderId=...` — check the current status
+  /// of an order. Used as a FALLBACK when /verify fails due to a network
+  /// error: if Razorpay captured the payment and the webhook already marked
+  /// the order PAID, this endpoint reports success so the app can unlock the
+  /// content even though /verify never completed.
+  ///
+  /// Returns: { status, paid, granted, productType, productId, productName,
+  ///            amount, currency, razorpayOrderId, razorpayPaymentId? }
+  static Future<Map<String, dynamic>> getOrderStatus({
+    required String orderId,
+  }) async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/api/payments/order-status')
+        .replace(queryParameters: {'orderId': orderId});
+    try {
+      final res = await http
+          .get(uri, headers: await _headers(jsonBody: false))
+          .timeout(_timeout);
+      final decoded = _decode(res, '/api/payments/order-status');
+      if (decoded is! Map) {
+        throw const PaymentApiException('Unexpected response from server.');
+      }
+      return Map<String, dynamic>.from(decoded);
+    } on PaymentApiException {
+      rethrow;
+    } catch (e) {
+      throw PaymentApiException(
+        'Network error. Please check your internet connection and try again.',
+        endpoint: '/api/payments/order-status',
+      );
+    }
+  }
+
   /// `GET /api/payments/invoice/[paymentId]` — returns the FULL URL the caller
   /// should open in a webview / url_launcher. The endpoint returns HTML; we
   /// don't fetch it here, we just build the URL.
