@@ -260,6 +260,20 @@ class TestListScreen extends StatelessWidget {
   Future<void> _startTest(BuildContext context, TestModel test) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
+
+    // FREE TESTS — short-circuit. If the test is neither premium nor priced,
+    // there is nothing to purchase or gate. Open it immediately WITHOUT a
+    // server round-trip. This avoids the bug where a transient access-check
+    // failure (or wrong apiBaseUrl) locked free users out of free tests.
+    if (!test.isPaid) {
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+      );
+      return;
+    }
+
     try {
       final decision = await AccessService.checkTestAccess(
         test.id,

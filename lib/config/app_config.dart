@@ -20,7 +20,7 @@ class AppConfig {
   // API routes (/api/payments/*, /api/user/*). The Flutter app talks to these
   // routes directly over HTTPS for server-side-verified Razorpay payments.
   // All PaymentApiService URLs are derived from this constant.
-  static const String apiBaseUrl = 'https://preview.z.ai';
+  static const String apiBaseUrl = 'https://examvault-admin.vercel.app';
 
   // Owner / contact
   static const String ownerEmail = 'lkstudeoandcomputering@gmail.com';
