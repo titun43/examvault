@@ -3,6 +3,12 @@
 // Shows the test's price (if set by admin) and a Buy/Start button based on
 // the user's access: premium users and already-purchased tests → Start;
 // paid unpurchased tests → Buy ₹X (Razorpay per-test purchase).
+//
+// v1.23+ — server-side access check. Before starting a test, the app calls
+// AccessService.checkTestAccess(). If the backend denies access, a 3-option
+// purchase sheet is shown: Buy this test / Unlock subject pack / Go Premium.
+// If the access-check endpoint 404s (backend not ready), the screen falls
+// back to the legacy local check (user.isPremium || user.hasTestAccess).
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -10,7 +16,9 @@ import 'package:provider/provider.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
 import '../../models/user_model.dart';
+import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
@@ -25,6 +33,11 @@ class TestListScreen extends StatelessWidget {
     this.subject,
     this.testId,
   });
+
+  /// Default price for "Unlock subject pack" — used as a placeholder until
+  /// subject-pack products are admin-configurable. The backend's create-order
+  /// endpoint can override/validate this against a product config.
+  static const int _defaultSubjectPackPrice = 99;
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +90,6 @@ class TestListScreen extends StatelessWidget {
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
-    // A premium test with price=0 cannot be bought per-test; the user must
-    // subscribe. Previously this showed "Buy for ₹0" which was broken.
     final isPremiumOnly = test.isPremium && test.price <= 0;
     final canBuyIndividually = test.price > 0;
 
@@ -164,29 +175,19 @@ class TestListScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             // Action button — Buy / Go Premium / Start depending on access.
-            //  - premium-only test (price=0) + no access  → "Go Premium"
-            //  - test with price > 0 + no access          → "Buy for ₹X"
-            //  - user has access (premium or purchased)   → "Start Test"
             SizedBox(
               width: double.infinity,
               height: 44,
               child: !needsPurchase
                   ? ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TakeTestScreen(test: test),
-                          ),
-                        );
-                      },
+                      onPressed: () => _startTest(context, test),
                       icon: const Icon(Icons.play_arrow, size: 20),
                       label: const Text('Start Test'),
                     )
                   : isPremiumOnly
                       ? ElevatedButton.icon(
                           onPressed: () =>
-                              Navigator.pushNamed(context, '/premium'),
+                              _showPurchaseSheet(context, test, user),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.accentColor,
                             foregroundColor: Colors.white,
@@ -196,7 +197,8 @@ class TestListScreen extends StatelessWidget {
                           label: const Text('Go Premium'),
                         )
                       : ElevatedButton.icon(
-                          onPressed: () => _purchaseTest(context, test, user),
+                          onPressed: () =>
+                              _showPurchaseSheet(context, test, user),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.successColor,
                             foregroundColor: Colors.white,
@@ -213,7 +215,7 @@ class TestListScreen extends StatelessWidget {
                 child: Text(
                   isPremiumOnly
                       ? 'Subscribe to Premium to attempt this test.'
-                      : 'Buy this test to attempt it, or upgrade to Premium for unlimited access.',
+                      : 'Buy this test, unlock the subject pack, or upgrade to Premium.',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey.shade600,
@@ -226,10 +228,63 @@ class TestListScreen extends StatelessWidget {
     );
   }
 
-  /// Initiates a Razorpay payment for a single test. On success, adds the test
-  /// ID to the user's purchasedTests list (handled in RazorpayService) and
-  /// refreshes the AuthProvider so the UI updates.
-  void _purchaseTest(BuildContext context, TestModel test, UserModel? user) {
+  /// Tapped "Start Test". Does a server-side access check; if the backend
+  /// grants access, navigates to TakeTestScreen. If denied, shows the
+  /// 3-option purchase sheet. On 404 / network error, falls back to the
+  /// legacy local check.
+  Future<void> _startTest(BuildContext context, TestModel test) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    try {
+      final decision = await AccessService.checkTestAccess(
+        test.id,
+        subjectId: test.subjectId.isNotEmpty ? test.subjectId : subject?.id,
+        categoryId: subject?.categoryId,
+      );
+      if (decision.allowed) {
+        if (!context.mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        );
+        return;
+      }
+      // Denied — show purchase sheet.
+      if (!context.mounted) return;
+      _showPurchaseSheet(context, test, user);
+    } on PaymentApiException catch (e) {
+      // 404 / network — fall back to local check.
+      if (!context.mounted) return;
+      final localHasAccess =
+          (user?.isPremium ?? false) || (user?.hasTestAccess(test.id) ?? false);
+      if (localHasAccess) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        );
+      } else if (e.statusCode == 404) {
+        // Backend not ready — show the friendly message.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      } else {
+        _showPurchaseSheet(context, test, user);
+      }
+    } catch (_) {
+      if (!context.mounted) return;
+      final localHasAccess =
+          (user?.isPremium ?? false) || (user?.hasTestAccess(test.id) ?? false);
+      if (localHasAccess) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        );
+      }
+    }
+  }
+
+  /// 3-option purchase sheet: Buy this test / Unlock subject pack / Go Premium.
+  void _showPurchaseSheet(BuildContext context, TestModel test, UserModel? user) {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please sign in to purchase tests.')),
@@ -237,6 +292,151 @@ class TestListScreen extends StatelessWidget {
       return;
     }
     final auth = Provider.of<AuthProvider>(context, listen: false);
+    final subjectName = subject?.name ?? 'this subject';
+    final canBuyTest = test.price > 0;
+    final canUnlockSubjectPack = subject != null;
+
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Text(
+                  'Unlock "${test.title}"',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Pick the option that works for you. All payments are secure & verified.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 16),
+                if (canBuyTest)
+                  _sheetOption(
+                    icon: Icons.shopping_cart_outlined,
+                    color: AppTheme.successColor,
+                    title: 'Buy this test',
+                    subtitle: '₹${test.price} · attempt anytime',
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      _purchaseTest(context, test, user, auth);
+                    },
+                  ),
+                if (canUnlockSubjectPack) ...[
+                  if (canBuyTest) const SizedBox(height: 8),
+                  _sheetOption(
+                    icon: Icons.library_books,
+                    color: AppTheme.infoColor,
+                    title: 'Unlock subject pack',
+                    subtitle:
+                        '₹$_defaultSubjectPackPrice · all tests in $subjectName',
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      _purchaseSubjectPack(context, user, auth);
+                    },
+                  ),
+                ],
+                if (canBuyTest || canUnlockSubjectPack) const SizedBox(height: 8),
+                _sheetOption(
+                  icon: Icons.workspace_premium,
+                  color: AppTheme.accentColor,
+                  title: 'Go Premium',
+                  subtitle: 'Unlimited access to everything',
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    Navigator.pushNamed(context, '/premium');
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(sheetCtx),
+                  child: const Text('Maybe later'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sheetOption({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey.shade600)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Initiates a Razorpay payment for a single test. On server-verified
+  /// success, clears the access cache and refreshes the user so the button
+  /// flips from "Buy" to "Start".
+  void _purchaseTest(
+    BuildContext context,
+    TestModel test,
+    UserModel user,
+    AuthProvider auth,
+  ) {
     RazorpayService.startTestPurchase(
       userId: user.id,
       userName: user.name,
@@ -245,21 +445,66 @@ class TestListScreen extends StatelessWidget {
       testId: test.id,
       testTitle: test.title,
       amount: test.price,
+      subjectId: test.subjectId.isNotEmpty ? test.subjectId : subject?.id,
+      categoryId: subject?.categoryId,
       onSuccess: (response) {
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Payment successful! "${test.title}" unlocked.'),
             backgroundColor: AppTheme.successColor,
           ),
         );
-        // Refresh user data so purchasedTests is up-to-date and the button
-        // flips from "Buy" to "Start".
-        auth.loadUserData();
       },
       onError: (response) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: ${response.message}'),
+            content: Text(
+                'Payment failed: ${response.message ?? 'Please try again.'}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Initiates a Razorpay payment for a subject pack.
+  void _purchaseSubjectPack(
+    BuildContext context,
+    UserModel user,
+    AuthProvider auth,
+  ) {
+    if (subject == null) return;
+    RazorpayService.startSubjectPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      subjectId: subject!.id,
+      subjectName: subject!.name,
+      amount: _defaultSubjectPackPrice,
+      categoryId: subject!.categoryId,
+      onSuccess: (response) {
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Subject pack unlocked: ${subject!.name}. Enjoy!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      },
+      onError: (response) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Payment failed: ${response.message ?? 'Please try again.'}'),
             backgroundColor: AppTheme.errorColor,
           ),
         );

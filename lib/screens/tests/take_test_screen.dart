@@ -8,7 +8,9 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
+import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
@@ -32,6 +34,17 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false; // guards against double-submission
   bool _accessGranted = false;
+  // True while the server-side access check is in flight. Distinguished from
+  // _isLoading (which is for question loading) so the paywall doesn't flash
+  // before the access decision arrives.
+  bool _accessChecking = true;
+  // True if the access-check endpoint 404'd (backend not built yet). In that
+  // case we fall back to the legacy local check (user.isPremium || hasTest).
+  bool _accessCheckUnavailable = false;
+
+  /// Default price for the "Unlock subject pack" option in the paywall.
+  /// Placeholder until subject-pack products are admin-configurable.
+  static const int _defaultSubjectPackPrice = 99;
 
   @override
   void initState() {
@@ -40,23 +53,72 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     _timeRemaining = widget.test.duration * 60;
   }
 
-  /// Checks whether the user has access to this test (free, purchased, or
-  /// premium). If the test is paid and the user hasn't bought it and isn't
-  /// premium, shows a paywall instead of loading questions.
-  void _checkAccessAndLoad() {
+  /// Checks whether the user has access to this test using the server-side
+  /// access-check endpoint (single source of truth). Falls back to the legacy
+  /// local check (user.isPremium || hasTest) if the endpoint is not ready
+  /// (404) or network fails. If access is granted, loads questions + starts
+  /// the timer; otherwise shows the paywall.
+  Future<void> _checkAccessAndLoad() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
-    final isPremium = user?.isPremium ?? false;
-    final hasAccess = isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
 
-    if (!widget.test.isPaid || hasAccess) {
+    // Fast path: free tests never need an access check.
+    if (!widget.test.isPaid) {
       _accessGranted = true;
+      _accessChecking = false;
       _loadQuestions();
       _startTimer();
-    } else {
-      // Paid test, no access — don't load questions or start the timer.
-      _accessGranted = false;
-      _isLoading = false;
+      if (mounted) setState(() {});
+      return;
+    }
+
+    try {
+      final decision = await AccessService.checkTestAccess(
+        widget.test.id,
+        subjectId: widget.test.subjectId.isNotEmpty
+            ? widget.test.subjectId
+            : null,
+      );
+      if (!mounted) return;
+      _accessChecking = false;
+      _accessGranted = decision.allowed;
+      if (_accessGranted) {
+        _loadQuestions();
+        _startTimer();
+      } else {
+        _isLoading = false;
+      }
+      setState(() {});
+    } on PaymentApiException catch (e) {
+      if (!mounted) return;
+      _accessChecking = false;
+      _accessCheckUnavailable = e.statusCode == 404;
+      // Fall back to local check.
+      final isPremium = user?.isPremium ?? false;
+      final hasAccess =
+          isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
+      _accessGranted = hasAccess;
+      if (_accessGranted) {
+        _loadQuestions();
+        _startTimer();
+      } else {
+        _isLoading = false;
+      }
+      setState(() {});
+    } catch (_) {
+      if (!mounted) return;
+      _accessChecking = false;
+      final isPremium = user?.isPremium ?? false;
+      final hasAccess =
+          isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
+      _accessGranted = hasAccess;
+      if (_accessGranted) {
+        _loadQuestions();
+        _startTimer();
+      } else {
+        _isLoading = false;
+      }
+      setState(() {});
     }
   }
 
@@ -262,15 +324,22 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   }
 
   /// Paywall shown when a user tries to open a paid test they haven't bought
-  /// and aren't premium for. Offers two paths: buy this test individually, or
-  /// upgrade to Premium for unlimited access.
+  /// and aren't premium for. Offers three paths:
+  ///   1. Buy this test individually (₹{test.price})
+  ///   2. Unlock subject pack (₹{_defaultSubjectPackPrice}) — all tests in
+  ///      the test's subject
+  ///   3. Upgrade to Premium for unlimited access
+  /// If the access-check endpoint 404'd (backend not built), a "rolling out"
+  /// banner is shown above the buttons.
   Widget _buildPaywall(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
+    final canBuyTest = widget.test.price > 0;
+    final canUnlockSubjectPack = widget.test.subjectId.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: Text(widget.test.title)),
       body: Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -294,8 +363,8 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                widget.test.price > 0
-                    ? 'Buy this test for ₹${widget.test.price} or upgrade to Premium for unlimited access.'
+                canBuyTest
+                    ? 'Buy this test, unlock the subject pack, or upgrade to Premium for unlimited access.'
                     : 'Upgrade to Premium to attempt this test.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -303,53 +372,40 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                   color: Colors.grey.shade600,
                 ),
               ),
+              if (_accessCheckUnavailable) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          color: AppTheme.warningColor, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Live access verification is being rolled out. '
+                          'Please update the app soon.',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 28),
-              if (widget.test.price > 0)
+              if (canBuyTest)
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: user == null
-                        ? null
-                        : () {
-                            RazorpayService.startTestPurchase(
-                              userId: user.id,
-                              userName: user.name,
-                              userEmail:
-                                  user.email ?? 'user@examvault.com',
-                              userPhone:
-                                  user.phoneNumber ?? '9999999999',
-                              testId: widget.test.id,
-                              testTitle: widget.test.title,
-                              amount: widget.test.price,
-                              onSuccess: (response) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Payment successful! "${widget.test.title}" unlocked.'),
-                                    backgroundColor: AppTheme.successColor,
-                                  ),
-                                );
-                                auth.loadUserData();
-                                // Re-check access and load questions.
-                                setState(() {
-                                  _accessGranted = true;
-                                  _isLoading = true;
-                                });
-                                _loadQuestions();
-                                _startTimer();
-                              },
-                              onError: (response) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                        'Payment failed: ${response.message}'),
-                                    backgroundColor: AppTheme.errorColor,
-                                  ),
-                                );
-                              },
-                            );
-                          },
+                    onPressed: user == null ? null : _buyTest,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.successColor,
                       foregroundColor: Colors.white,
@@ -358,7 +414,23 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     label: Text('Buy for ₹${widget.test.price}'),
                   ),
                 ),
-              if (widget.test.price > 0) const SizedBox(height: 12),
+              if (canBuyTest) const SizedBox(height: 12),
+              if (canUnlockSubjectPack)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: user == null ? null : _buySubjectPack,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.infoColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.library_books),
+                    label: Text(
+                        'Unlock subject pack · ₹$_defaultSubjectPackPrice'),
+                  ),
+                ),
+              if (canUnlockSubjectPack) const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -383,9 +455,100 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     );
   }
 
+  /// Buy this single test via the server-side-verified Razorpay flow.
+  void _buyTest() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) return;
+    RazorpayService.startTestPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      testId: widget.test.id,
+      testTitle: widget.test.title,
+      amount: widget.test.price,
+      subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
+      onSuccess: (_) {
+        // Backend confirmed grant — clear cache, refresh user, re-check.
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Payment successful! "${widget.test.title}" unlocked.'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        setState(() {
+          _accessGranted = true;
+          _isLoading = true;
+        });
+        _loadQuestions();
+        _startTimer();
+      },
+      onError: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Payment failed: ${response.message ?? 'Please try again.'}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      },
+    );
+  }
+
+  /// Buy the subject pack for this test's subject.
+  void _buySubjectPack() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) return;
+    if (widget.test.subjectId.isEmpty) return;
+    RazorpayService.startSubjectPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      subjectId: widget.test.subjectId,
+      subjectName: widget.test.title, // best label we have at this point
+      amount: _defaultSubjectPackPrice,
+      onSuccess: (_) {
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Subject pack unlocked! "${widget.test.title}" is now accessible.'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        setState(() {
+          _accessGranted = true;
+          _isLoading = true;
+        });
+        _loadQuestions();
+        _startTimer();
+      },
+      onError: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Payment failed: ${response.message ?? 'Please try again.'}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (_accessChecking || _isLoading) {
       return Scaffold(
         appBar: AppBar(title: const Text('Loading...')),
         body: const Center(child: CircularProgressIndicator()),

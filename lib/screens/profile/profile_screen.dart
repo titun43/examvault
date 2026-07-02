@@ -233,6 +233,15 @@ class ProfileScreen extends StatelessWidget {
             ),
             _buildMenuTile(
               context,
+              Icons.receipt_long,
+              'My Purchases',
+              null,
+              onTap: () {
+                Navigator.pushNamed(context, '/my-purchases');
+              },
+            ),
+            _buildMenuTile(
+              context,
               Icons.newspaper,
               'Current Affairs',
               null,

@@ -1,14 +1,24 @@
 // =============================================================================
-// ExamVault - Razorpay Payment Service
-// Subscription payments via Razorpay
+// ExamVault - Razorpay Payment Service (SERVER-SIDE-VERIFIED FLOW)
+// =============================================================================
+// v1.23+ — NO LONGER writes payment success to Firestore from the client.
+// The flow is now:
+//   1. createOrder()  → backend creates a Razorpay order + Prisma Order row
+//   2. open Razorpay checkout WITH that order_id (mandatory for signature
+//      verification to work)
+//   3. On EVENT_PAYMENT_SUCCESS → verifyPayment() with the signature; only
+//      call onSuccess if the backend returns { success: true, granted: true }
+//   4. On EVENT_PAYMENT_ERROR → call onError with the Razorpay failure
+//
+// The old `payments` Firestore collection and PaymentModel are kept for
+// backward-compat with historical records; NEW payments are recorded by the
+// backend in Prisma, not here.
 // =============================================================================
 
-import 'dart:convert';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:uuid/uuid.dart';
 import '../config/app_config.dart';
-import '../models/payment_model.dart';
-import 'firebase_service.dart';
+import 'payment_api_service.dart';
 
 class RazorpayService {
   RazorpayService._();
@@ -20,157 +30,85 @@ class RazorpayService {
 
   static void initialize() {
     _razorpay = Razorpay();
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    // Register default no-op handlers. Each start*() method re-registers
+    // success/error with closures that capture the active order's Prisma id
+    // so it can be passed to /verify.
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _defaultSuccess);
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _defaultError);
+    _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _defaultWallet);
   }
 
-  // ==================== START PAYMENT ====================
+  static void _defaultSuccess(PaymentSuccessResponse _) {}
+  static void _defaultError(PaymentFailureResponse _) {}
+  static void _defaultWallet(ExternalWalletResponse _) {}
+
+  // ==================== START SUBSCRIPTION PAYMENT ====================
+  /// Premium subscription payment. Creates a server-side order, opens Razorpay
+  /// checkout, verifies the signature, and only calls [onSuccess] if the
+  /// backend confirms the entitlement was granted.
   static Future<void> startPayment({
     required String userId,
     required String userName,
     required String userEmail,
     required String userPhone,
-    required int amount, // in INR (will be converted to paise)
+    required int amount, // in INR (whole rupees)
     required String planId,
     required String planName,
     required int durationMonths,
+    String? planTier,
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
   }) async {
     if (_razorpay == null) {
-      throw Exception('Payment service not available. Please restart the app.');
+      throw Exception(
+          'Payment service not available. Please restart the app.');
     }
-    // Create payment record in Firestore
-    final paymentRecord = PaymentModel(
-      id: '',
-      userId: userId,
-      razorpayOrderId: '',
-      amount: amount * 100, // convert to paise
-      currency: 'INR',
-      status: PaymentStatus.created,
-      planId: planId,
-      planName: planName,
-      durationMonths: durationMonths,
-      createdAt: DateTime.now(),
-    );
 
-    final docRef = await FirebaseService.paymentsRef.add(paymentRecord.toFirestore());
-    final paymentId = docRef.id;
+    final idempotencyKey = const Uuid().v4();
 
-    // Setup callbacks
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
-      _handlePaymentSuccessWithRecord(
-        response,
-        paymentId: paymentId,
-        userId: userId,
-        planName: planName,
-        durationMonths: durationMonths,
-      );
-      onSuccess(response);
-    });
-
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
-      _handlePaymentErrorWithRecord(response, paymentId: paymentId);
-      onError(response);
-    });
-
-    // Start Razorpay checkout
-    final options = {
-      'key': AppConfig.razorpayKeyId,
-      'amount': amount * 100, // in paise
-      'name': AppConfig.appName,
-      'description': planName,
-      'prefill': {
-        'name': userName,
-        'email': userEmail,
-        'contact': userPhone,
-      },
-      'theme': {
-        'color': '#1565C0',
-      },
-      'currency': 'INR',
-      'timeout': 300, // 5 minutes
-    };
-
+    // 1) Create the order on the backend.
+    Map<String, dynamic> order;
     try {
-      _razorpay!.open(options);
-    } catch (e) {
-      await _updatePaymentStatus(
-        paymentId,
-        PaymentStatus.failed,
-        rawResponse: {'error': e.toString()},
+      order = await PaymentApiService.createOrder(
+        productType: 'PREMIUM_SUBSCRIPTION',
+        productId: planId,
+        productName: planName,
+        amountRupees: amount.toDouble(),
+        idempotencyKey: idempotencyKey,
+        meta: {
+          'planId': planId,
+          'planName': planName,
+          if (planTier != null) 'planTier': planTier,
+          'durationMonths': durationMonths,
+        },
       );
-      rethrow;
+    } on PaymentApiException catch (e) {
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } catch (e) {
+      onError(PaymentFailureResponse(
+          0, 'Could not start payment. Please try again.', null));
+      return;
+    }
+
+    if (!_openCheckout(
+      order: order,
+      fallbackAmountPaise: amount * 100,
+      description: planName,
+      prefillName: userName,
+      prefillEmail: userEmail,
+      prefillPhone: userPhone,
+      onSuccess: onSuccess,
+      onError: onError,
+    )) {
+      return;
     }
   }
 
-  // ==================== PAYMENT SUCCESS HANDLER ====================
-  static void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    // Default handler - overridden in startPayment
-  }
-
-  static Future<void> _handlePaymentSuccessWithRecord(
-    PaymentSuccessResponse response, {
-    required String paymentId,
-    required String userId,
-    required String planName,
-    required int durationMonths,
-  }) async {
-    await _updatePaymentStatus(
-      paymentId,
-      PaymentStatus.captured,
-      razorpayPaymentId: response.paymentId,
-      razorpayOrderId: response.orderId,
-      razorpaySignature: response.signature,
-      rawResponse: {
-        'paymentId': response.paymentId,
-        'orderId': response.orderId,
-        'signature': response.signature,
-      },
-    );
-
-    // Update user subscription
-    final now = DateTime.now();
-    final expiry = DateTime(now.year, now.month + durationMonths, now.day);
-
-    await FirebaseService.usersRef.doc(userId).update({
-      'subscriptionStatus': 'premium',
-      'subscriptionExpiry': Timestamp.fromDate(expiry),
-      'subscriptionPlanId': planName,
-      'updatedAt': Timestamp.fromDate(now),
-    });
-  }
-
-  // ==================== PAYMENT ERROR HANDLER ====================
-  static void _handlePaymentError(PaymentFailureResponse response) {
-    // Default handler - overridden in startPayment
-  }
-
-  static Future<void> _handlePaymentErrorWithRecord(
-    PaymentFailureResponse response, {
-    required String paymentId,
-  }) async {
-    await _updatePaymentStatus(
-      paymentId,
-      PaymentStatus.failed,
-      rawResponse: {
-        'code': response.code,
-        'message': response.message,
-        'error': response.error,
-      },
-    );
-  }
-
-  // ==================== EXTERNAL WALLET HANDLER ====================
-  static void _handleExternalWallet(ExternalWalletResponse response) {
-    // Handle external wallet payments
-  }
-
-  // ==================== START TEST PURCHASE PAYMENT ====================
-  /// Pay-per-test purchase. Charges the user the test's price and, on success,
-  /// adds the testId to the user's `purchasedTests` list in Firestore so they
-  /// can attempt the test any time. Premium users bypass this entirely.
+  // ==================== START TEST PURCHASE ====================
+  /// Pay-per-test purchase. Charges the user the test's price and, on
+  /// server-verified success, the backend adds the testId to the user's
+  /// entitlements. [onSuccess] is only called when the backend confirms.
   static Future<void> startTestPurchase({
     required String userId,
     required String userName,
@@ -179,125 +117,280 @@ class RazorpayService {
     required String testId,
     required String testTitle,
     required int amount, // in INR
+    String? subjectId,
+    String? categoryId,
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
   }) async {
     if (_razorpay == null) {
-      throw Exception('Payment service not available. Please restart the app.');
+      throw Exception(
+          'Payment service not available. Please restart the app.');
     }
-    // Create payment record
-    final paymentRecord = PaymentModel(
-      id: '',
-      userId: userId,
-      razorpayOrderId: '',
-      amount: amount * 100, // paise
-      currency: 'INR',
-      status: PaymentStatus.created,
-      planId: 'test_purchase_$testId',
-      planName: testTitle,
-      durationMonths: 0,
-      createdAt: DateTime.now(),
-    );
 
-    final docRef =
-        await FirebaseService.paymentsRef.add(paymentRecord.toFirestore());
-    final paymentId = docRef.id;
+    final idempotencyKey = const Uuid().v4();
 
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, (PaymentSuccessResponse response) {
-      _handleTestPurchaseSuccess(
-        response,
-        paymentId: paymentId,
-        userId: userId,
-        testId: testId,
+    Map<String, dynamic> order;
+    try {
+      order = await PaymentApiService.createOrder(
+        productType: 'TEST_PURCHASE',
+        productId: testId,
+        productName: testTitle,
+        amountRupees: amount.toDouble(),
+        idempotencyKey: idempotencyKey,
+        meta: {
+          'testId': testId,
+          'testTitle': testTitle,
+          if (subjectId != null) 'subjectId': subjectId,
+          if (categoryId != null) 'categoryId': categoryId,
+        },
       );
-      onSuccess(response);
-    });
+    } on PaymentApiException catch (e) {
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } catch (e) {
+      onError(PaymentFailureResponse(
+          0, 'Could not start payment. Please try again.', null));
+      return;
+    }
 
-    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, (PaymentFailureResponse response) {
-      _handlePaymentErrorWithRecord(response, paymentId: paymentId);
+    if (!_openCheckout(
+      order: order,
+      fallbackAmountPaise: amount * 100,
+      description: 'Test: $testTitle',
+      prefillName: userName,
+      prefillEmail: userEmail,
+      prefillPhone: userPhone,
+      onSuccess: onSuccess,
+      onError: onError,
+    )) {
+      return;
+    }
+  }
+
+  // ==================== START SUBJECT PACK PURCHASE ====================
+  /// Unlock all tests in a subject. [amount] is the pack price in INR.
+  static Future<void> startSubjectPackPurchase({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String userPhone,
+    required String subjectId,
+    required String subjectName,
+    required int amount, // in INR
+    String? categoryId,
+    required void Function(PaymentSuccessResponse response) onSuccess,
+    required void Function(PaymentFailureResponse response) onError,
+  }) async {
+    if (_razorpay == null) {
+      throw Exception(
+          'Payment service not available. Please restart the app.');
+    }
+
+    final idempotencyKey = const Uuid().v4();
+
+    Map<String, dynamic> order;
+    try {
+      order = await PaymentApiService.createOrder(
+        productType: 'SUBJECT_PACK',
+        productId: subjectId,
+        productName: 'Subject Pack: $subjectName',
+        amountRupees: amount.toDouble(),
+        idempotencyKey: idempotencyKey,
+        meta: {
+          'subjectId': subjectId,
+          'subjectName': subjectName,
+          if (categoryId != null) 'categoryId': categoryId,
+        },
+      );
+    } on PaymentApiException catch (e) {
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } catch (e) {
+      onError(PaymentFailureResponse(
+          0, 'Could not start payment. Please try again.', null));
+      return;
+    }
+
+    if (!_openCheckout(
+      order: order,
+      fallbackAmountPaise: amount * 100,
+      description: 'Subject Pack: $subjectName',
+      prefillName: userName,
+      prefillEmail: userEmail,
+      prefillPhone: userPhone,
+      onSuccess: onSuccess,
+      onError: onError,
+    )) {
+      return;
+    }
+  }
+
+  // ==================== START EXAM PACK PURCHASE ====================
+  /// Unlock all subjects/tests in a category (exam pack). [amount] is the
+  /// pack price in INR.
+  static Future<void> startExamPackPurchase({
+    required String userId,
+    required String userName,
+    required String userEmail,
+    required String userPhone,
+    required String categoryId,
+    required String categoryName,
+    required int amount, // in INR
+    required void Function(PaymentSuccessResponse response) onSuccess,
+    required void Function(PaymentFailureResponse response) onError,
+  }) async {
+    if (_razorpay == null) {
+      throw Exception(
+          'Payment service not available. Please restart the app.');
+    }
+
+    final idempotencyKey = const Uuid().v4();
+
+    Map<String, dynamic> order;
+    try {
+      order = await PaymentApiService.createOrder(
+        productType: 'EXAM_PACK',
+        productId: categoryId,
+        productName: 'Exam Pack: $categoryName',
+        amountRupees: amount.toDouble(),
+        idempotencyKey: idempotencyKey,
+        meta: {
+          'categoryId': categoryId,
+          'categoryName': categoryName,
+        },
+      );
+    } on PaymentApiException catch (e) {
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } catch (e) {
+      onError(PaymentFailureResponse(
+          0, 'Could not start payment. Please try again.', null));
+      return;
+    }
+
+    if (!_openCheckout(
+      order: order,
+      fallbackAmountPaise: amount * 100,
+      description: 'Exam Pack: $categoryName',
+      prefillName: userName,
+      prefillEmail: userEmail,
+      prefillPhone: userPhone,
+      onSuccess: onSuccess,
+      onError: onError,
+    )) {
+      return;
+    }
+  }
+
+  // ==================== OPEN CHECKOUT (shared) ====================
+  /// Shared helper that validates the create-order response, wires the
+  /// success/error handlers to a /verify call, and opens Razorpay checkout.
+  /// Returns true if checkout was opened; false if an error was already
+  /// dispatched via [onError] (so the caller knows not to do anything else).
+  static bool _openCheckout({
+    required Map<String, dynamic> order,
+    required int fallbackAmountPaise,
+    required String description,
+    required String prefillName,
+    required String prefillEmail,
+    required String prefillPhone,
+    required void Function(PaymentSuccessResponse) onSuccess,
+    required void Function(PaymentFailureResponse) onError,
+  }) {
+    final orderId = (order['orderId'] ?? '').toString();
+    final razorpayOrderId = (order['razorpayOrderId'] ?? '').toString();
+    final keyId = (order['keyId'] ?? AppConfig.razorpayKeyId).toString();
+    final amountPaise = order['amount'] is int
+        ? order['amount'] as int
+        : (order['amount'] is num
+            ? (order['amount'] as num).toInt()
+            : fallbackAmountPaise);
+
+    if (orderId.isEmpty || razorpayOrderId.isEmpty) {
+      onError(PaymentFailureResponse(
+          0, 'Server returned an invalid order. Please try again.', null));
+      return false;
+    }
+
+    // Re-register handlers with closures that capture the Prisma orderId so
+    // we can call /verify with it on success.
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS,
+        (PaymentSuccessResponse response) async {
+      await _verifyAndDispatch(
+        response: response,
+        orderId: orderId,
+        onSuccess: onSuccess,
+        onError: onError,
+      );
+    });
+    _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR,
+        (PaymentFailureResponse response) {
       onError(response);
     });
 
-    final options = {
-      'key': AppConfig.razorpayKeyId,
-      'amount': amount * 100,
+    final options = <String, dynamic>{
+      'key': keyId,
+      'order_id': razorpayOrderId, // CRITICAL for server-side verification
+      'amount': amountPaise,
       'name': AppConfig.appName,
-      'description': 'Test: $testTitle',
+      'description': description,
       'prefill': {
-        'name': userName,
-        'email': userEmail,
-        'contact': userPhone,
+        'name': prefillName,
+        'email': prefillEmail,
+        'contact': prefillPhone,
       },
       'theme': {'color': '#1565C0'},
       'currency': 'INR',
-      'timeout': 300,
+      'timeout': 300, // 5 minutes
     };
 
     try {
       _razorpay!.open(options);
+      return true;
     } catch (e) {
-      await _updatePaymentStatus(
-        paymentId,
-        PaymentStatus.failed,
-        rawResponse: {'error': e.toString()},
+      onError(PaymentFailureResponse(
+          0, 'Could not open payment screen. Please try again.', null));
+      return false;
+    }
+  }
+
+  // ==================== VERIFY + DISPATCH ====================
+  /// Calls /api/payments/verify with the Razorpay signature. Only invokes
+  /// [onSuccess] if the backend returns { success: true, granted: true }.
+  /// On any failure (including signature mismatch), invokes [onError] with a
+  /// synthetic PaymentFailureResponse carrying the server's message.
+  static Future<void> _verifyAndDispatch({
+    required PaymentSuccessResponse response,
+    required String orderId,
+    required void Function(PaymentSuccessResponse) onSuccess,
+    required void Function(PaymentFailureResponse) onError,
+  }) async {
+    try {
+      final result = await PaymentApiService.verifyPayment(
+        orderId: orderId,
+        razorpayPaymentId: response.paymentId ?? '',
+        razorpayOrderId: response.orderId ?? '',
+        razorpaySignature: response.signature ?? '',
       );
-      rethrow;
+
+      final ok = result['success'] == true && result['granted'] == true;
+      if (ok) {
+        onSuccess(response);
+      } else {
+        final msg = (result['message'] ??
+                'Payment could not be verified. If money was deducted, it will be refunded within 5-7 business days.')
+            .toString();
+        onError(PaymentFailureResponse(0, msg, null));
+      }
+    } on PaymentApiException catch (e) {
+      onError(PaymentFailureResponse(0, e.message, null));
+    } catch (e) {
+      onError(PaymentFailureResponse(
+        0,
+        'Payment verification failed. If money was deducted, it will be refunded within 5-7 business days.',
+        null,
+      ));
     }
-  }
-
-  /// On successful test purchase, mark the payment captured AND add the testId
-  /// to the user's purchasedTests list (using FieldValue.arrayUnion so it's
-  /// idempotent — buying the same test twice doesn't create duplicates).
-  static Future<void> _handleTestPurchaseSuccess(
-    PaymentSuccessResponse response, {
-    required String paymentId,
-    required String userId,
-    required String testId,
-  }) async {
-    await _updatePaymentStatus(
-      paymentId,
-      PaymentStatus.captured,
-      razorpayPaymentId: response.paymentId,
-      razorpayOrderId: response.orderId,
-      razorpaySignature: response.signature,
-      rawResponse: {
-        'paymentId': response.paymentId,
-        'orderId': response.orderId,
-        'signature': response.signature,
-        'type': 'test_purchase',
-        'testId': testId,
-      },
-    );
-
-    // Add the test to the user's purchasedTests list.
-    await FirebaseService.usersRef.doc(userId).set({
-      'purchasedTests': FieldValue.arrayUnion([testId]),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
-
-  // ==================== UPDATE PAYMENT STATUS ====================
-  static Future<void> _updatePaymentStatus(
-    String paymentId,
-    PaymentStatus status, {
-    String? razorpayPaymentId,
-    String? razorpayOrderId,
-    String? razorpaySignature,
-    Map<String, dynamic>? rawResponse,
-  }) async {
-    final updates = <String, dynamic>{
-      'status': status.name,
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-    if (razorpayPaymentId != null) updates['razorpayPaymentId'] = razorpayPaymentId;
-    if (razorpayOrderId != null) updates['razorpayOrderId'] = razorpayOrderId;
-    if (razorpaySignature != null) updates['razorpaySignature'] = razorpaySignature;
-    if (status == PaymentStatus.captured || status == PaymentStatus.failed) {
-      updates['completedAt'] = FieldValue.serverTimestamp();
-    }
-    if (rawResponse != null) updates['rawResponse'] = rawResponse;
-
-    await FirebaseService.paymentsRef.doc(paymentId).update(updates);
   }
 
   // ==================== CLEANUP ====================

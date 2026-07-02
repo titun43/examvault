@@ -21,6 +21,8 @@ import '../../models/announcement_model.dart';
 import '../../models/upcoming_exam_model.dart';
 import '../../models/banner_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/access_service.dart';
+import '../../services/razorpay_service.dart';
 import 'category_detail_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import '../announcements/announcements_screen.dart';
@@ -811,11 +813,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Real paywall for premium categories. Shown when a non-premium user taps
-  /// a premium category. Offers a "Go Premium" button that navigates to the
-  /// premium subscription screen (which has the Razorpay payment flow) and a
-  /// "Maybe later" button to dismiss. This is the REAL lock — without it,
-  /// users could browse premium categories freely.
+  /// a premium category. Offers two paths: "Unlock this exam (₹X)" (Exam Pack
+  /// purchase via server-side-verified Razorpay) and "Go Premium" (full
+  /// subscription). This is the REAL lock — without it, users could browse
+  /// premium categories freely.
   void _showCategoryPaywall(BuildContext context, CategoryModel category) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    final canBuyExamPack = category.premiumPrice > 0;
     showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -846,8 +851,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                category.premiumPrice > 0
-                    ? 'Subscribe for ₹${category.premiumPrice} to unlock "${category.name}" and all its tests.'
+                canBuyExamPack
+                    ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
                     : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -857,24 +862,47 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                '✓ Unlimited Mock Tests\n✓ Detailed Solutions\n✓ Performance Analytics\n✓ Ad-Free Experience',
+                '✓ All mock tests in this exam\n✓ Detailed Solutions\n✓ Performance Analytics',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
             ],
           ),
           actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           actions: [
+            if (canBuyExamPack)
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: user == null
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          _startExamPackFromHome(context, category, auth);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.successColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.lock_open),
+                  label: Text(
+                      'Unlock this exam (₹${category.premiumPrice})'),
+                ),
+              ),
             SizedBox(
               width: double.infinity,
               height: 46,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
                   Navigator.pushNamed(context, '/premium');
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accentColor,
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.accentColor,
+                  side: const BorderSide(color: AppTheme.accentColor),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -891,6 +919,55 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  /// Starts an Exam Pack purchase from the home screen paywall dialog. On
+  /// server-verified success, clears the access cache + refreshes the user
+  /// + opens the category detail screen so the user can start browsing.
+  void _startExamPackFromHome(
+    BuildContext context,
+    CategoryModel category,
+    AuthProvider auth,
+  ) {
+    final user = auth.user;
+    if (user == null) return;
+    RazorpayService.startExamPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      categoryId: category.id,
+      categoryName: category.name,
+      amount: category.premiumPrice,
+      onSuccess: (_) {
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exam pack unlocked: ${category.name}. Enjoy!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        // Open the category so the user can start browsing.
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CategoryDetailScreen(category: category),
+          ),
+        );
+      },
+      onError: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text(response.message ?? 'Payment failed. Please try again.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       },
     );

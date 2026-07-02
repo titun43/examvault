@@ -30,6 +30,7 @@ import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/premium/premium_screen.dart';
+import 'screens/payments/my_purchases_screen.dart';
 
 void main() async {
   // Run the app inside a zoned error handler so that any uncaught async
@@ -150,6 +151,7 @@ class ExamVaultApp extends StatelessWidget {
             // silently broken (clicking did nothing / payment never opened).
             routes: {
               '/premium': (_) => const PremiumScreen(),
+              '/my-purchases': (_) => const MyPurchasesScreen(),
             },
             // Builder wrapper so any uncaught error during navigation/build
             // is contained and never reaches the root MaterialApp.

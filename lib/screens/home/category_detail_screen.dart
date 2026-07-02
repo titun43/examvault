@@ -1,15 +1,28 @@
 // =============================================================================
 // ExamVault - Category Detail Screen (shows subjects in a category)
 // =============================================================================
+// v1.23+ — server-side access check. Before listing subjects, this screen
+// calls AccessService.checkCategoryAccess(category.id). If the backend says
+// the user lacks access, a paywall is shown with two options:
+//   1. "Unlock this exam (₹X)" → RazorpayService.startExamPackPurchase
+//   2. "Go Premium"            → /premium
+// If the backend endpoint is not ready yet (404), the screen falls back to
+// the legacy local check (auth.isPremium) so the app keeps working.
+// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/payment_api_service.dart';
+import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../tests/test_list_screen.dart';
+
+enum _AccessState { loading, allowed, denied, rollingOut }
 
 class CategoryDetailScreen extends StatefulWidget {
   final CategoryModel category;
@@ -23,6 +36,108 @@ class CategoryDetailScreen extends StatefulWidget {
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   /// Bumped on pull-to-refresh to force the StreamBuilder to re-subscribe.
   int _reloadKey = 0;
+
+  /// Server-side access state for this category.
+  _AccessState _accessState = _AccessState.loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAccess();
+  }
+
+  Future<void> _checkAccess() async {
+    // Fast path: non-premium categories are always open.
+    if (!widget.category.isPremium) {
+      if (!mounted) return;
+      setState(() => _accessState = _AccessState.allowed);
+      return;
+    }
+    try {
+      final decision =
+          await AccessService.checkCategoryAccess(widget.category.id);
+      if (!mounted) return;
+      setState(() {
+        _accessState =
+            decision.allowed ? _AccessState.allowed : _AccessState.denied;
+      });
+    } on PaymentApiException catch (e) {
+      // 404 — endpoint not built yet. Fall back to local isPremium check so
+      // the app keeps working for users who are already premium locally.
+      if (!mounted) return;
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (e.statusCode == 404) {
+        setState(() {
+          _accessState = auth.isPremium
+              ? _AccessState.allowed
+              : _AccessState.rollingOut;
+        });
+      } else {
+        // Network / other error — fall back to local check, don't block UX.
+        setState(() {
+          _accessState =
+              auth.isPremium ? _AccessState.allowed : _AccessState.denied;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      setState(() {
+        _accessState =
+            auth.isPremium ? _AccessState.allowed : _AccessState.denied;
+      });
+    }
+  }
+
+  /// Kick off an Exam Pack purchase for this category. On success, clears the
+  /// access cache and re-checks so the paywall flips to the subjects list.
+  void _startExamPackPurchase() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to make a purchase.')),
+      );
+      return;
+    }
+    if (widget.category.premiumPrice <= 0) {
+      // No exam-pack price configured → fall back to Premium.
+      Navigator.pushNamed(context, '/premium');
+      return;
+    }
+    RazorpayService.startExamPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      categoryId: widget.category.id,
+      categoryName: widget.category.name,
+      amount: widget.category.premiumPrice,
+      onSuccess: (_) {
+        // Backend confirmed grant — clear cache + refresh user + re-check.
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Exam pack unlocked: ${widget.category.name}. Enjoy!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        _checkAccess();
+      },
+      onError: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response.message ?? 'Payment failed. Please try again.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -93,119 +208,172 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               ],
             ),
           ),
-          // Premium lock banner — shown when this category is marked premium
-          // in the admin panel AND the current user is not a premium
-          // subscriber. Users can still browse the subjects list, but the
-          // banner makes it clear they'll need to subscribe to access the
-          // tests inside. Previously the app ignored category.isPremium
-          // entirely (the field wasn't even in the model), so admins could
-          // mark a category premium but users saw no indication of it.
-          if (widget.category.isPremium && !Provider.of<AuthProvider>(context).isPremium)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppTheme.accentColor.withOpacity(0.12),
-                border: Border(
-                  bottom: BorderSide(
-                    color: AppTheme.accentColor.withOpacity(0.3),
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.workspace_premium,
-                      color: AppTheme.accentColor, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Premium Category',
-                          style: TextStyle(
-                            color: AppTheme.accentColor,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.category.premiumPrice > 0
-                              ? 'Subscribe for ₹${widget.category.premiumPrice} to access all tests here.'
-                              : 'Subscribe to Premium to access all tests in this category.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/premium'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor: AppTheme.accentColor,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      minimumSize: const Size(0, 32),
-                    ),
-                    child: const Text('Unlock',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-            ),
-          // Subjects List
+          // Body — depends on the server-side access decision.
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                setState(() => _reloadKey++);
-                // Give the new stream a moment to emit.
-                await Future.delayed(const Duration(milliseconds: 600));
-              },
-              child: StreamBuilder<List<SubjectModel>>(
-                key: ValueKey('subjects-${_reloadKey}'),
-                // Pass the category's doc id, name AND slug so the stream can
-                // match subjects regardless of whether the admin wrote
-                // categoryId as the doc id, the category name, or the slug.
-                // This is what fixes "no subject available" under Indian
-                // Railways when subjects were created via the Firestore
-                // console with a name/slug instead of the doc id.
-                stream: FirestoreService.getSubjectsStream(
-                  categoryId: widget.category.id,
-                  categoryName: widget.category.name,
-                  categorySlug: widget.category.slug,
-                ),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  // Surface stream errors instead of silently showing "No
-                  // subjects available" — this is the root cause of the user
-                  // seeing "no subject available" even when subjects exist.
-                  if (snapshot.hasError) {
-                    return _buildErrorState(snapshot.error.toString());
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return _buildEmptyState();
-                  }
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: snapshot.data!.length,
-                    itemBuilder: (context, index) {
-                      final subject = snapshot.data![index];
-                      return _buildSubjectCard(context, subject);
-                    },
-                  );
-                },
-              ),
-            ),
+            child: _buildBody(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    switch (_accessState) {
+      case _AccessState.loading:
+        return const Center(child: CircularProgressIndicator());
+      case _AccessState.allowed:
+        return _buildSubjectsList();
+      case _AccessState.rollingOut:
+        return _buildRollingOutState();
+      case _AccessState.denied:
+        return _buildPaywall();
+    }
+  }
+
+  /// Subjects list — same as before, shown when access is granted (or the
+  /// category is not premium).
+  Widget _buildSubjectsList() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        setState(() => _reloadKey++);
+        // Also re-check access on pull-to-refresh.
+        await _checkAccess();
+        await Future.delayed(const Duration(milliseconds: 400));
+      },
+      child: StreamBuilder<List<SubjectModel>>(
+        key: ValueKey('subjects-${_reloadKey}'),
+        stream: FirestoreService.getSubjectsStream(
+          categoryId: widget.category.id,
+          categoryName: widget.category.name,
+          categorySlug: widget.category.slug,
+        ),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return _buildErrorState(snapshot.error.toString());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return _buildEmptyState();
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.length,
+            itemBuilder: (context, index) {
+              final subject = snapshot.data![index];
+              return _buildSubjectCard(context, subject);
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  /// Paywall shown when the backend denies access to this premium category.
+  /// Two CTAs: "Unlock this exam (₹X)" (Exam Pack purchase) and "Go Premium".
+  Widget _buildPaywall() {
+    final canBuyExamPack = widget.category.premiumPrice > 0;
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.accentColor.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.lock,
+              size: 56, color: AppTheme.accentColor),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Premium Exam Pack',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          canBuyExamPack
+              ? 'Unlock "${widget.category.name}" and all its tests for ₹${widget.category.premiumPrice}, or upgrade to Premium for unlimited access.'
+              : 'Subscribe to Premium to unlock "${widget.category.name}" and all its tests.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '✓ All mock tests in this exam\n✓ Detailed solutions\n✓ Performance analytics',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 24),
+        if (canBuyExamPack) ...[
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: _startExamPackPurchase,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.successColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.lock_open),
+              label: Text('Unlock this exam (₹${widget.category.premiumPrice})'),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: () => Navigator.pushNamed(context, '/premium'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentColor,
+              side: const BorderSide(color: AppTheme.accentColor),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            icon: const Icon(Icons.workspace_premium),
+            label: const Text('Go Premium'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Maybe later'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRollingOutState() {
+    return ListView(
+      padding: const EdgeInsets.all(32),
+      children: [
+        const SizedBox(height: 40),
+        Icon(Icons.hourglass_top, size: 56, color: Colors.grey.shade400),
+        const SizedBox(height: 16),
+        const Text(
+          'This feature is being rolled out.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Please update the app soon to access premium content in ${widget.category.name}.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 24),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.pushNamed(context, '/premium'),
+          icon: const Icon(Icons.workspace_premium),
+          label: const Text('Explore Premium'),
+        ),
+      ],
     );
   }
 

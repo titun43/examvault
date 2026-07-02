@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/access_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/premium_plan_model.dart';
@@ -403,20 +404,24 @@ class _PremiumScreenState extends State<PremiumScreen> {
       planId: selectedPlan['planId'] as String,
       planName: selectedPlan['name'] as String,
       durationMonths: selectedPlan['months'] as int,
+      planTier: selectedPlan['name'] as String,
       onSuccess: (response) {
+        // Backend confirmed premium grant — clear cached access decisions
+        // so the next access check reflects the new entitlement.
+        AccessService.clearCache();
+        auth.loadUserData();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment successful! Premium activated!'),
             backgroundColor: AppTheme.successColor,
           ),
         );
-        auth.loadUserData();
         Navigator.pop(context);
       },
       onError: (response) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: ${response.message}'),
+            content: Text('Payment failed: ${response.message ?? 'Please try again.'}'),
             backgroundColor: AppTheme.errorColor,
           ),
         );

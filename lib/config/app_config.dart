@@ -15,6 +15,13 @@ class AppConfig {
   static const String version = '1.0.0';
   static const int versionCode = 1;
 
+  // ==================== BACKEND API ====================
+  // Base URL of the admin panel origin that also hosts the Next.js payment
+  // API routes (/api/payments/*, /api/user/*). The Flutter app talks to these
+  // routes directly over HTTPS for server-side-verified Razorpay payments.
+  // All PaymentApiService URLs are derived from this constant.
+  static const String apiBaseUrl = 'https://preview.z.ai';
+
   // Owner / contact
   static const String ownerEmail = 'lkstudeoandcomputering@gmail.com';
 
