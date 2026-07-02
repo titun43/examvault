@@ -398,8 +398,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
     // Track loading dialogs on screen so we can dismiss exactly one in each
     // exit path.
     int dialogsOnScreen = 0;
-    void showLoadingDialog(String message) {
-      if (!mounted) return;
+    // If the user pressed Cancel, ignore all subsequent callbacks.
+    bool cancelled = false;
+
+    void showLoadingDialog(String message, {bool cancellable = false}) {
+      if (!mounted || cancelled) return;
       dialogsOnScreen++;
       showDialog<void>(
         context: context,
@@ -411,16 +414,37 @@ class _PremiumScreenState extends State<PremiumScreen> {
             backgroundColor: Colors.white,
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(width: 20),
-                  Text(
-                    message,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(width: 20),
+                      Flexible(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (cancellable) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () {
+                          cancelled = true;
+                          Navigator.of(context, rootNavigator: true).pop();
+                          dialogsOnScreen--;
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -429,6 +453,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       );
     }
     void dismissLoadingDialog() {
+      if (cancelled) return;
       if (dialogsOnScreen > 0 && mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         dialogsOnScreen--;
@@ -446,16 +471,17 @@ class _PremiumScreenState extends State<PremiumScreen> {
       durationMonths: selectedPlan['months'] as int,
       planTier: selectedPlan['name'] as String,
       onPreparing: () {
-        showLoadingDialog('Preparing payment...');
+        showLoadingDialog('Preparing payment...', cancellable: true);
       },
       onCheckoutOpened: () {
         dismissLoadingDialog();
       },
       onVerifying: () {
         dismissLoadingDialog();
-        showLoadingDialog('Verifying payment...');
+        showLoadingDialog('Verifying payment...', cancellable: false);
       },
       onSuccess: (response) {
+        if (cancelled) return;
         // Dismiss the "Verifying" dialog.
         dismissLoadingDialog();
 
@@ -483,6 +509,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         Navigator.pop(context);
       },
       onError: (response) {
+        if (cancelled) return;
         dismissLoadingDialog();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

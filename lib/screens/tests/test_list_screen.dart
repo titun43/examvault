@@ -543,6 +543,11 @@ class _TestListScreenState extends State<TestListScreen> {
   /// positive AccessDecision to the cache (so the next access check is
   /// instant), optimistically marks the test as purchased locally, and shows
   /// a success snackbar.
+  ///
+  /// The "Preparing payment..." dialog has a Cancel button so the user is
+  /// never trapped if the network is slow. The "Verifying payment..." dialog
+  /// is NOT cancellable (that step is critical — money may have been
+  /// deducted).
   void _purchaseTest(
     BuildContext context,
     TestModel test,
@@ -553,9 +558,12 @@ class _TestListScreenState extends State<TestListScreen> {
     // exactly one dialog in each exit path. Using a counter (not a bool)
     // because onVerifying can fire after onPreparing was already dismissed.
     int dialogsOnScreen = 0;
+    // If the user pressed Cancel, ignore all subsequent callbacks from the
+    // still-running createOrder future.
+    bool cancelled = false;
 
-    void showLoadingDialog(String message) {
-      if (!context.mounted) return;
+    void showLoadingDialog(String message, {bool cancellable = false}) {
+      if (!context.mounted || cancelled) return;
       dialogsOnScreen++;
       showDialog<void>(
         context: context,
@@ -567,16 +575,39 @@ class _TestListScreenState extends State<TestListScreen> {
             backgroundColor: Colors.white,
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(width: 20),
-                  Text(
-                    message,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w500),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(width: 20),
+                      Flexible(
+                        child: Text(
+                          message,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
                   ),
+                  if (cancellable) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () {
+                          // Mark as cancelled so subsequent callbacks
+                          // (onCheckoutOpened, onError, etc.) are ignored.
+                          cancelled = true;
+                          Navigator.of(context, rootNavigator: true).pop();
+                          dialogsOnScreen--;
+                        },
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -586,6 +617,7 @@ class _TestListScreenState extends State<TestListScreen> {
     }
 
     void dismissLoadingDialog() {
+      if (cancelled) return;
       if (dialogsOnScreen > 0 && context.mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         dialogsOnScreen--;
@@ -603,9 +635,10 @@ class _TestListScreenState extends State<TestListScreen> {
       subjectId:
           test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
       categoryId: widget.subject?.categoryId,
-      // createOrder is about to start — show "Preparing payment..."
+      // createOrder is about to start — show "Preparing payment..." with a
+      // Cancel button so the user can abort if the network is too slow.
       onPreparing: () {
-        showLoadingDialog('Preparing payment...');
+        showLoadingDialog('Preparing payment...', cancellable: true);
       },
       // Razorpay checkout is about to open — dismiss the "preparing" dialog.
       onCheckoutOpened: () {
@@ -613,12 +646,13 @@ class _TestListScreenState extends State<TestListScreen> {
       },
       // Razorpay checkout closed, user paid — /verify is about to run.
       // Show "Verifying payment..." (the preparing dialog was already dismissed
-      // in onCheckoutOpened).
+      // in onCheckoutOpened). NOT cancellable.
       onVerifying: () {
         dismissLoadingDialog();
-        showLoadingDialog('Verifying payment...');
+        showLoadingDialog('Verifying payment...', cancellable: false);
       },
       onSuccess: (response) {
+        if (cancelled) return;
         // Dismiss the "Verifying" dialog (or "Preparing" if verify was
         // somehow skipped).
         dismissLoadingDialog();
@@ -646,6 +680,7 @@ class _TestListScreenState extends State<TestListScreen> {
         );
       },
       onError: (response) {
+        if (cancelled) return;
         // Dismiss any loading dialog that's still on screen.
         dismissLoadingDialog();
         if (!context.mounted) return;

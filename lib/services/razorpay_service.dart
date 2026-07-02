@@ -15,10 +15,21 @@
 // backend in Prisma, not here.
 // =============================================================================
 
+import 'dart:async';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../config/app_config.dart';
 import 'payment_api_service.dart';
+
+/// Hard timeout for the createOrder network call. If the backend doesn't
+/// respond within this duration, we abort and call onError — the user is
+/// never stuck spinning forever. 20s is generous enough for a cold Vercel
+/// function + Razorpay API + DB writes, but short enough that the user
+/// doesn't think the app froze.
+const Duration _createOrderHardTimeout = Duration(seconds: 20);
+
+/// Hard timeout for the verifyPayment network call.
+const Duration _verifyHardTimeout = Duration(seconds: 20);
 
 class RazorpayService {
   RazorpayService._();
@@ -68,17 +79,24 @@ class RazorpayService {
     void Function()? onCheckoutOpened,
     void Function()? onVerifying,
   }) async {
+    // NEVER throw — always call onError on failure. This prevents the
+    // "Preparing payment..." dialog from getting stuck if something
+    // unexpected happens before createOrder completes.
     if (_razorpay == null) {
-      throw Exception(
-          'Payment service not available. Please restart the app.');
+      print('[RazorpayService] _razorpay is null — initialize() failed');
+      onError(PaymentFailureResponse(
+          0, 'Payment service not available. Please restart the app.', null));
+      return;
     }
 
     final idempotencyKey = const Uuid().v4();
 
     // 1) Create the order on the backend.
+    print('[RazorpayService] startPayment: calling onPreparing...');
     if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
+      print('[RazorpayService] startPayment: calling createOrder...');
       order = await PaymentApiService.createOrder(
         productType: 'PREMIUM_SUBSCRIPTION',
         productId: planId,
@@ -91,16 +109,27 @@ class RazorpayService {
           if (planTier != null) 'planTier': planTier,
           'durationMonths': durationMonths,
         },
-      );
+      ).timeout(_createOrderHardTimeout, onTimeout: () {
+        throw TimeoutException(
+            'Payment server is taking too long. Please check your internet and try again.');
+      });
+      print('[RazorpayService] startPayment: createOrder succeeded, orderId=${order['orderId']}');
     } on PaymentApiException catch (e) {
+      print('[RazorpayService] startPayment: createOrder PaymentApiException: ${e.message}');
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } on TimeoutException catch (e) {
+      print('[RazorpayService] startPayment: createOrder timeout: ${e.message}');
       onError(PaymentFailureResponse(0, e.message, null));
       return;
     } catch (e) {
+      print('[RazorpayService] startPayment: createOrder unexpected error: $e');
       onError(PaymentFailureResponse(
           0, 'Could not start payment. Please try again.', null));
       return;
     }
 
+    print('[RazorpayService] startPayment: calling onCheckoutOpened...');
     if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
@@ -143,16 +172,23 @@ class RazorpayService {
     void Function()? onCheckoutOpened,
     void Function()? onVerifying,
   }) async {
+    // NEVER throw — always call onError on failure. This prevents the
+    // "Preparing payment..." dialog from getting stuck if something
+    // unexpected happens before createOrder completes.
     if (_razorpay == null) {
-      throw Exception(
-          'Payment service not available. Please restart the app.');
+      print('[RazorpayService] _razorpay is null — initialize() failed');
+      onError(PaymentFailureResponse(
+          0, 'Payment service not available. Please restart the app.', null));
+      return;
     }
 
     final idempotencyKey = const Uuid().v4();
 
+    print('[RazorpayService] startTestPurchase: calling onPreparing...');
     if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
+      print('[RazorpayService] startTestPurchase: calling createOrder (testId=$testId, amount=$amount)...');
       order = await PaymentApiService.createOrder(
         productType: 'TEST_PURCHASE',
         productId: testId,
@@ -165,16 +201,27 @@ class RazorpayService {
           if (subjectId != null) 'subjectId': subjectId,
           if (categoryId != null) 'categoryId': categoryId,
         },
-      );
+      ).timeout(_createOrderHardTimeout, onTimeout: () {
+        throw TimeoutException(
+            'Payment server is taking too long. Please check your internet and try again.');
+      });
+      print('[RazorpayService] startTestPurchase: createOrder succeeded, orderId=${order['orderId']}');
     } on PaymentApiException catch (e) {
+      print('[RazorpayService] startTestPurchase: createOrder PaymentApiException: ${e.message}');
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } on TimeoutException catch (e) {
+      print('[RazorpayService] startTestPurchase: createOrder timeout: ${e.message}');
       onError(PaymentFailureResponse(0, e.message, null));
       return;
     } catch (e) {
+      print('[RazorpayService] startTestPurchase: createOrder unexpected error: $e');
       onError(PaymentFailureResponse(
           0, 'Could not start payment. Please try again.', null));
       return;
     }
 
+    print('[RazorpayService] startTestPurchase: calling onCheckoutOpened...');
     if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
@@ -206,8 +253,9 @@ class RazorpayService {
     required void Function(PaymentFailureResponse response) onError,
   }) async {
     if (_razorpay == null) {
-      throw Exception(
-          'Payment service not available. Please restart the app.');
+      onError(PaymentFailureResponse(
+          0, 'Payment service not available. Please restart the app.', null));
+      return;
     }
 
     final idempotencyKey = const Uuid().v4();
@@ -264,8 +312,9 @@ class RazorpayService {
     required void Function(PaymentFailureResponse response) onError,
   }) async {
     if (_razorpay == null) {
-      throw Exception(
-          'Payment service not available. Please restart the app.');
+      onError(PaymentFailureResponse(
+          0, 'Payment service not available. Please restart the app.', null));
+      return;
     }
 
     final idempotencyKey = const Uuid().v4();
@@ -336,15 +385,19 @@ class RazorpayService {
             : fallbackAmountPaise);
 
     if (orderId.isEmpty || razorpayOrderId.isEmpty) {
+      print('[RazorpayService] _openCheckout: invalid order response — orderId=$orderId, razorpayOrderId=$razorpayOrderId');
       onError(PaymentFailureResponse(
           0, 'Server returned an invalid order. Please try again.', null));
       return false;
     }
 
+    print('[RazorpayService] _openCheckout: opening Razorpay checkout (razorpayOrderId=$razorpayOrderId, amountPaise=$amountPaise, keyId=$keyId)');
+
     // Re-register handlers with closures that capture the Prisma orderId so
     // we can call /verify with it on success.
     _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS,
         (PaymentSuccessResponse response) async {
+      print('[RazorpayService] EVENT_PAYMENT_SUCCESS: paymentId=${response.paymentId}, orderId=${response.orderId}');
       // Tell the caller we're entering the verify step so it can show a
       // "Verifying payment..." indicator. The Razorpay checkout modal has
       // just closed; without this indicator the user sees a frozen screen
@@ -359,6 +412,7 @@ class RazorpayService {
     });
     _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR,
         (PaymentFailureResponse response) {
+      print('[RazorpayService] EVENT_PAYMENT_ERROR: code=${response.code}, message=${response.message}');
       onError(response);
     });
 
@@ -380,8 +434,10 @@ class RazorpayService {
 
     try {
       _razorpay!.open(options);
+      print('[RazorpayService] _openCheckout: _razorpay.open() called successfully');
       return true;
     } catch (e) {
+      print('[RazorpayService] _openCheckout: _razorpay.open() threw: $e');
       onError(PaymentFailureResponse(
           0, 'Could not open payment screen. Please try again.', null));
       return false;
@@ -400,12 +456,17 @@ class RazorpayService {
     required void Function(PaymentFailureResponse) onError,
   }) async {
     try {
+      print('[RazorpayService] _verifyAndDispatch: calling verifyPayment (orderId=$orderId, paymentId=${response.paymentId})...');
       final result = await PaymentApiService.verifyPayment(
         orderId: orderId,
         razorpayPaymentId: response.paymentId ?? '',
         razorpayOrderId: response.orderId ?? '',
         razorpaySignature: response.signature ?? '',
-      );
+      ).timeout(_verifyHardTimeout, onTimeout: () {
+        throw TimeoutException(
+            'Payment verification timed out. If money was deducted, it will be refunded within 5-7 business days.');
+      });
+      print('[RazorpayService] _verifyAndDispatch: verifyPayment returned success=${result['success']}, granted=${result['granted']}');
 
       final ok = result['success'] == true && result['granted'] == true;
       if (ok) {
@@ -417,8 +478,13 @@ class RazorpayService {
         onError(PaymentFailureResponse(0, msg, null));
       }
     } on PaymentApiException catch (e) {
+      print('[RazorpayService] _verifyAndDispatch: PaymentApiException: ${e.message}');
+      onError(PaymentFailureResponse(0, e.message, null));
+    } on TimeoutException catch (e) {
+      print('[RazorpayService] _verifyAndDispatch: timeout: ${e.message}');
       onError(PaymentFailureResponse(0, e.message, null));
     } catch (e) {
+      print('[RazorpayService] _verifyAndDispatch: unexpected error: $e');
       onError(PaymentFailureResponse(
         0,
         'Payment verification failed. If money was deducted, it will be refunded within 5-7 business days.',

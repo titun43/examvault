@@ -46,17 +46,41 @@ class PaymentApiService {
   static Future<String> _getIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      print('[PaymentApi] _getIdToken: no current user');
       throw const PaymentApiException(
         'You need to be signed in to make a purchase. Please log in and try again.',
       );
     }
     // forceRefresh: false — use cached token if still valid (fast path).
-    final token = await user.getIdToken(false);
-    if (token == null || token.isEmpty) {
+    // Add a 10s timeout — if getIdToken hangs (e.g., network issue during
+    // silent refresh), we abort instead of spinning forever.
+    print('[PaymentApi] _getIdToken: calling getIdToken(false)...');
+    String token;
+    try {
+      token = await user.getIdToken(false).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('[PaymentApi] _getIdToken: getIdToken timed out after 10s');
+          throw const PaymentApiException(
+            'Could not verify your login session. Please check your internet and try again.',
+          );
+        },
+      );
+    } on PaymentApiException {
+      rethrow;
+    } catch (e) {
+      print('[PaymentApi] _getIdToken: getIdToken error: $e');
+      throw PaymentApiException(
+        'Could not verify your login session. Please log in again and retry.',
+      );
+    }
+    if (token.isEmpty) {
+      print('[PaymentApi] _getIdToken: token is null/empty');
       throw const PaymentApiException(
         'Your session has expired. Please log in again and retry.',
       );
     }
+    print('[PaymentApi] _getIdToken: token obtained (len=${token.length})');
     return token;
   }
 
@@ -80,7 +104,9 @@ class PaymentApiService {
     required Map<String, dynamic> body,
   }) async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}$path');
+    print('[PaymentApi] POST $uri (body keys: ${body.keys.toList()})');
     try {
+      final sw = Stopwatch()..start();
       final res = await http
           .post(
             uri,
@@ -88,11 +114,13 @@ class PaymentApiService {
             body: jsonEncode(body),
           )
           .timeout(_timeout);
-
+      sw.stop();
+      print('[PaymentApi] POST $path → HTTP ${res.statusCode} in ${sw.elapsedMilliseconds}ms');
       return _decode(res, path);
     } on PaymentApiException {
       rethrow;
     } catch (e) {
+      print('[PaymentApi] POST $path → error: $e');
       throw PaymentApiException(
         'Network error. Please check your internet connection and try again.',
         endpoint: path,
