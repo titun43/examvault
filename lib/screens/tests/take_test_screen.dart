@@ -49,11 +49,17 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     _timeRemaining = widget.test.duration * 60;
   }
 
-  /// Checks whether the user has access to this test using the server-side
-  /// access-check endpoint (single source of truth). Falls back to the legacy
-  /// local check (user.isPremium || hasTest) if the endpoint is not ready
-  /// (404) or network fails. If access is granted, loads questions + starts
-  /// the timer; otherwise shows the paywall.
+  /// Checks whether the user has access to this test. Uses a FAST LOCAL
+  /// CHECK first (premium or purchased in the local UserModel) — if the
+  /// local state says the user has access, we grant it immediately and load
+  /// questions without any network round-trip. This makes opening a test
+  /// after purchasing it INSTANT (the v1.27 fix made the button flip to
+  /// "Start Test" after purchase; this fix makes tapping it open the test
+  /// without the 350-950ms server access-check delay).
+  ///
+  /// If the local check says NO access, falls back to the server-side access
+  /// check (single source of truth). If the backend grants access, loads
+  /// questions; otherwise shows the paywall.
   Future<void> _checkAccessAndLoad() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
@@ -68,6 +74,26 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       return;
     }
 
+    // FAST LOCAL CHECK — if the user is premium or has purchased this test
+    // (according to the local UserModel, which is updated optimistically
+    // after a purchase), grant access immediately. The server-side check is
+    // the ultimate gatekeeper, but for a snappy UX we trust the local state
+    // first. The 60s cache in AccessService will also return a positive
+    // decision instantly if we just checked.
+    final localIsPremium = user?.isPremium ?? false;
+    final localHasTest =
+        user?.purchasedTests.contains(widget.test.id) ?? false;
+    if (localIsPremium || localHasTest) {
+      _accessGranted = true;
+      _accessChecking = false;
+      _loadQuestions();
+      _startTimer();
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // SERVER CHECK — for tests the user doesn't locally own. This catches
+    // entitlements granted on another device or via a backend webhook.
     try {
       final decision = await AccessService.checkTestAccess(
         widget.test.id,
@@ -90,10 +116,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       _accessChecking = false;
       _accessCheckUnavailable = e.statusCode == 404;
       // Fall back to local check.
-      final isPremium = user?.isPremium ?? false;
-      final hasAccess =
-          isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
-      _accessGranted = hasAccess;
+      _accessGranted = localIsPremium || localHasTest;
       if (_accessGranted) {
         _loadQuestions();
         _startTimer();
@@ -104,10 +127,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     } catch (_) {
       if (!mounted) return;
       _accessChecking = false;
-      final isPremium = user?.isPremium ?? false;
-      final hasAccess =
-          isPremium || (user?.hasTestAccess(widget.test.id) ?? false);
-      _accessGranted = hasAccess;
+      _accessGranted = localIsPremium || localHasTest;
       if (_accessGranted) {
         _loadQuestions();
         _startTimer();
@@ -438,10 +458,56 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   }
 
   /// Buy this single test via the server-side-verified Razorpay flow.
+  /// Shows loading indicators during createOrder ("Preparing payment...")
+  /// and verifyPayment ("Verifying payment...") so the user always sees
+  /// what's happening. On success, writes a positive AccessDecision to the
+  /// cache (so the next access check is instant), optimistically marks the
+  /// test as purchased locally, and loads the test questions.
   void _buyTest() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
     if (user == null) return;
+
+    // Track loading dialogs on screen so we can dismiss exactly one in each
+    // exit path.
+    int dialogsOnScreen = 0;
+    void showLoadingDialog(String message) {
+      if (!mounted) return;
+      dialogsOnScreen++;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black54,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    void dismissLoadingDialog() {
+      if (dialogsOnScreen > 0 && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogsOnScreen--;
+      }
+    }
+
     RazorpayService.startTestPurchase(
       userId: user.id,
       userName: user.name,
@@ -451,12 +517,31 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       testTitle: widget.test.title,
       amount: widget.test.price,
       subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
+      onPreparing: () {
+        showLoadingDialog('Preparing payment...');
+      },
+      onCheckoutOpened: () {
+        dismissLoadingDialog();
+      },
+      onVerifying: () {
+        dismissLoadingDialog();
+        showLoadingDialog('Verifying payment...');
+      },
       onSuccess: (_) {
-        // Backend confirmed grant — clear cache, optimistically mark the
-        // test as purchased locally, refresh user, re-check.
-        AccessService.clearCache();
+        // Dismiss the "Verifying" dialog.
+        dismissLoadingDialog();
+
+        // Write a positive AccessDecision to the cache so the next access
+        // check is instant. This is the key fix for the post-payment loading
+        // delay — instead of clearing the cache (which forces a network
+        // round-trip), we write the positive decision directly.
+        AccessService.markTestPurchased(widget.test.id);
+        // Optimistically mark the test as purchased locally.
         auth.addPurchasedTest(widget.test.id);
-        auth.loadUserData();
+        // Note: we intentionally do NOT call auth.loadUserData() here.
+        // loadUserData() hits Firestore (which doesn't store Prisma purchase
+        // info) and triggers a loading state. The optimistic update above
+        // is sufficient for the UI.
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -473,6 +558,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         _startTimer();
       },
       onError: (response) {
+        dismissLoadingDialog();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

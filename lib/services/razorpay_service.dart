@@ -46,6 +46,12 @@ class RazorpayService {
   /// Premium subscription payment. Creates a server-side order, opens Razorpay
   /// checkout, verifies the signature, and only calls [onSuccess] if the
   /// backend confirms the entitlement was granted.
+  ///
+  /// [onPreparing] fires when createOrder starts (caller can show a loading
+  /// indicator). [onCheckoutOpened] fires when the Razorpay checkout modal is
+  /// about to open (caller should dismiss the preparing indicator). [onVerifying]
+  /// fires after the user pays but before onSuccess/onError — during the server
+  /// signature verification step (caller can show "Verifying payment...").
   static Future<void> startPayment({
     required String userId,
     required String userName,
@@ -58,6 +64,9 @@ class RazorpayService {
     String? planTier,
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
+    void Function()? onPreparing,
+    void Function()? onCheckoutOpened,
+    void Function()? onVerifying,
   }) async {
     if (_razorpay == null) {
       throw Exception(
@@ -67,6 +76,7 @@ class RazorpayService {
     final idempotencyKey = const Uuid().v4();
 
     // 1) Create the order on the backend.
+    if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
       order = await PaymentApiService.createOrder(
@@ -91,6 +101,7 @@ class RazorpayService {
       return;
     }
 
+    if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
       fallbackAmountPaise: amount * 100,
@@ -100,6 +111,7 @@ class RazorpayService {
       prefillPhone: userPhone,
       onSuccess: onSuccess,
       onError: onError,
+      onVerifying: onVerifying,
     )) {
       return;
     }
@@ -109,6 +121,12 @@ class RazorpayService {
   /// Pay-per-test purchase. Charges the user the test's price and, on
   /// server-verified success, the backend adds the testId to the user's
   /// entitlements. [onSuccess] is only called when the backend confirms.
+  ///
+  /// [onPreparing] fires when createOrder starts (caller can show a loading
+  /// indicator). [onCheckoutOpened] fires when the Razorpay checkout modal is
+  /// about to open (caller should dismiss the preparing indicator). [onVerifying]
+  /// fires after the user pays but before onSuccess/onError — during the server
+  /// signature verification step (caller can show "Verifying payment...").
   static Future<void> startTestPurchase({
     required String userId,
     required String userName,
@@ -121,6 +139,9 @@ class RazorpayService {
     String? categoryId,
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
+    void Function()? onPreparing,
+    void Function()? onCheckoutOpened,
+    void Function()? onVerifying,
   }) async {
     if (_razorpay == null) {
       throw Exception(
@@ -129,6 +150,7 @@ class RazorpayService {
 
     final idempotencyKey = const Uuid().v4();
 
+    if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
       order = await PaymentApiService.createOrder(
@@ -153,6 +175,7 @@ class RazorpayService {
       return;
     }
 
+    if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
       fallbackAmountPaise: amount * 100,
@@ -162,6 +185,7 @@ class RazorpayService {
       prefillPhone: userPhone,
       onSuccess: onSuccess,
       onError: onError,
+      onVerifying: onVerifying,
     )) {
       return;
     }
@@ -287,6 +311,10 @@ class RazorpayService {
   /// success/error handlers to a /verify call, and opens Razorpay checkout.
   /// Returns true if checkout was opened; false if an error was already
   /// dispatched via [onError] (so the caller knows not to do anything else).
+  ///
+  /// [onVerifying] fires after the user pays in Razorpay but before the
+  /// /verify network call — the caller should show a "Verifying payment..."
+  /// indicator and dismiss it in onSuccess/onError.
   static bool _openCheckout({
     required Map<String, dynamic> order,
     required int fallbackAmountPaise,
@@ -296,6 +324,7 @@ class RazorpayService {
     required String prefillPhone,
     required void Function(PaymentSuccessResponse) onSuccess,
     required void Function(PaymentFailureResponse) onError,
+    void Function()? onVerifying,
   }) {
     final orderId = (order['orderId'] ?? '').toString();
     final razorpayOrderId = (order['razorpayOrderId'] ?? '').toString();
@@ -316,6 +345,11 @@ class RazorpayService {
     // we can call /verify with it on success.
     _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS,
         (PaymentSuccessResponse response) async {
+      // Tell the caller we're entering the verify step so it can show a
+      // "Verifying payment..." indicator. The Razorpay checkout modal has
+      // just closed; without this indicator the user sees a frozen screen
+      // for 1-3 seconds while /verify runs.
+      if (onVerifying != null) onVerifying();
       await _verifyAndDispatch(
         response: response,
         orderId: orderId,

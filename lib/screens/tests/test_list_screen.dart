@@ -4,14 +4,22 @@
 // the user's access: premium users and already-purchased tests → Start;
 // paid unpurchased tests → Buy ₹X (Razorpay per-test purchase).
 //
+// v1.28+ — FAST PAYMENT UX. The Buy flow now shows loading indicators during
+// the two network steps that were previously invisible to the user:
+//   1. "Preparing payment..." while createOrder runs (backend → Razorpay API)
+//   2. "Verifying payment..." while verifyPayment runs (signature check + grant)
+// After a successful purchase, a positive AccessDecision is written directly
+// to the cache (markTestPurchased) instead of clearing it — so the next access
+// check is instant (no network round-trip). The _startTest flow also has a
+// local fast-path: if the local user model says the user has access (premium
+// or purchased), navigate directly to TakeTestScreen without a server round-
+// trip; TakeTestScreen does its own server check as the final gatekeeper.
+//
 // v1.27+ — SERVER-SIDE PREMIUM CHECK. The button label now reflects the
 // server's view of the user's premium status (not the potentially-stale
 // Firestore copy). On screen load we call AccessService.checkPremiumOnly()
 // which hits /api/payments/access-check?type=all. The result is cached for
 // 60s by AccessService, so scrolling / re-opening doesn't re-hit the API.
-// This fixes the bug where the button showed "Start Test" (because the local
-// Firestore user.isPremium was stale/wrong) but clicking it showed the
-// purchase sheet (because the server correctly denied access).
 //
 // v1.23+ — server-side access check. Before starting a PAID test, the app
 // calls AccessService.checkTestAccess(). If the backend denies access, a
@@ -309,9 +317,12 @@ class _TestListScreenState extends State<TestListScreen> {
 
   /// Tapped "Start Test" (or "Buy"/"Go Premium" — all routes go through here
   /// for paid tests so the server gets the final say). For FREE tests, opens
-  /// immediately. For PAID tests, does a server-side access check; if the
-  /// backend grants access, navigates to TakeTestScreen. If denied, shows the
-  /// purchase sheet.
+  /// immediately. For PAID tests where the user has LOCAL access (premium or
+  /// purchased), navigates directly — TakeTestScreen does its own server-side
+  /// check as the final gatekeeper, so skipping the check here avoids a
+  /// redundant network round-trip. For PAID tests with no local access, does
+  /// a server-side access check; if the backend grants access, navigates.
+  /// If denied, shows the purchase sheet.
   Future<void> _startTest(BuildContext context, TestModel test) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
@@ -328,10 +339,24 @@ class _TestListScreenState extends State<TestListScreen> {
       return;
     }
 
-    // PAID TESTS — the server is the single source of truth. Even if the
-    // button said "Start Test" (because we thought the user had access),
-    // the server check here is the real gatekeeper. This catches any stale
-    // local state.
+    // PAID TESTS with LOCAL access — navigate directly. The local user model
+    // says the user is premium or has purchased this test. TakeTestScreen
+    // will do its own server-side check (cached, so instant) as the final
+    // gatekeeper. This avoids a 350-950ms network round-trip here.
+    final localHasAccess = _effectiveIsPremium(user) ||
+        (user?.purchasedTests.contains(test.id) ?? false);
+    if (localHasAccess) {
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+      );
+      return;
+    }
+
+    // PAID TESTS with no local access — the server is the single source of
+    // truth. Even if we thought the user had no access, the server check here
+    // is the real gatekeeper (catches entitlements granted on another device).
     try {
       final decision = await AccessService.checkTestAccess(
         test.id,
@@ -353,8 +378,6 @@ class _TestListScreenState extends State<TestListScreen> {
     } on PaymentApiException catch (e) {
       // 404 / network — fall back to local check.
       if (!context.mounted) return;
-      final localHasAccess = _effectiveIsPremium(user) ||
-          (user?.purchasedTests.contains(test.id) ?? false);
       if (localHasAccess) {
         Navigator.push(
           context,
@@ -370,8 +393,6 @@ class _TestListScreenState extends State<TestListScreen> {
       }
     } catch (_) {
       if (!context.mounted) return;
-      final localHasAccess = _effectiveIsPremium(user) ||
-          (user?.purchasedTests.contains(test.id) ?? false);
       if (localHasAccess) {
         Navigator.push(
           context,
@@ -516,15 +537,61 @@ class _TestListScreenState extends State<TestListScreen> {
     );
   }
 
-  /// Initiates a Razorpay payment for a single test. On server-verified
-  /// success, clears the access cache, optimistically marks the test as
-  /// purchased locally, and refreshes the premium status from the server.
+  /// Initiates a Razorpay payment for a single test. Shows loading indicators
+  /// during the two network steps (createOrder + verifyPayment) so the user
+  /// always knows what's happening. On server-verified success, writes a
+  /// positive AccessDecision to the cache (so the next access check is
+  /// instant), optimistically marks the test as purchased locally, and shows
+  /// a success snackbar.
   void _purchaseTest(
     BuildContext context,
     TestModel test,
     UserModel user,
     AuthProvider auth,
   ) {
+    // Track which loading dialog is currently on screen so we can dismiss
+    // exactly one dialog in each exit path. Using a counter (not a bool)
+    // because onVerifying can fire after onPreparing was already dismissed.
+    int dialogsOnScreen = 0;
+
+    void showLoadingDialog(String message) {
+      if (!context.mounted) return;
+      dialogsOnScreen++;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black54,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    void dismissLoadingDialog() {
+      if (dialogsOnScreen > 0 && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogsOnScreen--;
+      }
+    }
+
     RazorpayService.startTestPurchase(
       userId: user.id,
       userName: user.name,
@@ -536,17 +603,40 @@ class _TestListScreenState extends State<TestListScreen> {
       subjectId:
           test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
       categoryId: widget.subject?.categoryId,
+      // createOrder is about to start — show "Preparing payment..."
+      onPreparing: () {
+        showLoadingDialog('Preparing payment...');
+      },
+      // Razorpay checkout is about to open — dismiss the "preparing" dialog.
+      onCheckoutOpened: () {
+        dismissLoadingDialog();
+      },
+      // Razorpay checkout closed, user paid — /verify is about to run.
+      // Show "Verifying payment..." (the preparing dialog was already dismissed
+      // in onCheckoutOpened).
+      onVerifying: () {
+        dismissLoadingDialog();
+        showLoadingDialog('Verifying payment...');
+      },
       onSuccess: (response) {
-        // Clear the access-check cache so the next open reflects the new
-        // entitlement, and optimistically mark the test as purchased locally
-        // so the button flips from "Buy" to "Start" instantly.
-        AccessService.clearCache();
+        // Dismiss the "Verifying" dialog (or "Preparing" if verify was
+        // somehow skipped).
+        dismissLoadingDialog();
+
+        // Write a positive AccessDecision to the cache so the next access
+        // check (when the user taps Start Test) is instant — no network
+        // round-trip. This is the key fix for "payment korar por seta khulte
+        // loading hoi" (opening after payment loads slowly).
+        AccessService.markTestPurchased(test.id);
+        // Optimistically mark the test as purchased locally so the button
+        // flips from "Buy" to "Start" instantly.
         auth.addPurchasedTest(test.id);
-        auth.loadUserData(); // best-effort refresh in the background
-        // Re-fetch server-side premium status in case this purchase also
-        // granted premium (it shouldn't for a test purchase, but the refresh
-        // is cheap and keeps state consistent).
-        _refreshPremiumStatus();
+        // Note: we intentionally do NOT call auth.loadUserData() or
+        // _refreshPremiumStatus() here. loadUserData() hits Firestore (which
+        // doesn't store Prisma purchase info) and triggers a loading state
+        // that causes unnecessary UI rebuilds. _refreshPremiumStatus() hits
+        // the server again — a test purchase doesn't change premium status,
+        // so that call is wasted. The optimistic updates above are sufficient.
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -556,6 +646,8 @@ class _TestListScreenState extends State<TestListScreen> {
         );
       },
       onError: (response) {
+        // Dismiss any loading dialog that's still on screen.
+        dismissLoadingDialog();
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

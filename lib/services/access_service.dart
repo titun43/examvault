@@ -101,6 +101,63 @@ class AccessService {
     _cache.removeWhere((k, _) => k.startsWith('$uid:'));
   }
 
+  // ==================== OPTIMISTIC CACHE WRITES ====================
+  // After a server-verified successful payment, the backend grants the
+  // entitlement in Prisma. Instead of clearing the cache (which forces the
+  // NEXT access check to hit the network again — 350-950ms of loading), we
+  // write a positive decision directly to the cache. The next access check
+  // then returns instantly from the cache (within the 60s TTL).
+  //
+  // This is safe because:
+  //   1. The payment was already server-verified (verifyPayment returned
+  //      success+granted=true) before these methods are called.
+  //   2. The optimistic local user model is also updated (addPurchasedTest /
+  //      markPremium), so local checks agree.
+  //   3. The 60s TTL ensures the cache eventually expires and a fresh server
+  //      check runs — catching any edge case (refund, expiry, etc.).
+
+  /// Optimistically write a positive "allowed" decision for a test to the
+  /// cache. Call this in the Razorpay onSuccess callback AFTER the backend
+  /// verify confirms a TEST_PURCHASE was granted.
+  static void markTestPurchased(String testId) {
+    _write('test:$testId', const AccessDecision(
+      allowed: true,
+      reason: 'owned',
+      grantedBy: 'TEST_PURCHASE',
+    ));
+  }
+
+  /// Optimistically write a positive "allowed" decision for premium (all
+  /// content) to the cache. Call this in the Razorpay onSuccess callback
+  /// AFTER the backend verify confirms a PREMIUM_SUBSCRIPTION was granted.
+  static void markPremiumGranted() {
+    _write('premium:all', const AccessDecision(
+      allowed: true,
+      reason: 'premium',
+      grantedBy: 'PREMIUM_SUBSCRIPTION',
+    ));
+  }
+
+  /// Optimistically write a positive "allowed" decision for a subject pack
+  /// to the cache.
+  static void markSubjectPackPurchased(String subjectId) {
+    _write('subject:$subjectId', const AccessDecision(
+      allowed: true,
+      reason: 'owned',
+      grantedBy: 'SUBJECT_PACK',
+    ));
+  }
+
+  /// Optimistically write a positive "allowed" decision for an exam pack
+  /// (category) to the cache.
+  static void markExamPackPurchased(String categoryId) {
+    _write('exam:$categoryId', const AccessDecision(
+      allowed: true,
+      reason: 'owned',
+      grantedBy: 'EXAM_PACK',
+    ));
+  }
+
   // ==================== RESOURCE-SPECIFIC CHECKS ====================
 
   /// Check access to an individual test.

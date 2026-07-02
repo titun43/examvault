@@ -395,6 +395,46 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
     final selectedPlan = _plans[_selectedPlanIndex];
 
+    // Track loading dialogs on screen so we can dismiss exactly one in each
+    // exit path.
+    int dialogsOnScreen = 0;
+    void showLoadingDialog(String message) {
+      if (!mounted) return;
+      dialogsOnScreen++;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black54,
+        builder: (_) => PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(width: 20),
+                  Text(
+                    message,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    void dismissLoadingDialog() {
+      if (dialogsOnScreen > 0 && mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        dialogsOnScreen--;
+      }
+    }
+
     RazorpayService.startPayment(
       userId: auth.user!.id,
       userName: auth.user!.name,
@@ -405,19 +445,34 @@ class _PremiumScreenState extends State<PremiumScreen> {
       planName: selectedPlan['name'] as String,
       durationMonths: selectedPlan['months'] as int,
       planTier: selectedPlan['name'] as String,
+      onPreparing: () {
+        showLoadingDialog('Preparing payment...');
+      },
+      onCheckoutOpened: () {
+        dismissLoadingDialog();
+      },
+      onVerifying: () {
+        dismissLoadingDialog();
+        showLoadingDialog('Verifying payment...');
+      },
       onSuccess: (response) {
-        // Backend confirmed premium grant — clear cached access decisions
-        // so the next access check reflects the new entitlement, and
-        // optimistically mark the user as premium locally so the UI updates
-        // instantly.
-        AccessService.clearCache();
+        // Dismiss the "Verifying" dialog.
+        dismissLoadingDialog();
+
+        // Write a positive "premium granted" decision to the cache so the
+        // next access check is instant — no network round-trip. This is the
+        // key fix for the post-payment loading delay.
+        AccessService.markPremiumGranted();
         final months = selectedPlan['months'] as int;
         final expiry = DateTime.now().add(Duration(days: 30 * months));
         auth.markPremium(
           expiry: expiry,
           planId: selectedPlan['planId'] as String,
         );
-        auth.loadUserData();
+        // Note: we intentionally do NOT call auth.loadUserData() here.
+        // loadUserData() hits Firestore (which doesn't store Prisma
+        // subscription info) and triggers a loading state. The optimistic
+        // markPremium above is sufficient for the UI.
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -428,6 +483,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
         Navigator.pop(context);
       },
       onError: (response) {
+        dismissLoadingDialog();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Payment failed: ${response.message ?? 'Please try again.'}'),

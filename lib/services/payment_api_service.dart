@@ -32,9 +32,13 @@ class PaymentApiException implements Exception {
 class PaymentApiService {
   PaymentApiService._();
 
-  // 30-second timeout — Razorpay order creation hits Razorpay's server from
-  // the backend, which can occasionally be slow. Anything longer is suspect.
+  // 30-second timeout for order creation / verification — these hit Razorpay's
+  // server from the backend, which can occasionally be slow.
   static const Duration _timeout = Duration(seconds: 30);
+  // 12-second timeout for access-check — it's a simple DB read on the backend.
+  // If it takes longer than 12s, the network is unhealthy and we should fall
+  // back to the local check quickly instead of making the user wait 30s.
+  static const Duration _accessCheckTimeout = Duration(seconds: 12);
 
   /// Returns the current Firebase user's ID token, or throws a
   /// [PaymentApiException] if there is no signed-in user (the payment API
@@ -241,7 +245,7 @@ class PaymentApiService {
     try {
       final res = await http
           .get(uri, headers: await _headers(jsonBody: false))
-          .timeout(_timeout);
+          .timeout(_accessCheckTimeout);
       final decoded = _decode(res, '/api/payments/access-check');
       if (decoded is! Map) {
         throw const PaymentApiException('Unexpected response from server.');
