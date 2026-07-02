@@ -305,6 +305,44 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ==================== OPTIMISTIC PURCHASE UPDATES ====================
+  // After a server-verified successful payment, the backend grants the
+  // entitlement in Prisma (TestPurchase / PremiumSubscription rows). But the
+  // Flutter app's local UserModel (loaded from Firestore) won't reflect that
+  // until the next loadUserData() round-trip — and even then, Firestore
+  // doesn't store purchase info (only Prisma does). These methods optimistically
+  // update the local user so the UI flips from "Buy" to "Start" instantly
+  // without waiting for a refresh or a server access-check.
+
+  /// Optimistically mark a test as purchased locally. Call this in the
+  /// Razorpay onSuccess callback AFTER the backend verify confirms the
+  /// entitlement was granted.
+  void addPurchasedTest(String testId) {
+    if (_user == null) return;
+    if (_user!.purchasedTests.contains(testId)) return;
+    _user = _user!.copyWith(
+      purchasedTests: [..._user!.purchasedTests, testId],
+      updatedAt: DateTime.now(),
+    );
+    notifyListeners();
+  }
+
+  /// Optimistically mark the user as premium locally. Call this in the
+  /// Razorpay onSuccess callback for premium subscription purchases.
+  void markPremium({
+    DateTime? expiry,
+    String? planId,
+  }) {
+    if (_user == null) return;
+    _user = _user!.copyWith(
+      subscriptionStatus: SubscriptionStatus.premium,
+      subscriptionExpiry: expiry,
+      subscriptionPlanId: planId,
+      updatedAt: DateTime.now(),
+    );
+    notifyListeners();
+  }
+
   void clearError() {
     _errorMessage = null;
     notifyListeners();

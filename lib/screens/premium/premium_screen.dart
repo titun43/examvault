@@ -407,9 +407,18 @@ class _PremiumScreenState extends State<PremiumScreen> {
       planTier: selectedPlan['name'] as String,
       onSuccess: (response) {
         // Backend confirmed premium grant — clear cached access decisions
-        // so the next access check reflects the new entitlement.
+        // so the next access check reflects the new entitlement, and
+        // optimistically mark the user as premium locally so the UI updates
+        // instantly.
         AccessService.clearCache();
+        final months = selectedPlan['months'] as int;
+        final expiry = DateTime.now().add(Duration(days: 30 * months));
+        auth.markPremium(
+          expiry: expiry,
+          planId: selectedPlan['planId'] as String,
+        );
         auth.loadUserData();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment successful! Premium activated!'),

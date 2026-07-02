@@ -42,10 +42,6 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   // case we fall back to the legacy local check (user.isPremium || hasTest).
   bool _accessCheckUnavailable = false;
 
-  /// Default price for the "Unlock subject pack" option in the paywall.
-  /// Placeholder until subject-pack products are admin-configurable.
-  static const int _defaultSubjectPackPrice = 99;
-
   @override
   void initState() {
     super.initState();
@@ -324,18 +320,19 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   }
 
   /// Paywall shown when a user tries to open a paid test they haven't bought
-  /// and aren't premium for. Offers three paths:
-  ///   1. Buy this test individually (₹{test.price})
-  ///   2. Unlock subject pack (₹{_defaultSubjectPackPrice}) — all tests in
-  ///      the test's subject
-  ///   3. Upgrade to Premium for unlimited access
+  /// and aren't premium for. Offers two paths:
+  ///   1. Buy this test individually (₹{test.price}) — only if the test has a
+  ///      per-test price set by admin
+  ///   2. Upgrade to Premium for unlimited access
+  /// The old "Unlock subject pack ₹99" option was removed because subject-pack
+  /// prices are not yet admin-configurable — the hardcoded ₹99 placeholder was
+  /// confusing users.
   /// If the access-check endpoint 404'd (backend not built), a "rolling out"
   /// banner is shown above the buttons.
   Widget _buildPaywall(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
     final canBuyTest = widget.test.price > 0;
-    final canUnlockSubjectPack = widget.test.subjectId.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: Text(widget.test.title)),
       body: Center(
@@ -364,7 +361,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
               const SizedBox(height: 8),
               Text(
                 canBuyTest
-                    ? 'Buy this test, unlock the subject pack, or upgrade to Premium for unlimited access.'
+                    ? 'Buy this test or upgrade to Premium for unlimited access.'
                     : 'Upgrade to Premium to attempt this test.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
@@ -400,7 +397,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                 ),
               ],
               const SizedBox(height: 28),
-              if (canBuyTest)
+              if (canBuyTest) ...[
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -414,23 +411,8 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     label: Text('Buy for ₹${widget.test.price}'),
                   ),
                 ),
-              if (canBuyTest) const SizedBox(height: 12),
-              if (canUnlockSubjectPack)
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: user == null ? null : _buySubjectPack,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.infoColor,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.library_books),
-                    label: Text(
-                        'Unlock subject pack · ₹$_defaultSubjectPackPrice'),
-                  ),
-                ),
-              if (canUnlockSubjectPack) const SizedBox(height: 12),
+                const SizedBox(height: 12),
+              ],
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -470,59 +452,16 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       amount: widget.test.price,
       subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
       onSuccess: (_) {
-        // Backend confirmed grant — clear cache, refresh user, re-check.
+        // Backend confirmed grant — clear cache, optimistically mark the
+        // test as purchased locally, refresh user, re-check.
         AccessService.clearCache();
+        auth.addPurchasedTest(widget.test.id);
         auth.loadUserData();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content:
                 Text('Payment successful! "${widget.test.title}" unlocked.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        setState(() {
-          _accessGranted = true;
-          _isLoading = true;
-        });
-        _loadQuestions();
-        _startTimer();
-      },
-      onError: (response) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Payment failed: ${response.message ?? 'Please try again.'}'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      },
-    );
-  }
-
-  /// Buy the subject pack for this test's subject.
-  void _buySubjectPack() {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    final user = auth.user;
-    if (user == null) return;
-    if (widget.test.subjectId.isEmpty) return;
-    RazorpayService.startSubjectPackPurchase(
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email ?? 'user@examvault.com',
-      userPhone: user.phoneNumber ?? '9999999999',
-      subjectId: widget.test.subjectId,
-      subjectName: widget.test.title, // best label we have at this point
-      amount: _defaultSubjectPackPrice,
-      onSuccess: (_) {
-        AccessService.clearCache();
-        auth.loadUserData();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Subject pack unlocked! "${widget.test.title}" is now accessible.'),
             backgroundColor: AppTheme.successColor,
           ),
         );

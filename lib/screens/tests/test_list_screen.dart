@@ -34,11 +34,6 @@ class TestListScreen extends StatelessWidget {
     this.testId,
   });
 
-  /// Default price for "Unlock subject pack" — used as a placeholder until
-  /// subject-pack products are admin-configurable. The backend's create-order
-  /// endpoint can override/validate this against a product config.
-  static const int _defaultSubjectPackPrice = 99;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -322,7 +317,11 @@ class TestListScreen extends StatelessWidget {
     }
   }
 
-  /// 3-option purchase sheet: Buy this test / Unlock subject pack / Go Premium.
+  /// 2-option purchase sheet: Buy this test (if individually priced) / Go Premium.
+  /// The old "Unlock subject pack ₹99" option was removed because subject-pack
+  /// prices are not yet admin-configurable — the hardcoded ₹99 placeholder was
+  /// confusing users. When subject packs become admin-configurable, this option
+  /// can be re-added with a real price from the backend.
   void _showPurchaseSheet(BuildContext context, TestModel test, UserModel? user) {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,9 +330,7 @@ class TestListScreen extends StatelessWidget {
       return;
     }
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final subjectName = subject?.name ?? 'this subject';
     final canBuyTest = test.price > 0;
-    final canUnlockSubjectPack = subject != null;
 
     showModalBottomSheet<void>(
       context: context,
@@ -366,11 +363,13 @@ class TestListScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Pick the option that works for you. All payments are secure & verified.',
+                  canBuyTest
+                      ? 'Buy this test or upgrade to Premium. All payments are secure & verified.'
+                      : 'Upgrade to Premium for unlimited access. All payments are secure & verified.',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 16),
-                if (canBuyTest)
+                if (canBuyTest) ...[
                   _sheetOption(
                     icon: Icons.shopping_cart_outlined,
                     color: AppTheme.successColor,
@@ -381,21 +380,8 @@ class TestListScreen extends StatelessWidget {
                       _purchaseTest(context, test, user, auth);
                     },
                   ),
-                if (canUnlockSubjectPack) ...[
-                  if (canBuyTest) const SizedBox(height: 8),
-                  _sheetOption(
-                    icon: Icons.library_books,
-                    color: AppTheme.infoColor,
-                    title: 'Unlock subject pack',
-                    subtitle:
-                        '₹$_defaultSubjectPackPrice · all tests in $subjectName',
-                    onTap: () {
-                      Navigator.pop(sheetCtx);
-                      _purchaseSubjectPack(context, user, auth);
-                    },
-                  ),
+                  const SizedBox(height: 8),
                 ],
-                if (canBuyTest || canUnlockSubjectPack) const SizedBox(height: 8),
                 _sheetOption(
                   icon: Icons.workspace_premium,
                   color: AppTheme.accentColor,
@@ -487,53 +473,16 @@ class TestListScreen extends StatelessWidget {
       subjectId: test.subjectId.isNotEmpty ? test.subjectId : subject?.id,
       categoryId: subject?.categoryId,
       onSuccess: (response) {
+        // Clear the access-check cache so the next open reflects the new
+        // entitlement, and optimistically mark the test as purchased locally
+        // so the button flips from "Buy" to "Start" instantly.
         AccessService.clearCache();
-        auth.loadUserData();
+        auth.addPurchasedTest(test.id);
+        auth.loadUserData(); // best-effort refresh in the background
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Payment successful! "${test.title}" unlocked.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-      },
-      onError: (response) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Payment failed: ${response.message ?? 'Please try again.'}'),
-            backgroundColor: AppTheme.errorColor,
-          ),
-        );
-      },
-    );
-  }
-
-  /// Initiates a Razorpay payment for a subject pack.
-  void _purchaseSubjectPack(
-    BuildContext context,
-    UserModel user,
-    AuthProvider auth,
-  ) {
-    if (subject == null) return;
-    RazorpayService.startSubjectPackPurchase(
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email ?? 'user@examvault.com',
-      userPhone: user.phoneNumber ?? '9999999999',
-      subjectId: subject!.id,
-      subjectName: subject!.name,
-      amount: _defaultSubjectPackPrice,
-      categoryId: subject!.categoryId,
-      onSuccess: (response) {
-        AccessService.clearCache();
-        auth.loadUserData();
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('Subject pack unlocked: ${subject!.name}. Enjoy!'),
             backgroundColor: AppTheme.successColor,
           ),
         );
