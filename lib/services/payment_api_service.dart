@@ -210,6 +210,12 @@ class PaymentApiService {
   /// which has the shape:
   ///   { orderId, orderRef, razorpayOrderId, amount (paise), currency,
   ///     productType, productId, productName, keyId }
+  ///
+  /// AUTO-RETRY: a single retry on transient network/server errors (no
+  /// statusCode, or 5xx). 4xx errors (validation/auth) are NOT retried —
+  /// they're deterministic. The idempotencyKey ensures a retried request
+  /// either creates the order once or reuses the one from the first (failed)
+  /// attempt, so the user is never double-charged.
   static Future<Map<String, dynamic>> createOrder({
     required String productType,
     required String productId,
@@ -226,11 +232,41 @@ class PaymentApiService {
       'idempotencyKey': idempotencyKey,
       if (meta != null) 'meta': meta,
     };
-    final res = await _post('/api/payments/create-order', body: body);
+    Map<String, dynamic> res;
+    try {
+      res = await _postMap('/api/payments/create-order', body: body);
+    } on PaymentApiException catch (e) {
+      // Retry once on transient errors (network blip / 5xx). The idempotency
+      // key makes this safe — the backend returns the same order if the first
+      // request actually succeeded.
+      if (_isTransient(e)) {
+        print('[PaymentApi] createOrder: transient error (${e.statusCode ?? 'no-status'}), retrying once after 2s...');
+        await Future<void>.delayed(const Duration(seconds: 2));
+        res = await _postMap('/api/payments/create-order', body: body);
+      } else {
+        rethrow;
+      }
+    }
+    return res;
+  }
+
+  /// POST helper that returns a Map (throws if the response isn't a Map).
+  static Future<Map<String, dynamic>> _postMap(
+    String path, {
+    required Map<String, dynamic> body,
+  }) async {
+    final res = await _post(path, body: body);
     if (res is! Map) {
       throw const PaymentApiException('Unexpected response from server.');
     }
     return Map<String, dynamic>.from(res);
+  }
+
+  /// True for errors worth retrying: network errors (no statusCode) and 5xx
+  /// server errors. 4xx errors are deterministic and must NOT be retried.
+  static bool _isTransient(PaymentApiException e) {
+    final s = e.statusCode;
+    return s == null || s >= 500;
   }
 
   /// `POST /api/payments/verify`

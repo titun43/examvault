@@ -454,6 +454,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
           message: 'Verifying payment...',
           cancellable: true,
           cancelLabel: 'Check My Purchases',
+          // 60s accommodates the verify call (20s) + order-status polling
+          // (up to 3 polls × ~13s) which lets the Razorpay webhook fire.
+          safetyTimeout: const Duration(seconds: 60),
           onCancel: () {
             cancelled = true;
             showCheckPurchasesMessage();

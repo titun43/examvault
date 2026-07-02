@@ -505,12 +505,19 @@ class RazorpayService {
   /// Calls /api/payments/verify with the Razorpay signature. Only invokes
   /// [onSuccess] if the backend returns { success: true, granted: true }.
   ///
-  /// RELIABILITY FALLBACK: if /verify fails due to a NETWORK error or TIMEOUT
-  /// (not a signature mismatch), we call /api/payments/order-status as a
-  /// fallback. The Razorpay webhook may have already marked the order PAID +
-  /// granted the entitlement — in that case, we treat it as success so the
-  /// user's money is not deducted with no unlock. This is the KEY FIX for
-  /// "admin panel shows success but app says failed".
+  /// RELIABILITY FALLBACK (v2): if /verify fails for ANY reason (network error,
+  /// timeout, server error, or even a signature mismatch), we POLL
+  /// /api/payments/order-status up to 3 times (3s apart). The Razorpay webhook
+  /// is the ultimate safety net on the backend — it marks the order PAID +
+  /// grants the entitlement even if /verify never runs. So polling order-status
+  /// gives the webhook time to fire, and if it reports paid+granted, we honour
+  /// the payment as success.
+  ///
+  /// This is the KEY FIX for "admin panel shows success but app says failed":
+  /// the app no longer gives up after a single failed /verify. It keeps
+  /// checking until the webhook has processed the payment, then unlocks the
+  /// content. Only if the order is genuinely not paid after all polls does it
+  /// declare failure (with a "check My Purchases" message).
   static Future<void> _verifyAndDispatch({
     required PaymentSuccessResponse response,
     required String orderId,
@@ -533,7 +540,13 @@ class RazorpayService {
       final ok = result['success'] == true && result['granted'] == true;
       if (ok) {
         onSuccess(response);
-      } else {
+        return;
+      }
+      // verify returned 200 but not granted — unusual. Fall through to
+      // order-status polling in case the webhook has since processed it.
+      print('[RazorpayService] _verifyAndDispatch: verify returned not-granted — polling order-status as fallback');
+      final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
+      if (!recovered) {
         final msg = (result['message'] ??
                 'Payment could not be verified. If money was deducted, it will be refunded within 5-7 business days.')
             .toString();
@@ -541,9 +554,9 @@ class RazorpayService {
       }
     } on PaymentApiException catch (e) {
       print('[RazorpayService] _verifyAndDispatch: PaymentApiException: ${e.message}');
-      // Network / server error during verify — the payment may still have
-      // been captured. Check order-status as a fallback before declaring
-      // failure.
+      // Network / server / signature error during verify — the payment may
+      // still have been captured (the webhook is the safety net). Poll
+      // order-status before declaring failure.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
       if (!recovered) {
         onError(PaymentFailureResponse(0, e.message, null));
@@ -551,7 +564,7 @@ class RazorpayService {
     } on TimeoutException catch (e) {
       print('[RazorpayService] _verifyAndDispatch: timeout: ${e.message}');
       // Verify timed out — the payment may still have been captured (the
-      // webhook is async). Check order-status as a fallback.
+      // webhook is async). Poll order-status as a fallback.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
       if (!recovered) {
         onError(PaymentFailureResponse(
@@ -562,7 +575,7 @@ class RazorpayService {
       }
     } catch (e) {
       print('[RazorpayService] _verifyAndDispatch: unexpected error: $e');
-      // Unexpected error — try order-status fallback before declaring failure.
+      // Unexpected error — poll order-status before declaring failure.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
       if (!recovered) {
         onError(PaymentFailureResponse(
@@ -574,10 +587,14 @@ class RazorpayService {
     }
   }
 
-  /// FALLBACK: after /verify fails due to a network error or timeout, check
-  /// /api/payments/order-status to see if the Razorpay webhook already marked
-  /// the order PAID + granted the entitlement. If so, treat it as success and
-  /// call [onSuccess]. Returns true if recovered, false otherwise.
+  /// FALLBACK: after /verify fails, POLL /api/payments/order-status up to 3
+  /// times (3 seconds apart). The Razorpay webhook is the backend safety net —
+  /// it marks the order PAID + grants the entitlement even if /verify never
+  /// runs. Polling gives the webhook time to fire (it's async, typically 1-5s).
+  ///
+  /// As soon as a poll reports paid=true && granted=true, we call [onSuccess]
+  /// and return true. If all polls report the order as not-yet-paid, we return
+  /// false and the caller shows the "check My Purchases" message.
   ///
   /// This handles the critical case where:
   ///   1. User pays in Razorpay checkout (money deducted)
@@ -586,37 +603,48 @@ class RazorpayService {
   ///   4. Without this fallback, the app shows "Payment failed" even though
   ///      the money was deducted and the entitlement was granted
   ///
-  /// With this fallback, the app checks order-status, sees PAID + granted, and
+  /// With this fallback, the app polls order-status, sees PAID + granted, and
   /// correctly calls onSuccess.
   static Future<bool> _tryRecoverFromOrderStatus(
     String orderId,
     PaymentSuccessResponse response,
     void Function(PaymentSuccessResponse) onSuccess,
   ) async {
-    try {
-      print('[RazorpayService] _tryRecoverFromOrderStatus: checking order-status (orderId=$orderId)...');
-      final status = await PaymentApiService.getOrderStatus(orderId: orderId)
-          .timeout(const Duration(seconds: 15), onTimeout: () {
-        throw TimeoutException('order-status check timed out');
-      });
-      final paid = status['paid'] == true;
-      final granted = status['granted'] == true;
-      print('[RazorpayService] _tryRecoverFromOrderStatus: status=${status['status']}, paid=$paid, granted=$granted');
-      if (paid && granted) {
-        // The webhook already processed this payment. Treat as success.
-        print('[RazorpayService] _tryRecoverFromOrderStatus: RECOVERED — order is PAID + granted, calling onSuccess');
-        onSuccess(response);
-        return true;
+    const int maxAttempts = 3;
+    const Duration pollInterval = Duration(seconds: 3);
+    const Duration pollTimeout = Duration(seconds: 10);
+
+    for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        print('[RazorpayService] _tryRecoverFromOrderStatus: poll $attempt/$maxAttempts (orderId=$orderId)...');
+        final status = await PaymentApiService.getOrderStatus(orderId: orderId)
+            .timeout(pollTimeout, onTimeout: () {
+          throw TimeoutException('order-status check timed out');
+        });
+        final paid = status['paid'] == true;
+        final granted = status['granted'] == true;
+        print('[RazorpayService] _tryRecoverFromOrderStatus: poll $attempt → status=${status['status']}, paid=$paid, granted=$granted');
+        if (paid && granted) {
+          // The webhook already processed this payment. Treat as success.
+          print('[RazorpayService] _tryRecoverFromOrderStatus: RECOVERED on poll $attempt — order is PAID + granted, calling onSuccess');
+          onSuccess(response);
+          return true;
+        }
+        // Order is not yet PAID/granted. The webhook may not have fired yet
+        // (it's async). Wait and poll again, unless this was the last attempt.
+        if (attempt < maxAttempts) {
+          print('[RazorpayService] _tryRecoverFromOrderStatus: order not yet PAID — waiting ${pollInterval.inSeconds}s before next poll (webhook may still be processing)');
+          await Future<void>.delayed(pollInterval);
+        }
+      } catch (e) {
+        print('[RazorpayService] _tryRecoverFromOrderStatus: poll $attempt failed: $e');
+        if (attempt < maxAttempts) {
+          await Future<void>.delayed(pollInterval);
+        }
       }
-      // Order is not yet PAID/granted. The webhook may not have fired yet
-      // (it's async). Don't declare failure yet — but we can't declare
-      // success either. Let the caller show the "check My Purchases" message.
-      print('[RazorpayService] _tryRecoverFromOrderStatus: order not yet PAID — webhook may still be processing');
-      return false;
-    } catch (e) {
-      print('[RazorpayService] _tryRecoverFromOrderStatus: fallback failed: $e');
-      return false;
     }
+    print('[RazorpayService] _tryRecoverFromOrderStatus: all $maxAttempts polls exhausted — order not yet PAID. Webhook may still be processing; user should check My Purchases.');
+    return false;
   }
 
   // ==================== CLEANUP ====================
