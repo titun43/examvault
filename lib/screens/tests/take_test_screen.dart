@@ -14,6 +14,7 @@ import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/payment_progress_dialog.dart';
 import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
@@ -464,79 +465,40 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   /// cache (so the next access check is instant), optimistically marks the
   /// test as purchased locally, and loads the test questions.
   ///
-  /// The "Preparing payment..." dialog has a Cancel button so the user is
-  /// never trapped if the network is slow. The "Verifying payment..." dialog
-  /// is NOT cancellable (that step is critical — money may have been
-  /// deducted).
+  /// BOTH dialogs are cancellable — the user is NEVER trapped. A 25-second
+  /// safety timer force-dismisses any stuck dialog. A successful payment is
+  /// ALWAYS processed (onSuccess runs regardless of the `cancelled` flag).
   void _buyTest() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
     if (user == null) return;
 
-    // Track loading dialogs on screen so we can dismiss exactly one in each
-    // exit path.
-    int dialogsOnScreen = 0;
-    // If the user pressed Cancel, ignore all subsequent callbacks.
+    final progress = PaymentProgressDialog();
+    // `cancelled` only suppresses *error* snackbars after the user explicitly
+    // cancelled. It does NOT block onSuccess — a payment that actually
+    // succeeded must always be honoured.
     bool cancelled = false;
 
-    void showLoadingDialog(String message, {bool cancellable = false}) {
-      if (!mounted || cancelled) return;
-      dialogsOnScreen++;
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black54,
-        builder: (_) => PopScope(
-          canPop: false,
-          child: Dialog(
-            backgroundColor: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(),
-                      const SizedBox(width: 20),
-                      Flexible(
-                        child: Text(
-                          message,
-                          style: const TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (cancellable) ...[
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () {
-                          cancelled = true;
-                          Navigator.of(context, rootNavigator: true).pop();
-                          dialogsOnScreen--;
-                        },
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+    void showCheckPurchasesMessage() {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: const Text(
+            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
+          ),
+          backgroundColor: AppTheme.warningColor,
+          action: SnackBarAction(
+            label: 'My Purchases',
+            textColor: Colors.white,
+            onPressed: () {
+              if (mounted) {
+                Navigator.pushNamed(context, '/my-purchases');
+              }
+            },
           ),
         ),
       );
-    }
-
-    void dismissLoadingDialog() {
-      if (cancelled) return;
-      if (dialogsOnScreen > 0 && mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        dialogsOnScreen--;
-      }
     }
 
     RazorpayService.startTestPurchase(
@@ -549,19 +511,36 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       amount: widget.test.price,
       subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
       onPreparing: () {
-        showLoadingDialog('Preparing payment...', cancellable: true);
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Preparing payment...',
+          cancellable: true,
+          onCancel: () => cancelled = true,
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
       },
       onCheckoutOpened: () {
-        dismissLoadingDialog();
+        progress.dismiss();
       },
       onVerifying: () {
-        dismissLoadingDialog();
-        showLoadingDialog('Verifying payment...', cancellable: false);
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Verifying payment...',
+          cancellable: true,
+          cancelLabel: 'Check My Purchases',
+          onCancel: () {
+            cancelled = true;
+            showCheckPurchasesMessage();
+          },
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
       },
       onSuccess: (_) {
-        if (cancelled) return;
-        // Dismiss the "Verifying" dialog.
-        dismissLoadingDialog();
+        // ALWAYS process a successful payment — even if the user dismissed
+        // the dialog, the payment went through and the test must be unlocked.
+        progress.dismiss();
 
         // Write a positive AccessDecision to the cache so the next access
         // check is instant. This is the key fix for the post-payment loading
@@ -595,8 +574,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         _startTimer();
       },
       onError: (response) {
+        progress.dismiss();
+        // If the user explicitly cancelled, don't show a scary "Payment
+        // failed" message — they already know.
         if (cancelled) return;
-        dismissLoadingDialog();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
