@@ -4,11 +4,19 @@
 // the user's access: premium users and already-purchased tests → Start;
 // paid unpurchased tests → Buy ₹X (Razorpay per-test purchase).
 //
-// v1.23+ — server-side access check. Before starting a test, the app calls
-// AccessService.checkTestAccess(). If the backend denies access, a 3-option
-// purchase sheet is shown: Buy this test / Unlock subject pack / Go Premium.
-// If the access-check endpoint 404s (backend not ready), the screen falls
-// back to the legacy local check (user.isPremium || user.hasTestAccess).
+// v1.27+ — SERVER-SIDE PREMIUM CHECK. The button label now reflects the
+// server's view of the user's premium status (not the potentially-stale
+// Firestore copy). On screen load we call AccessService.checkPremiumOnly()
+// which hits /api/payments/access-check?type=all. The result is cached for
+// 60s by AccessService, so scrolling / re-opening doesn't re-hit the API.
+// This fixes the bug where the button showed "Start Test" (because the local
+// Firestore user.isPremium was stale/wrong) but clicking it showed the
+// purchase sheet (because the server correctly denied access).
+//
+// v1.23+ — server-side access check. Before starting a PAID test, the app
+// calls AccessService.checkTestAccess(). If the backend denies access, a
+// purchase sheet is shown: Buy this test / Go Premium. FREE tests open
+// immediately without a server round-trip.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -24,7 +32,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import 'take_test_screen.dart';
 
-class TestListScreen extends StatelessWidget {
+class TestListScreen extends StatefulWidget {
   final SubjectModel? subject;
   final String? testId;
 
@@ -35,14 +43,58 @@ class TestListScreen extends StatelessWidget {
   });
 
   @override
+  State<TestListScreen> createState() => _TestListScreenState();
+}
+
+class _TestListScreenState extends State<TestListScreen> {
+  // Server-side premium status. null = not checked yet (fall back to local).
+  // true/false = server confirmed the user is/isn't premium.
+  // This is refreshed every time the screen loads (AccessService caches it
+  // for 60s, so rapid re-opens don't re-hit the API).
+  bool? _serverIsPremium;
+  bool _premiumChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshPremiumStatus();
+  }
+
+  /// Fetch the server-side premium status. On success, updates
+  /// [_serverIsPremium] and rebuilds. On failure, leaves it null (the UI
+  //  falls back to the local user.isPremium).
+  Future<void> _refreshPremiumStatus() async {
+    try {
+      final decision = await AccessService.checkPremiumOnly();
+      if (!mounted) return;
+      setState(() {
+        _serverIsPremium = decision.allowed;
+        _premiumChecking = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _serverIsPremium = null; // unknown — fall back to local
+        _premiumChecking = false;
+      });
+    }
+  }
+
+  /// Effective premium status: server-side if available, else local fallback.
+  bool _effectiveIsPremium(UserModel? user) {
+    if (_serverIsPremium != null) return _serverIsPremium!;
+    return user?.isPremium ?? false;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(subject?.name ?? 'Tests'),
+        title: Text(widget.subject?.name ?? 'Tests'),
       ),
       body: StreamBuilder<List<TestModel>>(
         stream: FirestoreService.getTestsStream(
-          subjectId: subject?.id,
+          subjectId: widget.subject?.id,
           isPublished: true,
         ),
         builder: (context, snapshot) {
@@ -80,8 +132,13 @@ class TestListScreen extends StatelessWidget {
   Widget _buildTestCard(BuildContext context, TestModel test) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
-    final isPremium = user?.isPremium ?? false;
-    final hasAccess = isPremium || (user?.hasTestAccess(test.id) ?? false);
+    // Use the SERVER-SIDE premium status (accurate) instead of the local
+    // Firestore copy (can be stale). This ensures the button label matches
+    // what will actually happen when the user taps it.
+    final isPremium = _effectiveIsPremium(user);
+    final hasPurchasedTest =
+        (user?.purchasedTests.contains(test.id) ?? false);
+    final hasAccess = isPremium || hasPurchasedTest;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
@@ -195,6 +252,8 @@ class TestListScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             // Action button — Buy / Go Premium / Start depending on access.
+            // For paid tests the button reflects the server-side access state
+            // so the label always matches what happens on tap.
             SizedBox(
               width: double.infinity,
               height: 44,
@@ -235,7 +294,7 @@ class TestListScreen extends StatelessWidget {
                 child: Text(
                   isPremiumOnly
                       ? 'Subscribe to Premium to attempt this test.'
-                      : 'Buy this test, unlock the subject pack, or upgrade to Premium.',
+                      : 'Buy this test or upgrade to Premium.',
                   style: TextStyle(
                     fontSize: 11,
                     color: Colors.grey.shade600,
@@ -248,18 +307,18 @@ class TestListScreen extends StatelessWidget {
     );
   }
 
-  /// Tapped "Start Test". Does a server-side access check; if the backend
-  /// grants access, navigates to TakeTestScreen. If denied, shows the
-  /// 3-option purchase sheet. On 404 / network error, falls back to the
-  /// legacy local check.
+  /// Tapped "Start Test" (or "Buy"/"Go Premium" — all routes go through here
+  /// for paid tests so the server gets the final say). For FREE tests, opens
+  /// immediately. For PAID tests, does a server-side access check; if the
+  /// backend grants access, navigates to TakeTestScreen. If denied, shows the
+  /// purchase sheet.
   Future<void> _startTest(BuildContext context, TestModel test) async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
 
     // FREE TESTS — short-circuit. If the test is neither premium nor priced,
     // there is nothing to purchase or gate. Open it immediately WITHOUT a
-    // server round-trip. This avoids the bug where a transient access-check
-    // failure (or wrong apiBaseUrl) locked free users out of free tests.
+    // server round-trip.
     if (!test.isPaid) {
       if (!context.mounted) return;
       Navigator.push(
@@ -269,11 +328,16 @@ class TestListScreen extends StatelessWidget {
       return;
     }
 
+    // PAID TESTS — the server is the single source of truth. Even if the
+    // button said "Start Test" (because we thought the user had access),
+    // the server check here is the real gatekeeper. This catches any stale
+    // local state.
     try {
       final decision = await AccessService.checkTestAccess(
         test.id,
-        subjectId: test.subjectId.isNotEmpty ? test.subjectId : subject?.id,
-        categoryId: subject?.categoryId,
+        subjectId:
+            test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
+        categoryId: widget.subject?.categoryId,
       );
       if (decision.allowed) {
         if (!context.mounted) return;
@@ -289,8 +353,8 @@ class TestListScreen extends StatelessWidget {
     } on PaymentApiException catch (e) {
       // 404 / network — fall back to local check.
       if (!context.mounted) return;
-      final localHasAccess =
-          (user?.isPremium ?? false) || (user?.hasTestAccess(test.id) ?? false);
+      final localHasAccess = _effectiveIsPremium(user) ||
+          (user?.purchasedTests.contains(test.id) ?? false);
       if (localHasAccess) {
         Navigator.push(
           context,
@@ -306,8 +370,8 @@ class TestListScreen extends StatelessWidget {
       }
     } catch (_) {
       if (!context.mounted) return;
-      final localHasAccess =
-          (user?.isPremium ?? false) || (user?.hasTestAccess(test.id) ?? false);
+      final localHasAccess = _effectiveIsPremium(user) ||
+          (user?.purchasedTests.contains(test.id) ?? false);
       if (localHasAccess) {
         Navigator.push(
           context,
@@ -320,8 +384,7 @@ class TestListScreen extends StatelessWidget {
   /// 2-option purchase sheet: Buy this test (if individually priced) / Go Premium.
   /// The old "Unlock subject pack ₹99" option was removed because subject-pack
   /// prices are not yet admin-configurable — the hardcoded ₹99 placeholder was
-  /// confusing users. When subject packs become admin-configurable, this option
-  /// can be re-added with a real price from the backend.
+  /// confusing users.
   void _showPurchaseSheet(BuildContext context, TestModel test, UserModel? user) {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -454,8 +517,8 @@ class TestListScreen extends StatelessWidget {
   }
 
   /// Initiates a Razorpay payment for a single test. On server-verified
-  /// success, clears the access cache and refreshes the user so the button
-  /// flips from "Buy" to "Start".
+  /// success, clears the access cache, optimistically marks the test as
+  /// purchased locally, and refreshes the premium status from the server.
   void _purchaseTest(
     BuildContext context,
     TestModel test,
@@ -470,8 +533,9 @@ class TestListScreen extends StatelessWidget {
       testId: test.id,
       testTitle: test.title,
       amount: test.price,
-      subjectId: test.subjectId.isNotEmpty ? test.subjectId : subject?.id,
-      categoryId: subject?.categoryId,
+      subjectId:
+          test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
+      categoryId: widget.subject?.categoryId,
       onSuccess: (response) {
         // Clear the access-check cache so the next open reflects the new
         // entitlement, and optimistically mark the test as purchased locally
@@ -479,6 +543,10 @@ class TestListScreen extends StatelessWidget {
         AccessService.clearCache();
         auth.addPurchasedTest(test.id);
         auth.loadUserData(); // best-effort refresh in the background
+        // Re-fetch server-side premium status in case this purchase also
+        // granted premium (it shouldn't for a test purchase, but the refresh
+        // is cheap and keeps state consistent).
+        _refreshPremiumStatus();
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
