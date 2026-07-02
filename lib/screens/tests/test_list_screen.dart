@@ -156,6 +156,31 @@ class TestListScreen extends StatelessWidget {
                         color: AppTheme.successColor,
                       ),
                     ),
+                  )
+                else
+                  // Explicit "FREE" badge so users can see at a glance that
+                  // this test requires no payment or premium subscription.
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: AppTheme.successColor.withOpacity(0.3),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      'FREE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppTheme.successColor,
+                      ),
+                    ),
                   ),
               ],
             ),
