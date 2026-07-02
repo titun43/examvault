@@ -54,10 +54,12 @@ class PaymentApiService {
     // forceRefresh: false — use cached token if still valid (fast path).
     // Add a 10s timeout — if getIdToken hangs (e.g., network issue during
     // silent refresh), we abort instead of spinning forever.
+    // Note: getIdToken() returns String? (nullable), so we use a nullable
+    // local and null-check it after the await.
     print('[PaymentApi] _getIdToken: calling getIdToken(false)...');
-    String token;
+    String? tokenNullable;
     try {
-      token = await user.getIdToken(false).timeout(
+      tokenNullable = await user.getIdToken(false).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
           print('[PaymentApi] _getIdToken: getIdToken timed out after 10s');
@@ -74,12 +76,13 @@ class PaymentApiService {
         'Could not verify your login session. Please log in again and retry.',
       );
     }
-    if (token.isEmpty) {
+    if (tokenNullable == null || tokenNullable.isEmpty) {
       print('[PaymentApi] _getIdToken: token is null/empty');
       throw const PaymentApiException(
         'Your session has expired. Please log in again and retry.',
       );
     }
+    final token = tokenNullable;
     print('[PaymentApi] _getIdToken: token obtained (len=${token.length})');
     return token;
   }
