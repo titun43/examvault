@@ -443,10 +443,29 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
       onError: (error) {
+        // If the error is a Firebase configuration issue (Phone Auth not
+        // enabled, SHA-1 not registered, etc.), auto-switch to the Email
+        // tab so the user can still log in. The error message already tells
+        // them to use Email sign-in.
+        final isConfigError = error.contains('temporarily unavailable') ||
+            error.contains('operation-not-allowed') ||
+            error.contains('app-not-authorized') ||
+            error.contains('missing-client-identifier');
+        if (isConfigError) {
+          // Auto-switch to Email tab.
+          setState(() {
+            _currentMethod = 1;
+            _pageController.animateToPage(
+              1,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          });
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error),
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 6),
             backgroundColor: AppTheme.errorColor,
           ),
         );

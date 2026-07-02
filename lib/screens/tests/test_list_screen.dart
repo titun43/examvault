@@ -678,6 +678,13 @@ class _TestListScreenState extends State<TestListScreen> {
             backgroundColor: AppTheme.successColor,
           ),
         );
+        // Navigate directly to the test so the user can start it immediately
+        // — previously the user had to go back and tap the test again, which
+        // was confusing ("buy kore redirect hoye open hoche na").
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        );
       },
       onError: (response) {
         if (cancelled) return;

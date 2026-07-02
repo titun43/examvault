@@ -1,7 +1,7 @@
 name: examvault
 description: ExamVault - India's #1 MCQ Mock Test platform for Railway, SSC, UPSC, Banking, ADRE & State Exams.
 publish_to: 'none'
-version: 1.30.1+36
+version: 1.31.0+37
 
 environment:
   sdk: '>=3.0.0 <4.0.0'

@@ -582,7 +582,12 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             backgroundColor: AppTheme.successColor,
           ),
         );
+        // CRITICAL: set _accessChecking = false so the build method's
+        // `if (_accessChecking || _isLoading)` guard doesn't keep showing
+        // the loading screen forever. After payment success we KNOW access
+        // is granted, so we skip directly to loading questions.
         setState(() {
+          _accessChecking = false;
           _accessGranted = true;
           _isLoading = true;
         });

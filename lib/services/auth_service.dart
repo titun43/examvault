@@ -105,13 +105,14 @@ class AuthService {
         return 'Network error. Check your internet connection and try again.';
       case 'operation-not-allowed':
         // Real cause: Phone Auth not enabled in Firebase Console.
-        return 'OTP service is not enabled (code: operation-not-allowed). '
-            'Please use Email sign-in or contact support.';
+        // This is an ADMIN configuration issue — the end user can't fix it.
+        // We tell them to use Email sign-in instead (which always works).
+        return 'Mobile OTP login is temporarily unavailable. '
+            'Please use Email sign-in instead — tap the "Email" tab above.';
       case 'app-not-authorized':
         // Real cause: app signing key (SHA-1) not registered in Firebase Console.
-        return 'OTP could not be sent (code: app-not-authorized). '
-            'The app signing key may not be registered. '
-            'Please use Email sign-in or contact support.';
+        return 'Mobile OTP login is temporarily unavailable. '
+            'Please use Email sign-in instead — tap the "Email" tab above.';
       case 'captcha-check-failed':
         return 'Verification failed. Check your network and try again.';
       case 'invalid-verification-code':
@@ -122,11 +123,11 @@ class AuthService {
         return 'This phone number is already linked to another account.';
       case 'missing-client-identifier':
         // reCAPTCHA / SafetyNet could not be resolved — often a SHA-1 issue.
-        return 'OTP could not be sent (code: missing-client-identifier). '
-            'Please use Email sign-in or contact support.';
+        return 'Mobile OTP login is temporarily unavailable. '
+            'Please use Email sign-in instead — tap the "Email" tab above.';
       default:
-        return 'Unable to send OTP right now (code: ${e.code}). '
-            'Please try again or use Email sign-in.';
+        return 'Unable to send OTP right now. '
+            'Please use Email sign-in instead — tap the "Email" tab above.';
     }
   }
 
