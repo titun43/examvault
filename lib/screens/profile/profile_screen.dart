@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../theme/app_theme.dart';
@@ -139,48 +140,117 @@ class ProfileScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.white,
-                    child: auth.user?.photoUrl != null
-                        ? ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: auth.user!.photoUrl!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Icon(Icons.person, size: 50, color: AppTheme.primaryColor),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    auth.user?.name ?? 'User',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    auth.user?.email ?? auth.user?.phoneNumber ?? '',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      _buildStat('Tests', auth.user?.totalTestsAttempted.toString() ?? '0'),
-                      _buildStat('XP', auth.user?.totalXp.toString() ?? '0'),
-                      _buildStat('Level', auth.user?.level.toString() ?? '1'),
-                      _buildStat('Streak', '${auth.user?.streak ?? 0}🔥'),
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.white,
+                        child: auth.user?.photoUrl != null
+                            ? ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: auth.user!.photoUrl!,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : const Icon(Icons.person, size: 50, color: AppTheme.primaryColor),
+                      ),
+                      // Premium badge — a crown icon + "PREMIUM" label shown
+                      // on the avatar's bottom-right. Visible only for active
+                      // premium users. Survives re-login because premium status
+                      // is persisted in Firestore (isPremium + subscriptionExpiry).
+                      if (auth.isPremium)
+                        Positioned(
+                          bottom: -2,
+                          right: -2,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.workspace_premium,
+                                    size: 12, color: Colors.white),
+                                SizedBox(width: 3),
+                                Text(
+                                  'PREMIUM',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      auth.user?.name ?? 'User',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (auth.isPremium) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.verified,
+                        color: Color(0xFFFFD700), size: 18),
+                  ],
                 ],
               ),
-            ),
+              const SizedBox(height: 4),
+              Text(
+                auth.user?.email ?? auth.user?.phoneNumber ?? '',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 13,
+                ),
+              ),
+              // Premium status line — shows "Premium member" + expiry date
+              if (auth.isPremium &&
+                  auth.user?.subscriptionExpiry != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Premium until ${_formatExpiry(auth.user!.subscriptionExpiry!)}',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStat('Tests', auth.user?.totalTestsAttempted.toString() ?? '0'),
+                  _buildStat('XP', auth.user?.totalXp.toString() ?? '0'),
+                  _buildStat('Level', auth.user?.level.toString() ?? '1'),
+                  _buildStat('Streak', '${auth.user?.streak ?? 0}🔥'),
+                ],
+              ),
+            ],
+          ),
+        ),
             const SizedBox(height: 16),
             // Personal Info card — shows DOB, qualification, city, target exam
             // if the user has filled them in via EditProfileScreen.
@@ -325,6 +395,12 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Formats the premium subscription expiry date for display under the
+  /// user's name in the profile header (e.g. "Premium until 15 Aug 2026").
+  String _formatExpiry(DateTime expiry) {
+    return DateFormat('d MMM yyyy').format(expiry);
   }
 
   Widget _buildStat(String label, String value) {

@@ -16,7 +16,10 @@ import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/access_service.dart';
 import '../../services/payment_api_service.dart';
+import '../../services/firestore_service.dart';
+import '../../models/test_model.dart';
 import '../../theme/app_theme.dart';
+import '../tests/take_test_screen.dart';
 
 class MyPurchasesScreen extends StatefulWidget {
   const MyPurchasesScreen({super.key});
@@ -141,6 +144,61 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open invoice.')),
+      );
+    }
+  }
+
+  /// Opens a purchased test from the "Individual Tests" section. Fetches the
+  /// test from Firestore by testId and navigates to TakeTestScreen. Shows a
+  /// loading dialog while fetching (the test may have been archived or the
+  /// network may be slow).
+  Future<void> _openTest(String testId, String title) async {
+    // Show a loading indicator while we fetch the test from Firestore.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Text('Opening test...'),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final test = await FirestoreService.getTest(testId);
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading dialog
+      if (test == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"$title" is no longer available.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+      // Navigate to TakeTestScreen. The test is already purchased, so the
+      // access check will pass (either via the local purchasedTests list or
+      // via the server-side access check).
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open test. Please try again.'),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
     }
   }
@@ -476,6 +534,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
   Widget _buildTestTile(dynamic t) {
     final m = t is Map ? Map<String, dynamic>.from(t) : <String, dynamic>{};
     final title = (m['productName'] ?? m['title'] ?? 'Test').toString();
+    final testId = m['testId']?.toString() ?? '';
     final purchasedAt = _parseDate(m['purchasedAt'] ?? m['createdAt']);
     final paymentId = m['paymentId']?.toString();
     return Card(
@@ -492,10 +551,19 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
                         fontSize: 11, color: Colors.grey.shade500)),
               )
             : null,
-        trailing: OutlinedButton(
-          onPressed: () => Navigator.pop(context, 'open_test'),
-          child: const Text('Open'),
+        trailing: OutlinedButton.icon(
+          onPressed: testId.isNotEmpty
+              ? () => _openTest(testId, title)
+              : null,
+          icon: const Icon(Icons.play_arrow, size: 18),
+          label: const Text('Open'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.successColor,
+            side: const BorderSide(color: AppTheme.successColor),
+          ),
         ),
+        // Tapping the row opens the invoice (if available). The "Open"
+        // button is the primary action for opening the test.
         onTap: paymentId != null && paymentId.isNotEmpty
             ? () => _openInvoice(paymentId)
             : null,

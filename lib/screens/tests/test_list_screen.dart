@@ -39,6 +39,7 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
+import '../../widgets/payment_success_dialog.dart';
 import 'take_test_screen.dart';
 
 class TestListScreen extends StatefulWidget {
@@ -654,29 +655,28 @@ class _TestListScreenState extends State<TestListScreen> {
         // round-trip. This is the key fix for "payment korar por seta khulte
         // loading hoi" (opening after payment loads slowly).
         AccessService.markTestPurchased(test.id);
-        // Optimistically mark the test as purchased locally so the button
-        // flips from "Buy" to "Start" instantly.
+        // Optimistically mark the test as purchased locally AND persist to
+        // Firestore so it survives app restarts / re-login. The button flips
+        // from "Buy" to "Start" instantly (the card listens to AuthProvider).
         auth.addPurchasedTest(test.id);
-        // Note: we intentionally do NOT call auth.loadUserData() or
-        // _refreshPremiumStatus() here. loadUserData() hits Firestore (which
-        // doesn't store Prisma purchase info) and triggers a loading state
-        // that causes unnecessary UI rebuilds. _refreshPremiumStatus() hits
-        // the server again — a test purchase doesn't change premium status,
-        // so that call is wasted. The optimistic updates above are sufficient.
         if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Payment successful! "${test.title}" unlocked.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        // Navigate directly to the test so the user can start it immediately
-        // — previously the user had to go back and tap the test again, which
-        // was confusing ("buy kore redirect hoye open hoche na").
-        Navigator.push(
+        // Show a PROMINENT success dialog (not a subtle snackbar). The user
+        // taps "Open Test" to proceed. This fixes "payment er por kichui hoi
+        // na" — the user now gets clear, unmissable feedback.
+        PaymentSuccessDialog.show(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
-        );
+          itemName: test.title,
+          amount: test.price,
+          actionLabel: 'Open Test',
+          paymentId: response.paymentId,
+        ).then((shouldOpen) {
+          if (shouldOpen && context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+            );
+          }
+        });
       },
       onError: (response) {
         progress.dismiss();

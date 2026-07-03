@@ -15,6 +15,7 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
+import '../../widgets/payment_success_dialog.dart';
 import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
@@ -540,7 +541,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           onSafetyTimeout: showCheckPurchasesMessage,
         );
       },
-      onSuccess: (_) {
+      onSuccess: (response) {
         // ALWAYS process a successful payment — even if the user dismissed
         // the dialog, the payment went through and the test must be unlocked.
         progress.dismiss();
@@ -550,31 +551,33 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         // delay — instead of clearing the cache (which forces a network
         // round-trip), we write the positive decision directly.
         AccessService.markTestPurchased(widget.test.id);
-        // Optimistically mark the test as purchased locally.
+        // Optimistically mark the test as purchased locally + persist to
+        // Firestore (survives app restart / re-login).
         auth.addPurchasedTest(widget.test.id);
-        // Note: we intentionally do NOT call auth.loadUserData() here.
-        // loadUserData() hits Firestore (which doesn't store Prisma purchase
-        // info) and triggers a loading state. The optimistic update above
-        // is sufficient for the UI.
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('Payment successful! "${widget.test.title}" unlocked.'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        // CRITICAL: set _accessChecking = false so the build method's
-        // `if (_accessChecking || _isLoading)` guard doesn't keep showing
-        // the loading screen forever. After payment success we KNOW access
-        // is granted, so we skip directly to loading questions.
-        setState(() {
-          _accessChecking = false;
-          _accessGranted = true;
-          _isLoading = true;
+        // Show a PROMINENT success dialog before loading the test. The user
+        // gets clear feedback that the payment succeeded, then taps "Start
+        // Test" to begin. This fixes "payment er por kichui hoi na".
+        PaymentSuccessDialog.show(
+          context,
+          itemName: widget.test.title,
+          amount: widget.test.price,
+          actionLabel: 'Start Test',
+          paymentId: response.paymentId,
+        ).then((_) {
+          if (!mounted) return;
+          // CRITICAL: set _accessChecking = false so the build method's
+          // `if (_accessChecking || _isLoading)` guard doesn't keep showing
+          // the loading screen forever. After payment success we KNOW access
+          // is granted, so we skip directly to loading questions.
+          setState(() {
+            _accessChecking = false;
+            _accessGranted = true;
+            _isLoading = true;
+          });
+          _loadQuestions();
+          _startTimer();
         });
-        _loadQuestions();
-        _startTimer();
       },
       onError: (response) {
         progress.dismiss();
