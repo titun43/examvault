@@ -15,6 +15,7 @@ import '../../services/razorpay_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/premium_plan_model.dart';
 import '../../widgets/payment_progress_dialog.dart';
+import '../../widgets/payment_success_dialog.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -484,13 +485,19 @@ class _PremiumScreenState extends State<PremiumScreen> {
         // subscription info) and triggers a loading state. The optimistic
         // markPremium above is sufficient for the UI.
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment successful! Premium activated!'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        Navigator.pop(context);
+        // Show a PROMINENT success dialog (not a subtle snackbar). The user
+        // taps "Done" to return. This fixes "payment er por kichui hoi na" —
+        // the user now gets clear, unmissable feedback everywhere they pay.
+        PaymentSuccessDialog.show(
+          context,
+          itemName: selectedPlan['name'] as String,
+          amount: selectedPlan['price'] as int,
+          actionLabel: 'Done',
+          paymentId: response.paymentId,
+        ).then((_) {
+          if (!mounted) return;
+          Navigator.pop(context);
+        });
       },
       onError: (response) {
         progress.dismiss();

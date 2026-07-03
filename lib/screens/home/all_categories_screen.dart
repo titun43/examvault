@@ -15,6 +15,8 @@ import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/payment_progress_dialog.dart';
+import '../../widgets/payment_success_dialog.dart';
 import 'category_detail_screen.dart';
 
 class AllCategoriesScreen extends StatefulWidget {
@@ -312,15 +314,47 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
     );
   }
 
-  /// Starts an Exam Pack purchase from the All Categories paywall. On
-  /// server-verified success, clears the access cache + refreshes the user
-  /// + opens the category detail screen so the user can start browsing.
+  /// Starts an Exam Pack purchase from the All Categories paywall. Shows
+  /// loading indicators during the two network steps (createOrder + verify)
+  /// so the user always knows what's happening — fixes "app hang hoye geche"
+  /// when tapping "Unlock this exam" with no feedback. On server-verified
+  /// success, clears the access cache + refreshes the user + shows a prominent
+  /// success dialog, then opens the category detail screen.
   void _startExamPackPurchase(
     CategoryModel category,
     AuthProvider auth,
   ) {
     final user = auth.user;
     if (user == null) return;
+
+    final progress = PaymentProgressDialog();
+    // `cancelled` only suppresses *error* snackbars after the user explicitly
+    // cancelled. It does NOT block onSuccess — a payment that actually
+    // succeeded must always be honoured.
+    bool cancelled = false;
+
+    void showCheckPurchasesMessage() {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: const Text(
+            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
+          ),
+          backgroundColor: AppTheme.warningColor,
+          action: SnackBarAction(
+            label: 'My Purchases',
+            textColor: Colors.white,
+            onPressed: () {
+              if (mounted) {
+                Navigator.pushNamed(context, '/my-purchases');
+              }
+            },
+          ),
+        ),
+      );
+    }
+
     RazorpayService.startExamPackPurchase(
       userId: user.id,
       userName: user.name,
@@ -329,25 +363,69 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
       categoryId: category.id,
       categoryName: category.name,
       amount: category.premiumPrice,
-      onSuccess: (_) {
+      onPreparing: () {
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Preparing payment...',
+          cancellable: true,
+          onCancel: () => cancelled = true,
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
+      },
+      onCheckoutOpened: () {
+        progress.dismiss();
+      },
+      onVerifying: () {
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Verifying payment...',
+          cancellable: true,
+          cancelLabel: 'Check My Purchases',
+          safetyTimeout: const Duration(seconds: 60),
+          onCancel: () {
+            cancelled = true;
+            showCheckPurchasesMessage();
+          },
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
+      },
+      onSuccess: (response) {
+        // ALWAYS process a successful payment — even if the user dismissed
+        // the dialog, the payment went through and the exam pack must be
+        // unlocked.
+        progress.dismiss();
         AccessService.clearCache();
         auth.loadUserData();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Exam pack unlocked: ${category.name}. Enjoy!'),
-            backgroundColor: AppTheme.successColor,
-          ),
-        );
-        // Open the category so the user can start browsing.
-        Navigator.push(
+        // Show a PROMINENT success dialog (not a subtle snackbar). The user
+        // taps "Open Exam" to proceed. This fixes "payment er por kichui hoi
+        // na" — the user now gets clear, unmissable feedback.
+        PaymentSuccessDialog.show(
           context,
-          MaterialPageRoute(
-            builder: (_) => CategoryDetailScreen(category: category),
-          ),
-        );
+          itemName: category.name,
+          amount: category.premiumPrice,
+          actionLabel: 'Open Exam',
+          paymentId: response.paymentId,
+        ).then((shouldOpen) {
+          if (!mounted) return;
+          // Always open the category so the user can start browsing —
+          // regardless of whether they tapped "Open Exam" or "Later", the
+          // exam pack is unlocked now.
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CategoryDetailScreen(category: category),
+            ),
+          );
+        });
       },
       onError: (response) {
+        progress.dismiss();
+        // If the user explicitly cancelled, don't show a scary "Payment
+        // failed" message — they already know.
+        if (cancelled) return;
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

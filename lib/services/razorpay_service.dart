@@ -301,6 +301,12 @@ class RazorpayService {
 
   // ==================== START SUBJECT PACK PURCHASE ====================
   /// Unlock all tests in a subject. [amount] is the pack price in INR.
+  ///
+  /// [onPreparing] fires when createOrder starts (caller can show a loading
+  /// indicator). [onCheckoutOpened] fires when the Razorpay checkout modal is
+  /// about to open (caller should dismiss the preparing indicator). [onVerifying]
+  /// fires after the user pays but before onSuccess/onError — during the server
+  /// signature verification step (caller can show "Verifying payment...").
   static Future<void> startSubjectPackPurchase({
     required String userId,
     required String userName,
@@ -312,17 +318,45 @@ class RazorpayService {
     String? categoryId,
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
+    void Function()? onPreparing,
+    void Function()? onCheckoutOpened,
+    void Function()? onVerifying,
   }) async {
+    // NEVER throw — always call onError on failure. This prevents the
+    // "Preparing payment..." dialog from getting stuck if something
+    // unexpected happens before createOrder completes.
     if (_razorpay == null) {
+      print('[RazorpayService] _razorpay is null — initialize() failed');
       onError(PaymentFailureResponse(
           0, 'Payment service not available. Please restart the app.', null));
       return;
     }
+    // CONCURRENT-PAYMENT GUARD — reject if a payment is already in flight.
+    if (_isProcessing) {
+      print('[RazorpayService] startSubjectPackPurchase: rejected — another payment is already in flight');
+      onError(PaymentFailureResponse(
+          0, 'A payment is already being processed. Please wait for it to finish.', null));
+      return;
+    }
+    _isProcessing = true;
+
+    // Wrap the onSuccess/onError callbacks so we always release the guard.
+    void guardedOnSuccess(PaymentSuccessResponse r) {
+      _isProcessing = false;
+      onSuccess(r);
+    }
+    void guardedOnError(PaymentFailureResponse r) {
+      _isProcessing = false;
+      onError(r);
+    }
 
     final idempotencyKey = const Uuid().v4();
 
+    print('[RazorpayService] startSubjectPackPurchase: calling onPreparing...');
+    if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
+      print('[RazorpayService] startSubjectPackPurchase: calling createOrder (subjectId=$subjectId, amount=$amount)...');
       order = await PaymentApiService.createOrder(
         productType: 'SUBJECT_PACK',
         productId: subjectId,
@@ -334,16 +368,31 @@ class RazorpayService {
           'subjectName': subjectName,
           if (categoryId != null) 'categoryId': categoryId,
         },
-      );
+      ).timeout(_createOrderHardTimeout, onTimeout: () {
+        throw TimeoutException(
+            'Payment server is taking too long. Please check your internet and try again.');
+      });
+      print('[RazorpayService] startSubjectPackPurchase: createOrder succeeded, orderId=${order['orderId']}');
     } on PaymentApiException catch (e) {
+      print('[RazorpayService] startSubjectPackPurchase: createOrder PaymentApiException: ${e.message}');
+      _isProcessing = false;
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } on TimeoutException catch (e) {
+      print('[RazorpayService] startSubjectPackPurchase: createOrder timeout: ${e.message}');
+      _isProcessing = false;
       onError(PaymentFailureResponse(0, e.message, null));
       return;
     } catch (e) {
+      print('[RazorpayService] startSubjectPackPurchase: createOrder unexpected error: $e');
+      _isProcessing = false;
       onError(PaymentFailureResponse(
           0, 'Could not start payment. Please try again.', null));
       return;
     }
 
+    print('[RazorpayService] startSubjectPackPurchase: calling onCheckoutOpened...');
+    if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
       fallbackAmountPaise: amount * 100,
@@ -351,9 +400,11 @@ class RazorpayService {
       prefillName: userName,
       prefillEmail: userEmail,
       prefillPhone: userPhone,
-      onSuccess: onSuccess,
-      onError: onError,
+      onSuccess: guardedOnSuccess,
+      onError: guardedOnError,
+      onVerifying: onVerifying,
     )) {
+      _isProcessing = false;
       return;
     }
   }
@@ -361,6 +412,12 @@ class RazorpayService {
   // ==================== START EXAM PACK PURCHASE ====================
   /// Unlock all subjects/tests in a category (exam pack). [amount] is the
   /// pack price in INR.
+  ///
+  /// [onPreparing] fires when createOrder starts (caller can show a loading
+  /// indicator). [onCheckoutOpened] fires when the Razorpay checkout modal is
+  /// about to open (caller should dismiss the preparing indicator). [onVerifying]
+  /// fires after the user pays but before onSuccess/onError — during the server
+  /// signature verification step (caller can show "Verifying payment...").
   static Future<void> startExamPackPurchase({
     required String userId,
     required String userName,
@@ -371,17 +428,45 @@ class RazorpayService {
     required int amount, // in INR
     required void Function(PaymentSuccessResponse response) onSuccess,
     required void Function(PaymentFailureResponse response) onError,
+    void Function()? onPreparing,
+    void Function()? onCheckoutOpened,
+    void Function()? onVerifying,
   }) async {
+    // NEVER throw — always call onError on failure. This prevents the
+    // "Preparing payment..." dialog from getting stuck if something
+    // unexpected happens before createOrder completes.
     if (_razorpay == null) {
+      print('[RazorpayService] _razorpay is null — initialize() failed');
       onError(PaymentFailureResponse(
           0, 'Payment service not available. Please restart the app.', null));
       return;
     }
+    // CONCURRENT-PAYMENT GUARD — reject if a payment is already in flight.
+    if (_isProcessing) {
+      print('[RazorpayService] startExamPackPurchase: rejected — another payment is already in flight');
+      onError(PaymentFailureResponse(
+          0, 'A payment is already being processed. Please wait for it to finish.', null));
+      return;
+    }
+    _isProcessing = true;
+
+    // Wrap the onSuccess/onError callbacks so we always release the guard.
+    void guardedOnSuccess(PaymentSuccessResponse r) {
+      _isProcessing = false;
+      onSuccess(r);
+    }
+    void guardedOnError(PaymentFailureResponse r) {
+      _isProcessing = false;
+      onError(r);
+    }
 
     final idempotencyKey = const Uuid().v4();
 
+    print('[RazorpayService] startExamPackPurchase: calling onPreparing...');
+    if (onPreparing != null) onPreparing();
     Map<String, dynamic> order;
     try {
+      print('[RazorpayService] startExamPackPurchase: calling createOrder (categoryId=$categoryId, amount=$amount)...');
       order = await PaymentApiService.createOrder(
         productType: 'EXAM_PACK',
         productId: categoryId,
@@ -392,16 +477,31 @@ class RazorpayService {
           'categoryId': categoryId,
           'categoryName': categoryName,
         },
-      );
+      ).timeout(_createOrderHardTimeout, onTimeout: () {
+        throw TimeoutException(
+            'Payment server is taking too long. Please check your internet and try again.');
+      });
+      print('[RazorpayService] startExamPackPurchase: createOrder succeeded, orderId=${order['orderId']}');
     } on PaymentApiException catch (e) {
+      print('[RazorpayService] startExamPackPurchase: createOrder PaymentApiException: ${e.message}');
+      _isProcessing = false;
+      onError(PaymentFailureResponse(0, e.message, null));
+      return;
+    } on TimeoutException catch (e) {
+      print('[RazorpayService] startExamPackPurchase: createOrder timeout: ${e.message}');
+      _isProcessing = false;
       onError(PaymentFailureResponse(0, e.message, null));
       return;
     } catch (e) {
+      print('[RazorpayService] startExamPackPurchase: createOrder unexpected error: $e');
+      _isProcessing = false;
       onError(PaymentFailureResponse(
           0, 'Could not start payment. Please try again.', null));
       return;
     }
 
+    print('[RazorpayService] startExamPackPurchase: calling onCheckoutOpened...');
+    if (onCheckoutOpened != null) onCheckoutOpened();
     if (!_openCheckout(
       order: order,
       fallbackAmountPaise: amount * 100,
@@ -409,9 +509,11 @@ class RazorpayService {
       prefillName: userName,
       prefillEmail: userEmail,
       prefillPhone: userPhone,
-      onSuccess: onSuccess,
-      onError: onError,
+      onSuccess: guardedOnSuccess,
+      onError: guardedOnError,
+      onVerifying: onVerifying,
     )) {
+      _isProcessing = false;
       return;
     }
   }
