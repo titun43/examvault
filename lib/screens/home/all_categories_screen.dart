@@ -396,7 +396,10 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
         // the dialog, the payment went through and the exam pack must be
         // unlocked.
         progress.dismiss();
-        AccessService.clearCache();
+        // Optimistically cache a positive access decision so the
+        // CategoryDetailScreen's _checkAccess() returns instantly. The
+        // background /verify might not have completed yet.
+        AccessService.markExamPackPurchased(category.id);
         auth.loadUserData();
         if (!mounted) return;
         // Show a PROMINENT success dialog (not a subtle snackbar). The user

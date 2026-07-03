@@ -184,8 +184,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         // the dialog, the payment went through and the exam pack must be
         // unlocked.
         progress.dismiss();
-        // Backend confirmed grant — clear cache + refresh user + re-check.
-        AccessService.clearCache();
+        // Optimistically cache a positive access decision so _checkAccess()
+        // returns instantly (within 60s TTL) without hitting the backend —
+        // the background /verify might not have completed yet. This matches
+        // the pattern used by test_list_screen (markTestPurchased) and
+        // premium_screen (markPremiumGranted).
+        AccessService.markExamPackPurchased(widget.category.id);
         auth.loadUserData();
         if (!mounted) return;
         // Show a PROMINENT success dialog (not a subtle snackbar). The user
