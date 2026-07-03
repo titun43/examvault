@@ -343,7 +343,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
       );
       return;
     }
@@ -358,7 +358,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
       );
       return;
     }
@@ -377,7 +377,7 @@ class _TestListScreenState extends State<TestListScreen> {
         if (!context.mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
         );
         return;
       }
@@ -390,7 +390,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
         );
       } else if (e.statusCode == 404) {
         // Backend not ready — show the friendly message.
@@ -405,7 +405,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
         );
       }
     }
@@ -673,7 +673,7 @@ class _TestListScreenState extends State<TestListScreen> {
           if (shouldOpen && context.mounted) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
             );
           }
         });

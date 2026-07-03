@@ -20,8 +20,14 @@ import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
   final TestModel test;
+  /// Optional: the categoryId this test belongs to. If provided, the
+  /// server-side access check can verify exam-pack ownership. If null,
+  /// TakeTestScreen will try to resolve it from Firestore via the test's
+  /// subjectId (single document read). This is needed because TestModel
+  /// does not carry categoryId — only subjectId.
+  final String? categoryId;
 
-  const TakeTestScreen({super.key, required this.test});
+  const TakeTestScreen({super.key, required this.test, this.categoryId});
 
   @override
   State<TakeTestScreen> createState() => _TakeTestScreenState();
@@ -96,12 +102,27 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
 
     // SERVER CHECK — for tests the user doesn't locally own. This catches
     // entitlements granted on another device or via a backend webhook.
+    //
+    // CRITICAL: we MUST pass categoryId so the backend can check the exam-pack
+    // tier (Tier 2). Without it, a user who purchased an exam pack (category
+    // unlock) would be falsely denied access to individual tests in that
+    // category — because TestModel only carries subjectId, not categoryId.
+    // If the caller didn't pass categoryId, resolve it from Firestore by
+    // looking up the subject (single document read).
+    String? resolvedCategoryId = widget.categoryId;
+    if ((resolvedCategoryId == null || resolvedCategoryId.isEmpty) &&
+        widget.test.subjectId.isNotEmpty) {
+      final subject =
+          await FirestoreService.getSubjectById(widget.test.subjectId);
+      resolvedCategoryId = subject?.categoryId;
+    }
     try {
       final decision = await AccessService.checkTestAccess(
         widget.test.id,
         subjectId: widget.test.subjectId.isNotEmpty
             ? widget.test.subjectId
             : null,
+        categoryId: resolvedCategoryId,
       );
       if (!mounted) return;
       _accessChecking = false;

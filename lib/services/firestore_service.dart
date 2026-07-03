@@ -299,6 +299,22 @@ class FirestoreService {
     return docRef.id;
   }
 
+  /// Fetch a single subject by its Firestore document id. Returns null if the
+  /// subject doesn't exist or the read fails. Used by TakeTestScreen to
+  /// resolve the categoryId for a test (TestModel only has subjectId, not
+  /// categoryId) so the backend's exam-pack access tier can be checked.
+  static Future<SubjectModel?> getSubjectById(String id) async {
+    if (id.isEmpty) return null;
+    try {
+      final doc = await _db.collection('subjects').doc(id).get();
+      if (!doc.exists) return null;
+      return SubjectModel.fromFirestore(doc);
+    } catch (e) {
+      print('getSubjectById($id) error: $e');
+      return null;
+    }
+  }
+
   static Future<void> updateSubject(SubjectModel subject) async {
     await _db.collection('subjects').doc(subject.id).update(subject.toFirestore());
   }
