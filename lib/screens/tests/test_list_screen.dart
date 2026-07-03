@@ -45,11 +45,22 @@ import 'take_test_screen.dart';
 class TestListScreen extends StatefulWidget {
   final SubjectModel? subject;
   final String? testId;
+  /// Authoritative categoryId (the Firestore category document id) — when the
+  /// user navigated here from CategoryDetailScreen, this is `category.id`.
+  /// We MUST use this for the server-side access check (not `subject.categoryId`)
+  /// because `getSubjectsStream` falls back to matching by category NAME or
+  /// SLUG, so `subject.categoryId` can hold the name/slug instead of the real
+  /// id. `ExamPackPurchase.categoryId` (created during payment) always stores
+  /// the real Firestore category id, so without this authoritative value the
+  /// exam-pack tier of the access check silently fails and a user who already
+  /// bought the exam pack sees a premium lock on every test inside it.
+  final String? categoryId;
 
   const TestListScreen({
     super.key,
     this.subject,
     this.testId,
+    this.categoryId,
   });
 
   @override
@@ -336,14 +347,34 @@ class _TestListScreenState extends State<TestListScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
 
+    // Authoritative category id — prefer the one passed from
+    // CategoryDetailScreen; fall back to the subject's categoryId field.
+    final effectiveCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId
+            : widget.subject?.categoryId;
+
     // FREE TESTS — short-circuit. If the test is neither premium nor priced,
     // there is nothing to purchase or gate. Open it immediately WITHOUT a
-    // server round-trip.
+    // server round-trip. Guests CAN take free tests.
     if (!test.isPaid) {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+      );
+      return;
+    }
+
+    // GUEST MODE — paid tests require an account. Skip the server check (it
+    // would 401) and open TakeTestScreen, whose paywall will show a Sign-In
+    // CTA. This keeps the navigation consistent (the user sees the test title
+    // and the lock screen) instead of a bare snackbar.
+    if (auth.isGuest) {
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -358,7 +389,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -371,13 +402,13 @@ class _TestListScreenState extends State<TestListScreen> {
         test.id,
         subjectId:
             test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
-        categoryId: widget.subject?.categoryId,
+        categoryId: effectiveCategoryId,
       );
       if (decision.allowed) {
         if (!context.mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
         return;
       }
@@ -390,7 +421,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
       } else if (e.statusCode == 404) {
         // Backend not ready — show the friendly message.
@@ -405,7 +436,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
       }
     }
@@ -595,6 +626,12 @@ class _TestListScreenState extends State<TestListScreen> {
       );
     }
 
+    // Authoritative category id (see _startTest for rationale).
+    final effectiveCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId
+            : widget.subject?.categoryId;
+
     RazorpayService.startTestPurchase(
       userId: user.id,
       userName: user.name,
@@ -605,7 +642,7 @@ class _TestListScreenState extends State<TestListScreen> {
       amount: test.price,
       subjectId:
           test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
-      categoryId: widget.subject?.categoryId,
+      categoryId: effectiveCategoryId,
       // createOrder is about to start — show "Preparing payment..." with a
       // Cancel button so the user can abort if the network is too slow.
       onPreparing: () {
@@ -673,7 +710,7 @@ class _TestListScreenState extends State<TestListScreen> {
           if (shouldOpen && context.mounted) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: widget.subject?.categoryId)),
+              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
             );
           }
         });

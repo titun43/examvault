@@ -16,6 +16,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../auth/login_screen.dart';
 import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
@@ -78,6 +79,17 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       _accessChecking = false;
       _loadQuestions();
       _startTimer();
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // GUEST MODE — a guest (not signed in) can never open a paid test. Skip
+    // the server check (it would 401) and show the paywall with a Sign-In
+    // CTA so the user can create an account and then buy / unlock the test.
+    if (auth.isGuest) {
+      _accessGranted = false;
+      _accessChecking = false;
+      _isLoading = false;
       if (mounted) setState(() {});
       return;
     }
@@ -375,6 +387,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   Widget _buildPaywall(BuildContext context) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
+    final isGuest = auth.isGuest;
     final canBuyTest = widget.test.price > 0;
     return Scaffold(
       appBar: AppBar(title: Text(widget.test.title)),
@@ -403,16 +416,18 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                canBuyTest
-                    ? 'Buy this test or upgrade to Premium for unlimited access.'
-                    : 'Upgrade to Premium to attempt this test.',
+                isGuest
+                    ? 'Sign in to unlock this test. Free tests are available without an account.'
+                    : canBuyTest
+                        ? 'Buy this test or upgrade to Premium for unlimited access.'
+                        : 'Upgrade to Premium to attempt this test.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade600,
                 ),
               ),
-              if (_accessCheckUnavailable) ...[
+              if (_accessCheckUnavailable && !isGuest) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -440,34 +455,61 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                 ),
               ],
               const SizedBox(height: 28),
-              if (canBuyTest) ...[
+              // GUEST CTA — prompt sign-in first. Once signed in, the user can
+              // buy the test or go premium. This matches the product rule:
+              // free tests are open to everyone; premium content requires an
+              // account.
+              if (isGuest) ...[
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton.icon(
-                    onPressed: user == null ? null : _buyTest,
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const LoginScreen()),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.successColor,
+                      backgroundColor: AppTheme.primaryColor,
                       foregroundColor: Colors.white,
                     ),
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    label: Text('Buy for ₹${widget.test.price}'),
+                    icon: const Icon(Icons.login),
+                    label: const Text('Sign In to Unlock'),
                   ),
                 ),
                 const SizedBox(height: 12),
-              ],
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/premium');
-                  },
-                  icon: const Icon(Icons.workspace_premium,
-                      color: AppTheme.accentColor),
-                  label: const Text('Go Premium'),
+              ] else ...[
+                if (canBuyTest) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: user == null ? null : _buyTest,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.successColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.shopping_cart_outlined),
+                      label: Text('Buy for ₹${widget.test.price}'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/premium');
+                    },
+                    icon: const Icon(Icons.workspace_premium,
+                        color: AppTheme.accentColor),
+                    label: const Text('Go Premium'),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 16),
               TextButton(
                 onPressed: () => Navigator.pop(context),

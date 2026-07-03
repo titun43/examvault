@@ -17,6 +17,7 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../auth/login_screen.dart';
 import 'category_detail_screen.dart';
 
 class AllCategoriesScreen extends StatefulWidget {
@@ -221,6 +222,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
   void _showPaywall(CategoryModel category) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
+    final isGuest = auth.isGuest;
     final canBuyExamPack = category.premiumPrice > 0;
     showDialog<void>(
       context: context,
@@ -246,9 +248,11 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Text(
-                canBuyExamPack
-                    ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
-                    : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
+                isGuest
+                    ? 'Sign in to unlock "${category.name}" and all its tests.'
+                    : canBuyExamPack
+                        ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
+                        : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
@@ -261,46 +265,71 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
           ),
           actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           actions: [
-            if (canBuyExamPack)
+            if (isGuest) ...[
+              // GUEST CTA — must sign in before purchasing.
               SizedBox(
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton.icon(
-                  onPressed: user == null
-                      ? null
-                      : () {
-                          Navigator.pop(ctx);
-                          _startExamPackPurchase(category, auth);
-                        },
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.successColor,
+                    backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  icon: const Icon(Icons.lock_open),
-                  label: Text(
-                      'Unlock this exam (₹${category.premiumPrice})'),
+                  icon: const Icon(Icons.login),
+                  label: const Text('Sign In to Unlock'),
                 ),
               ),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, '/premium');
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.accentColor,
-                  side: const BorderSide(color: AppTheme.accentColor),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+            ] else ...[
+              if (canBuyExamPack)
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: user == null
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            _startExamPackPurchase(category, auth);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.successColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.lock_open),
+                    label: Text(
+                        'Unlock this exam (₹${category.premiumPrice})'),
+                  ),
                 ),
-                icon: const Icon(Icons.workspace_premium),
-                label: const Text('Go Premium'),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, '/premium');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accentColor,
+                    side: const BorderSide(color: AppTheme.accentColor),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.workspace_premium),
+                  label: const Text('Go Premium'),
+                ),
               ),
-            ),
+            ],
             SizedBox(
               width: double.infinity,
               child: TextButton(

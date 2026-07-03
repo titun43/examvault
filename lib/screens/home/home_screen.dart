@@ -26,6 +26,7 @@ import '../../services/razorpay_service.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import 'category_detail_screen.dart';
+import '../auth/login_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import '../announcements/announcements_screen.dart';
 import '../upcoming_exams/upcoming_exams_screen.dart';
@@ -151,6 +152,8 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildBannerCarousel(),
+              const SizedBox(height: 16),
+              _buildGuestBanner(),
               const SizedBox(height: 16),
               _buildWelcomeCard(),
               const SizedBox(height: 24),
@@ -390,6 +393,52 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
+    );
+  }
+
+  /// Slim banner shown only in guest mode. Reminds the user they're browsing
+  /// without an account and gives a one-tap path to sign in. Tapping it opens
+  /// the login screen; after login the user returns to the app with full
+  /// access to whatever they've purchased.
+  Widget _buildGuestBanner() {
+    final auth = Provider.of<AuthProvider>(context);
+    if (!auth.isGuest) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.accentColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.accentColor.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_outline, size: 20, color: AppTheme.accentColor),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Browsing as guest. Sign in to unlock premium tests & save progress.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              minimumSize: const Size(0, 28),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: AppTheme.accentColor,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+            child: const Text('Sign In',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -822,6 +871,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showCategoryPaywall(BuildContext context, CategoryModel category) {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
+    final isGuest = auth.isGuest;
     final canBuyExamPack = category.premiumPrice > 0;
     showDialog<void>(
       context: context,
@@ -853,9 +903,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                canBuyExamPack
-                    ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
-                    : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
+                isGuest
+                    ? 'Sign in to unlock "${category.name}" and all its tests.'
+                    : canBuyExamPack
+                        ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
+                        : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
@@ -871,48 +923,74 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           actions: [
-            if (canBuyExamPack)
+            if (isGuest) ...[
+              // GUEST CTA — must sign in before purchasing.
               SizedBox(
                 width: double.infinity,
                 height: 46,
                 child: ElevatedButton.icon(
-                  onPressed: user == null
-                      ? null
-                      : () {
-                          Navigator.pop(ctx);
-                          _startExamPackFromHome(context, category, auth);
-                        },
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.successColor,
+                    backgroundColor: AppTheme.primaryColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  icon: const Icon(Icons.lock_open),
-                  label: Text(
-                      'Unlock this exam (₹${category.premiumPrice})'),
+                  icon: const Icon(Icons.login),
+                  label: const Text('Sign In to Unlock'),
                 ),
               ),
-            SizedBox(
-              width: double.infinity,
-              height: 46,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  Navigator.pushNamed(context, '/premium');
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.accentColor,
-                  side: const BorderSide(color: AppTheme.accentColor),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            ] else ...[
+              if (canBuyExamPack)
+                SizedBox(
+                  width: double.infinity,
+                  height: 46,
+                  child: ElevatedButton.icon(
+                    onPressed: user == null
+                        ? null
+                        : () {
+                            Navigator.pop(ctx);
+                            _startExamPackFromHome(context, category, auth);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.successColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.lock_open),
+                    label: Text(
+                        'Unlock this exam (₹${category.premiumPrice})'),
                   ),
                 ),
-                icon: const Icon(Icons.workspace_premium),
-                label: const Text('Go Premium'),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(context, '/premium');
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accentColor,
+                    side: const BorderSide(color: AppTheme.accentColor),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.workspace_premium),
+                  label: const Text('Go Premium'),
+                ),
               ),
-            ),
+            ],
             SizedBox(
               width: double.infinity,
               child: TextButton(

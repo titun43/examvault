@@ -22,6 +22,7 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../auth/login_screen.dart';
 import '../tests/test_list_screen.dart';
 
 enum _AccessState { loading, allowed, denied, rollingOut }
@@ -55,6 +56,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       setState(() => _accessState = _AccessState.allowed);
       return;
     }
+    // GUEST MODE — a guest can't have bought the exam pack, so skip the
+    // server check (it would 401) and show the paywall with a Sign-In CTA.
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isGuest) {
+      if (!mounted) return;
+      setState(() => _accessState = _AccessState.denied);
+      return;
+    }
     try {
       final decision =
           await AccessService.checkCategoryAccess(widget.category.id);
@@ -70,14 +79,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       // confusing "rolling out" message — the user should be able to buy the
       // exam pack regardless of backend access-check availability.
       if (!mounted) return;
-      final auth = Provider.of<AuthProvider>(context, listen: false);
       setState(() {
         _accessState =
             auth.isPremium ? _AccessState.allowed : _AccessState.denied;
       });
     } catch (_) {
       if (!mounted) return;
-      final auth = Provider.of<AuthProvider>(context, listen: false);
       setState(() {
         _accessState =
             auth.isPremium ? _AccessState.allowed : _AccessState.denied;
@@ -357,7 +364,11 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   /// Paywall shown when the backend denies access to this premium category.
   /// Two CTAs: "Unlock this exam (₹X)" (Exam Pack purchase) and "Go Premium".
+  /// For GUESTS (not signed in), a "Sign In" button is shown instead — guests
+  /// can browse but must create an account before they can buy.
   Widget _buildPaywall() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final isGuest = auth.isGuest;
     final canBuyExamPack = widget.category.premiumPrice > 0;
     return ListView(
       padding: const EdgeInsets.all(24),
@@ -380,9 +391,11 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          canBuyExamPack
-              ? 'Unlock "${widget.category.name}" and all its tests for ₹${widget.category.premiumPrice}, or upgrade to Premium for unlimited access.'
-              : 'Subscribe to Premium to unlock "${widget.category.name}" and all its tests.',
+          isGuest
+              ? 'Sign in to unlock "${widget.category.name}" and all its tests.'
+              : canBuyExamPack
+                  ? 'Unlock "${widget.category.name}" and all its tests for ₹${widget.category.premiumPrice}, or upgrade to Premium for unlimited access.'
+                  : 'Subscribe to Premium to unlock "${widget.category.name}" and all its tests.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -392,7 +405,30 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
         const SizedBox(height: 24),
-        if (canBuyExamPack) ...[
+        if (isGuest) ...[
+          // GUEST CTA — must sign in before purchasing.
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.login),
+              label: const Text('Sign In to Unlock'),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ] else if (canBuyExamPack) ...[
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -410,22 +446,24 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           ),
           const SizedBox(height: 12),
         ],
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () => Navigator.pushNamed(context, '/premium'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accentColor,
-              side: const BorderSide(color: AppTheme.accentColor),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+        if (!isGuest) ...[
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, '/premium'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.accentColor,
+                side: const BorderSide(color: AppTheme.accentColor),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.workspace_premium),
+              label: const Text('Go Premium'),
             ),
-            icon: const Icon(Icons.workspace_premium),
-            label: const Text('Go Premium'),
           ),
-        ),
-        const SizedBox(height: 12),
+          const SizedBox(height: 12),
+        ],
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Maybe later'),
@@ -581,7 +619,18 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => TestListScreen(subject: subject),
+              // Pass the authoritative category.id so TestListScreen (and
+              // downstream TakeTestScreen + /access-check) uses the SAME id
+              // that was stored in ExamPackPurchase when the exam pack was
+              // bought. Without this, a subject whose Firestore `categoryId`
+              // field holds the category NAME/SLUG (allowed by
+              // getSubjectsStream's fallback matching) would cause the
+              // exam-pack access tier to silently no-match — the user who
+              // already paid would see a premium lock on every test.
+              builder: (_) => TestListScreen(
+                subject: subject,
+                categoryId: widget.category.id,
+              ),
             ),
           );
         },

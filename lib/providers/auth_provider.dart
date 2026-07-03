@@ -76,6 +76,11 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _user != null;
+  /// True when the user is browsing WITHOUT an account (guest mode). The
+  /// splash screen sends unauthenticated users straight into MainNavigation
+  /// so they can browse and take FREE tests. Premium / paid content must
+  /// check this and prompt the guest to sign in before purchase.
+  bool get isGuest => _user == null && _authInitialized;
   bool get isPremium => _user?.isPremium ?? false;
   bool get isAdmin => _user?.isAdmin ?? false;
   int? get resendToken => _resendToken;

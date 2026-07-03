@@ -16,6 +16,7 @@ import '../../services/firestore_service.dart';
 import '../../config/app_config.dart';
 import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
+import '../home/main_navigation.dart';
 import '../premium/premium_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import 'settings_screen.dart';
@@ -131,6 +132,84 @@ class ProfileScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            // GUEST MODE — show a prominent sign-in card instead of the user
+            // profile header. Guests can browse the app and take free tests,
+            // but they need an account to save progress, buy premium, or sync
+            // across devices. The card lists what they get by signing in.
+            if (auth.isGuest) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_outline,
+                        size: 44,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'Guest Mode',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'You\'re browsing as a guest. Sign in to unlock premium tests, save your progress, and sync across devices.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.92),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: AppTheme.primaryColor,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.login),
+                        label: const Text(
+                          'Sign In / Sign Up',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const LoginScreen()),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ] else ...[
             // Profile Header
             Container(
               padding: const EdgeInsets.all(20),
@@ -251,9 +330,11 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
         ),
+            ], // end else (logged-in profile header)
             const SizedBox(height: 16),
             // Personal Info card — shows DOB, qualification, city, target exam
             // if the user has filled them in via EditProfileScreen.
+            if (!auth.isGuest) ...[
             _buildPersonalInfoCard(context, auth.user),
             const SizedBox(height: 16),
             // Premium card if not premium
@@ -310,6 +391,7 @@ class ProfileScreen extends StatelessWidget {
                 Navigator.pushNamed(context, '/my-purchases');
               },
             ),
+            ], // end if (!auth.isGuest) for user-specific menu items
             _buildMenuTile(
               context,
               Icons.newspaper,
@@ -367,29 +449,46 @@ class ProfileScreen extends StatelessWidget {
               onTap: () => _openPrivacyPolicy(context),
             ),
             const SizedBox(height: 16),
-            // Logout
+            // Logout (logged-in) / Sign In (guest)
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await auth.logout();
-                  if (context.mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      (route) => false,
-                    );
-                  }
-                },
-                icon: const Icon(Icons.logout, color: AppTheme.errorColor),
-                label: const Text(
-                  'Logout',
-                  style: TextStyle(color: AppTheme.errorColor),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppTheme.errorColor),
-                ),
-              ),
+              child: auth.isGuest
+                ? OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.login, color: AppTheme.primaryColor),
+                    label: const Text(
+                      'Sign In / Sign Up',
+                      style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.primaryColor),
+                    ),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: () async {
+                      await auth.logout();
+                      if (context.mounted) {
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MainNavigation()),
+                          (route) => false,
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.logout, color: AppTheme.errorColor),
+                    label: const Text(
+                      'Logout',
+                      style: TextStyle(color: AppTheme.errorColor),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.errorColor),
+                    ),
+                  ),
             ),
           ],
         ),
