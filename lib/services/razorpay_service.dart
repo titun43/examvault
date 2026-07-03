@@ -587,10 +587,11 @@ class RazorpayService {
     }
   }
 
-  /// FALLBACK: after /verify fails, POLL /api/payments/order-status up to 3
+  /// FALLBACK: after /verify fails, POLL /api/payments/order-status up to 5
   /// times (3 seconds apart). The Razorpay webhook is the backend safety net —
   /// it marks the order PAID + grants the entitlement even if /verify never
-  /// runs. Polling gives the webhook time to fire (it's async, typically 1-5s).
+  /// runs. Polling gives the webhook time to fire (it's async, typically 1-5s
+  /// but can take up to ~15s under load).
   ///
   /// As soon as a poll reports paid=true && granted=true, we call [onSuccess]
   /// and return true. If all polls report the order as not-yet-paid, we return
@@ -605,12 +606,18 @@ class RazorpayService {
   ///
   /// With this fallback, the app polls order-status, sees PAID + granted, and
   /// correctly calls onSuccess.
+  ///
+  /// v1.35+ — bumped from 3 to 5 polls. Combined with the server-side fix
+  /// (verify no longer marks the order FAILED on signature mismatch, so the
+  /// webhook can always recover), this gives the webhook up to ~15s to fire
+  /// and process — well within Razorpay's typical 1-5s latency. The verifying
+  /// dialog's 60s safety timeout has plenty of headroom.
   static Future<bool> _tryRecoverFromOrderStatus(
     String orderId,
     PaymentSuccessResponse response,
     void Function(PaymentSuccessResponse) onSuccess,
   ) async {
-    const int maxAttempts = 3;
+    const int maxAttempts = 5;
     const Duration pollInterval = Duration(seconds: 3);
     const Duration pollTimeout = Duration(seconds: 10);
 
