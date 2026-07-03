@@ -62,23 +62,17 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             decision.allowed ? _AccessState.allowed : _AccessState.denied;
       });
     } on PaymentApiException catch (e) {
-      // 404 — endpoint not built yet. Fall back to local isPremium check so
-      // the app keeps working for users who are already premium locally.
+      // 404 or other API errors. Fall back to local isPremium check so the
+      // app keeps working for users who are already premium locally. If the
+      // user is NOT locally premium, show the paywall (denied) instead of a
+      // confusing "rolling out" message — the user should be able to buy the
+      // exam pack regardless of backend access-check availability.
       if (!mounted) return;
       final auth = Provider.of<AuthProvider>(context, listen: false);
-      if (e.statusCode == 404) {
-        setState(() {
-          _accessState = auth.isPremium
-              ? _AccessState.allowed
-              : _AccessState.rollingOut;
-        });
-      } else {
-        // Network / other error — fall back to local check, don't block UX.
-        setState(() {
-          _accessState =
-              auth.isPremium ? _AccessState.allowed : _AccessState.denied;
-        });
-      }
+      setState(() {
+        _accessState =
+            auth.isPremium ? _AccessState.allowed : _AccessState.denied;
+      });
     } catch (_) {
       if (!mounted) return;
       final auth = Provider.of<AuthProvider>(context, listen: false);

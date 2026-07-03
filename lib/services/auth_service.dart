@@ -189,13 +189,19 @@ class AuthService {
       if (!docSnapshot.exists) {
         // Bootstrap: if logging in with the canonical admin email, create the
         // admin Firestore doc automatically.
+        // NOTE: Admin does NOT get auto-premium here. Admin is a content manager,
+        // not a paying subscriber. If admin wants to test premium flows, they
+        // should use a separate test account OR purchase premium like a normal
+        // user. Setting subscriptionStatus=premium here caused a bug where the
+        // admin (often the tester) never saw paywalls because the local cache
+        // believed they were already premium.
         if (canonicalAdmin) {
           final adminUser = UserModel(
             id: uid,
             name: 'Admin',
             email: email.trim(),
             role: UserRole.admin,
-            subscriptionStatus: SubscriptionStatus.premium,
+            subscriptionStatus: SubscriptionStatus.free,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
             isActive: true,
@@ -220,11 +226,13 @@ class AuthService {
 
       if (!isAdminRole) {
         // Allow canonical admin email to self-promote (defensive)
+        // NOTE: Only set role=admin. Do NOT touch subscriptionStatus / isPremium
+        // here — that was the source of a stale "forever premium" bug for the
+        // admin/tester account. Admin must purchase premium separately if they
+        // want to test premium flows.
         if (canonicalAdmin) {
           await userDoc.update({
             'role': 'admin',
-            'isPremium': true,
-            'subscriptionStatus': 'premium',
             'updatedAt': FieldValue.serverTimestamp(),
           });
           await FirebaseService.adminsRef.doc(uid).set({

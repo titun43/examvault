@@ -11,7 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/category_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
+import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import 'category_detail_screen.dart';
 
@@ -215,6 +217,9 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
   }
 
   void _showPaywall(CategoryModel category) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    final canBuyExamPack = category.premiumPrice > 0;
     showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -239,27 +244,54 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
               Text(
-                category.premiumPrice > 0
-                    ? 'Subscribe for ₹${category.premiumPrice} to unlock "${category.name}" and all its tests.'
+                canBuyExamPack
+                    ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
                     : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '✓ All mock tests in this exam\n✓ Detailed Solutions\n✓ Performance Analytics',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
               ),
             ],
           ),
           actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
           actions: [
+            if (canBuyExamPack)
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton.icon(
+                  onPressed: user == null
+                      ? null
+                      : () {
+                          Navigator.pop(ctx);
+                          _startExamPackPurchase(category, auth);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.successColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.lock_open),
+                  label: Text(
+                      'Unlock this exam (₹${category.premiumPrice})'),
+                ),
+              ),
             SizedBox(
               width: double.infinity,
               height: 46,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
                   Navigator.pushNamed(context, '/premium');
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.accentColor,
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.accentColor,
+                  side: const BorderSide(color: AppTheme.accentColor),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                 ),
@@ -275,6 +307,54 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  /// Starts an Exam Pack purchase from the All Categories paywall. On
+  /// server-verified success, clears the access cache + refreshes the user
+  /// + opens the category detail screen so the user can start browsing.
+  void _startExamPackPurchase(
+    CategoryModel category,
+    AuthProvider auth,
+  ) {
+    final user = auth.user;
+    if (user == null) return;
+    RazorpayService.startExamPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      categoryId: category.id,
+      categoryName: category.name,
+      amount: category.premiumPrice,
+      onSuccess: (_) {
+        AccessService.clearCache();
+        auth.loadUserData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exam pack unlocked: ${category.name}. Enjoy!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+        // Open the category so the user can start browsing.
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CategoryDetailScreen(category: category),
+          ),
+        );
+      },
+      onError: (response) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text(response.message ?? 'Payment failed. Please try again.'),
+            backgroundColor: AppTheme.errorColor,
+          ),
         );
       },
     );
