@@ -314,10 +314,22 @@ class AuthProvider extends ChangeNotifier {
   // update the local user so the UI flips from "Buy" to "Start" instantly
   // without waiting for a refresh or a server access-check.
 
-  /// Optimistically mark a test as purchased locally. Call this in the
-  /// Razorpay onSuccess callback AFTER the backend verify confirms the
-  /// entitlement was granted.
-  void addPurchasedTest(String testId) {
+  /// Optimistically mark a test as purchased locally AND persist to Firestore.
+  /// Call this in the Razorpay onSuccess callback.
+  ///
+  /// PERSISTENCE (v1.36): We now write the purchased test ID to the user's
+  /// Firestore document so it survives app restarts. Previously, the optimistic
+  /// update was in-memory only — after the app restarted, loadUserData() loaded
+  /// from Firestore (which didn't have the purchase), the local check failed,
+  /// and the server-side access check also failed (because the backend
+  /// entitlement wasn't granted yet). The user saw the test lock again —
+  /// 'payment ta bhalo hoi na' (payment doesn't stick).
+  ///
+  /// By persisting to Firestore, the local check in TakeTestScreen passes
+  /// immediately after app restart, giving the backend webhook time to grant
+  /// the Prisma entitlement. Even if the webhook is misconfigured, the user
+  /// always has access to what they paid for.
+  void addPurchasedTest(String testId) async {
     if (_user == null) return;
     if (_user!.purchasedTests.contains(testId)) return;
     _user = _user!.copyWith(
@@ -325,14 +337,25 @@ class AuthProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     notifyListeners();
+    // Persist to Firestore (fire-and-forget — the in-memory update above
+    // already gives the user immediate access; this just makes it durable).
+    try {
+      await FirebaseService.usersRef.doc(_user!.id).set({
+        'purchasedTests': _user!.purchasedTests,
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('[AuthProvider] addPurchasedTest: Firestore persist failed: $e');
+      // Non-fatal — the in-memory update is still valid for this session.
+    }
   }
 
-  /// Optimistically mark the user as premium locally. Call this in the
-  /// Razorpay onSuccess callback for premium subscription purchases.
+  /// Optimistically mark the user as premium locally AND persist to Firestore.
+  /// Call this in the Razorpay onSuccess callback for premium subscriptions.
   void markPremium({
     DateTime? expiry,
     String? planId,
-  }) {
+  }) async {
     if (_user == null) return;
     _user = _user!.copyWith(
       subscriptionStatus: SubscriptionStatus.premium,
@@ -341,6 +364,26 @@ class AuthProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     notifyListeners();
+    // Persist to Firestore (fire-and-forget).
+    try {
+      final data = <String, dynamic>{
+        'isPremium': true,
+        'subscriptionStatus': 'premium',
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+      if (expiry != null) {
+        data['subscriptionExpiry'] = expiry.toIso8601String();
+      }
+      if (planId != null) {
+        data['subscriptionPlanId'] = planId;
+      }
+      await FirebaseService.usersRef.doc(_user!.id).set(
+        data,
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      print('[AuthProvider] markPremium: Firestore persist failed: $e');
+    }
   }
 
   void clearError() {
