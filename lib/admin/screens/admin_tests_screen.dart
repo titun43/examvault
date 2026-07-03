@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/test_model.dart';
 import '../../models/subject_model.dart';
+import '../../models/category_model.dart';
 import '../../services/firestore_service.dart';
 
 class AdminTestsScreen extends StatefulWidget {
@@ -364,6 +365,7 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
   bool _slugTouched = false;
 
   List<SubjectModel> _subjects = [];
+  List<CategoryModel> _categories = [];
 
   @override
   void initState() {
@@ -396,8 +398,14 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
   void _loadSubjects() async {
     try {
       final subs = await FirestoreService.getSubjects();
+      // Also load categories so we can auto-inherit premium from the
+      // selected subject's parent category on save.
+      final cats = await FirestoreService.getCategories();
       if (!mounted) return;
-      setState(() => _subjects = subs);
+      setState(() {
+        _subjects = subs;
+        _categories = cats;
+      });
       // If editing and the existing subjectId isn't in the loaded list yet
       // (race condition), don't override _subjectId — let the user re-pick.
       if (_subjectId.isNotEmpty &&
@@ -409,6 +417,36 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
     } catch (e) {
       print('AdminTests: load subjects error: $e');
     }
+  }
+
+  /// Returns true if the selected subject's parent category is premium.
+  /// Used to auto-inherit premium on save so a test is never left free
+  /// inside a premium category.
+  bool _isSubjectCategoryPremium() {
+    if (_subjectId.isEmpty) return false;
+    final subj = _subjects.firstWhere(
+      (s) => s.id == _subjectId,
+      orElse: () => SubjectModel(
+        id: '',
+        categoryId: '',
+        name: '',
+        slug: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    if (subj.categoryId.isEmpty) return false;
+    final cat = _categories.firstWhere(
+      (c) => c.id == subj.categoryId,
+      orElse: () => CategoryModel(
+        id: '',
+        name: '',
+        slug: '',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
+    return cat.isPremium;
   }
 
   String _slugify(String s) {
@@ -602,6 +640,19 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final now = DateTime.now();
+
+    // AUTO-INHERIT PREMIUM: if the selected subject's parent category is
+    // premium, force this test to be premium — regardless of what the admin
+    // toggled. This prevents a free test inside a premium category, which
+    // was the root cause of the "category premium but inner tests
+    // accessible" bug.
+    bool forcedPremium = false;
+    bool effectivePremium = _isPremium;
+    if (_isSubjectCategoryPremium() && !effectivePremium) {
+      effectivePremium = true;
+      forcedPremium = true;
+    }
+
     final model = TestModel(
       id: widget.test?.id ?? '',
       subjectId: _subjectId,
@@ -620,7 +671,7 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
       instructions: _instructionsCtrl.text.trim().isEmpty
           ? null
           : _instructionsCtrl.text.trim(),
-      isPremium: _isPremium,
+      isPremium: effectivePremium,
       questionCount: widget.test?.questionCount ?? 0,
       attemptCount: widget.test?.attemptCount ?? 0,
       createdAt: widget.test?.createdAt ?? now,
@@ -635,9 +686,11 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
       if (!mounted) return;
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(widget.test == null
-            ? 'Test added'
-            : 'Test updated')),
+        SnackBar(content: Text(forcedPremium
+            ? 'Test saved (auto-marked premium — parent category is premium)'
+            : widget.test == null
+                ? 'Test added'
+                : 'Test updated')),
       );
     } catch (e) {
       if (!mounted) return;
