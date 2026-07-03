@@ -139,7 +139,14 @@ class _TestListScreenState extends State<TestListScreen> {
   }
 
   Widget _buildTestCard(BuildContext context, TestModel test) {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    // listen: TRUE — so the card rebuilds when AuthProvider changes.
+    // This is CRITICAL: after a successful payment, addPurchasedTest() calls
+    // notifyListeners(). Without listen:true, the card would NOT rebuild and
+    // the button would stay as "Buy" even though the test was just purchased
+    // — exactly the "payment success hole kichui hoi na, akhano buy dekhachche"
+    // bug. With listen:true, the button flips from "Buy" to "Start Test"
+    // INSTANTLY after payment success.
+    final auth = Provider.of<AuthProvider>(context, listen: true);
     final user = auth.user;
     // Use the SERVER-SIDE premium status (accurate) instead of the local
     // Firestore copy (can be stale). This ensures the button label matches

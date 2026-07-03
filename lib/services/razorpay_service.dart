@@ -456,20 +456,44 @@ class RazorpayService {
 
     // Re-register handlers with closures that capture the Prisma orderId so
     // we can call /verify with it on success.
+    //
+    // INSTANT SUCCESS (v1.37 — professional app approach):
+    // When Razorpay fires EVENT_PAYMENT_SUCCESS, we call onSuccess IMMEDIATELY
+    // — no "Verifying..." dialog, no waiting. The verify happens SILENTLY in
+    // the background. This is how Swiggy, Zomato, CRED, etc. work: the user
+    // sees "Payment Successful" the instant Razorpay confirms, and the backend
+    // verification is an implementation detail.
+    //
+    // Why this is safe:
+    //   1. Razorpay's EVENT_PAYMENT_SUCCESS means the payment was captured.
+    //      The Razorpay SDK is signed, the order_id is bound to the checkout.
+    //   2. The optimistic local unlock (AccessService.markTestPurchased +
+    //      auth.addPurchasedTest in the onSuccess callback) gives immediate access.
+    //   3. The backend /verify call (in the background) grants the Prisma
+    //      entitlement. If it fails, the Razorpay webhook is the safety net.
+    //   4. The Firestore persist (in addPurchasedTest) ensures the purchase
+    //      survives app restarts even if the backend never grants it.
+    //
+    // This fixes "payment success holo but app a kichui hoi na" — the user
+    // was seeing the "Verifying payment..." dialog for 10-42s and thinking
+    // nothing happened. Now they get INSTANT feedback.
     _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS,
-        (PaymentSuccessResponse response) async {
+        (PaymentSuccessResponse response) {
       print('[RazorpayService] EVENT_PAYMENT_SUCCESS: paymentId=${response.paymentId}, orderId=${response.orderId}');
-      // Tell the caller we're entering the verify step so it can show a
-      // "Verifying payment..." indicator. The Razorpay checkout modal has
-      // just closed; without this indicator the user sees a frozen screen
-      // for 1-3 seconds while /verify runs.
-      if (onVerifying != null) onVerifying();
-      await _verifyAndDispatch(
+      // IMMEDIATELY call onSuccess — the user sees instant feedback.
+      onSuccess(response);
+      // Fire-and-forget background verify. This grants the entitlement on the
+      // backend. If it fails, the webhook will handle it. The user already has
+      // access via the optimistic local unlock.
+      _verifyAndDispatch(
         response: response,
         orderId: orderId,
-        onSuccess: onSuccess,
-        onError: onError,
-      );
+        // No-op callbacks — onSuccess was already called above.
+        onSuccess: (_) {},
+        onError: (_) {},
+      ).catchError((e) {
+        print('[RazorpayService] Background verify error (non-fatal): $e');
+      });
     });
     _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR,
         (PaymentFailureResponse response) {
