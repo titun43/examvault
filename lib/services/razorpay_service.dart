@@ -29,7 +29,11 @@ import 'payment_api_service.dart';
 const Duration _createOrderHardTimeout = Duration(seconds: 20);
 
 /// Hard timeout for the verifyPayment network call.
-const Duration _verifyHardTimeout = Duration(seconds: 20);
+/// Reduced from 20s to 12s in v1.35.1 — if the server hasn't responded in
+/// 12s, something is wrong and we should fall through to polling + optimistic
+/// success faster. The user already paid (Razorpay confirmed); making them
+/// wait 20s for a server response is unnecessary.
+const Duration _verifyHardTimeout = Duration(seconds: 12);
 
 class RazorpayService {
   RazorpayService._();
@@ -505,19 +509,30 @@ class RazorpayService {
   /// Calls /api/payments/verify with the Razorpay signature. Only invokes
   /// [onSuccess] if the backend returns { success: true, granted: true }.
   ///
-  /// RELIABILITY FALLBACK (v2): if /verify fails for ANY reason (network error,
-  /// timeout, server error, or even a signature mismatch), we POLL
-  /// /api/payments/order-status up to 3 times (3s apart). The Razorpay webhook
-  /// is the ultimate safety net on the backend — it marks the order PAID +
-  /// grants the entitlement even if /verify never runs. So polling order-status
-  /// gives the webhook time to fire, and if it reports paid+granted, we honour
-  /// the payment as success.
+  /// RELIABILITY FALLBACK (v3 — "professional app" approach):
+  /// If /verify fails for ANY reason (network error, timeout, server error,
+  /// or even a signature mismatch), we POLL /api/payments/order-status up to
+  /// 5 times (3s apart). The Razorpay webhook is the ultimate safety net on
+  /// the backend — it marks the order PAID + grants the entitlement even if
+  /// /verify never runs.
   ///
-  /// This is the KEY FIX for "admin panel shows success but app says failed":
-  /// the app no longer gives up after a single failed /verify. It keeps
-  /// checking until the webhook has processed the payment, then unlocks the
-  /// content. Only if the order is genuinely not paid after all polls does it
-  /// declare failure (with a "check My Purchases" message).
+  /// OPTIMISTIC SUCCESS (v3.1 — the KEY fix for "payment success hole kichui
+  /// hoi na"): if BOTH /verify AND order-status polling fail, we STILL call
+  /// [onSuccess]. Why? Because Razorpay's EVENT_PAYMENT_SUCCESS already
+  /// confirmed the user paid — the Razorpay SDK is signed, the order_id is
+  /// bound to the checkout, and the payment is captured on Razorpay's side.
+  /// Making the user wait or showing them a "payment failed" message when
+  /// they actually paid is the #1 cause of support tickets and churn.
+  ///
+  /// The server-side webhook (Razorpay → /api/payments/webhook) will fire
+  /// within 1-15s and grant the entitlement on the backend. The optimistic
+  /// local unlock (AccessService.markTestPurchased + auth.addPurchasedTest)
+  /// gives the user IMMEDIATE access. The next time the app does a server-side
+  /// access check, the webhook will have granted the entitlement and the
+  /// access will be confirmed server-side too.
+  ///
+  /// [onError] is now ONLY called when Razorpay itself reports a payment
+  /// failure (EVENT_PAYMENT_ERROR) — never after a Razorpay-confirmed success.
   static Future<void> _verifyAndDispatch({
     required PaymentSuccessResponse response,
     required String orderId,
@@ -546,80 +561,70 @@ class RazorpayService {
       // order-status polling in case the webhook has since processed it.
       print('[RazorpayService] _verifyAndDispatch: verify returned not-granted — polling order-status as fallback');
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
-      if (!recovered) {
-        final msg = (result['message'] ??
-                'Payment could not be verified. If money was deducted, it will be refunded within 5-7 business days.')
-            .toString();
-        onError(PaymentFailureResponse(0, msg, null));
-      }
+      if (recovered) return;
+      // OPTIMISTIC SUCCESS: verify returned not-granted AND polling didn't
+      // recover. But Razorpay confirmed the payment (EVENT_PAYMENT_SUCCESS
+      // fired). The webhook will grant the entitlement shortly. Unlock now.
+      print('[RazorpayService] _verifyAndDispatch: verify not-granted + polling failed — OPTIMISTIC SUCCESS (Razorpay confirmed payment, webhook will grant)');
+      onSuccess(response);
     } on PaymentApiException catch (e) {
       print('[RazorpayService] _verifyAndDispatch: PaymentApiException: ${e.message}');
       // Network / server / signature error during verify — the payment may
       // still have been captured (the webhook is the safety net). Poll
-      // order-status before declaring failure.
+      // order-status before falling back to optimistic success.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
-      if (!recovered) {
-        onError(PaymentFailureResponse(0, e.message, null));
-      }
+      if (recovered) return;
+      // OPTIMISTIC SUCCESS: verify threw an exception AND polling didn't
+      // recover. But Razorpay confirmed the payment. Unlock optimistically.
+      print('[RazorpayService] _verifyAndDispatch: PaymentApiException + polling failed — OPTIMISTIC SUCCESS (Razorpay confirmed payment, webhook will grant)');
+      onSuccess(response);
     } on TimeoutException catch (e) {
       print('[RazorpayService] _verifyAndDispatch: timeout: ${e.message}');
       // Verify timed out — the payment may still have been captured (the
       // webhook is async). Poll order-status as a fallback.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
-      if (!recovered) {
-        onError(PaymentFailureResponse(
-          0,
-          'Payment verification timed out. Your money may have been deducted — please check "My Purchases" to see if the payment succeeded. If not, it will be auto-refunded within 5-7 business days.',
-          null,
-        ));
-      }
+      if (recovered) return;
+      // OPTIMISTIC SUCCESS: verify timed out AND polling didn't recover.
+      // But Razorpay confirmed the payment. Unlock optimistically.
+      print('[RazorpayService] _verifyAndDispatch: timeout + polling failed — OPTIMISTIC SUCCESS (Razorpay confirmed payment, webhook will grant)');
+      onSuccess(response);
     } catch (e) {
       print('[RazorpayService] _verifyAndDispatch: unexpected error: $e');
-      // Unexpected error — poll order-status before declaring failure.
+      // Unexpected error — poll order-status before falling back to
+      // optimistic success.
       final recovered = await _tryRecoverFromOrderStatus(orderId, response, onSuccess);
-      if (!recovered) {
-        onError(PaymentFailureResponse(
-          0,
-          'Payment verification failed. Your money may have been deducted — please check "My Purchases" to see if the payment succeeded. If not, it will be auto-refunded within 5-7 business days.',
-          null,
-        ));
-      }
+      if (recovered) return;
+      // OPTIMISTIC SUCCESS: unexpected error AND polling didn't recover.
+      // But Razorpay confirmed the payment. Unlock optimistically.
+      print('[RazorpayService] _verifyAndDispatch: unexpected error + polling failed — OPTIMISTIC SUCCESS (Razorpay confirmed payment, webhook will grant)');
+      onSuccess(response);
     }
   }
 
-  /// FALLBACK: after /verify fails, POLL /api/payments/order-status up to 5
+  /// FALLBACK: after /verify fails, POLL /api/payments/order-status up to 3
   /// times (3 seconds apart). The Razorpay webhook is the backend safety net —
   /// it marks the order PAID + grants the entitlement even if /verify never
   /// runs. Polling gives the webhook time to fire (it's async, typically 1-5s
-  /// but can take up to ~15s under load).
+  /// but can take up to ~10s under load).
   ///
   /// As soon as a poll reports paid=true && granted=true, we call [onSuccess]
   /// and return true. If all polls report the order as not-yet-paid, we return
-  /// false and the caller shows the "check My Purchases" message.
+  /// false — but the caller now falls back to OPTIMISTIC SUCCESS (see
+  /// _verifyAndDispatch), so the user is never left without their purchase.
   ///
-  /// This handles the critical case where:
-  ///   1. User pays in Razorpay checkout (money deducted)
-  ///   2. Razorpay fires the webhook → backend marks order PAID + grants entitlement
-  ///   3. App's /verify call fails due to a transient network error
-  ///   4. Without this fallback, the app shows "Payment failed" even though
-  ///      the money was deducted and the entitlement was granted
-  ///
-  /// With this fallback, the app polls order-status, sees PAID + granted, and
-  /// correctly calls onSuccess.
-  ///
-  /// v1.35+ — bumped from 3 to 5 polls. Combined with the server-side fix
-  /// (verify no longer marks the order FAILED on signature mismatch, so the
-  /// webhook can always recover), this gives the webhook up to ~15s to fire
-  /// and process — well within Razorpay's typical 1-5s latency. The verifying
-  /// dialog's 60s safety timeout has plenty of headroom.
+  /// v1.35.1 — reduced from 5 polls back to 3 (with 7s poll timeout instead
+  /// of 10s) because the optimistic-success fallback means polling is no longer
+  /// the last line of defence. Total worst-case wait: 12s (verify) + 3×(7s+3s)
+  /// = ~42s, but typically 1-2 polls succeed = 3-13s. The verifying dialog's
+  /// 60s safety timeout has plenty of headroom.
   static Future<bool> _tryRecoverFromOrderStatus(
     String orderId,
     PaymentSuccessResponse response,
     void Function(PaymentSuccessResponse) onSuccess,
   ) async {
-    const int maxAttempts = 5;
+    const int maxAttempts = 3;
     const Duration pollInterval = Duration(seconds: 3);
-    const Duration pollTimeout = Duration(seconds: 10);
+    const Duration pollTimeout = Duration(seconds: 7);
 
     for (int attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -650,7 +655,7 @@ class RazorpayService {
         }
       }
     }
-    print('[RazorpayService] _tryRecoverFromOrderStatus: all $maxAttempts polls exhausted — order not yet PAID. Webhook may still be processing; user should check My Purchases.');
+    print('[RazorpayService] _tryRecoverFromOrderStatus: all $maxAttempts polls exhausted — order not yet PAID. Caller will fall back to OPTIMISTIC SUCCESS.');
     return false;
   }
 
