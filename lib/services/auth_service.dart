@@ -310,11 +310,21 @@ class AuthService {
         );
         await userDoc.set(newUser.toFirestore());
       } else {
-        // Existing user - update last active (best-effort, don't throw)
+        // Existing user - update last active (best-effort, don't throw).
+        // ALSO: if a name/email was explicitly passed (e.g. during signup),
+        // persist it — this fixes a race condition where the AuthProvider's
+        // loadUserData() fallback created the doc with name='User' BEFORE this
+        // method ran (because createUserWithEmailAndPassword fires
+        // authStateChanges immediately, before updateDisplayName). Without
+        // this, the signup name was never written to Firestore and the user
+        // saw "User" instead of their real name on every subsequent login.
+        final updates = <String, dynamic>{
+          'lastActiveAt': FieldValue.serverTimestamp(),
+        };
+        if (name != null && name.isNotEmpty) updates['name'] = name;
+        if (email != null && email.isNotEmpty) updates['email'] = email;
         try {
-          await userDoc.update({
-            'lastActiveAt': FieldValue.serverTimestamp(),
-          });
+          await userDoc.update(updates);
         } catch (e) {
           devlog.log('Best-effort lastActiveAt update failed (non-fatal): $e');
         }

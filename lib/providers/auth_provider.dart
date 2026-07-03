@@ -136,6 +136,34 @@ class AuthProvider extends ChangeNotifier {
           // locally-constructed UserModel so the app can proceed.
           _user = newUser;
         }
+      } else if (_user != null && AuthService.currentUser != null) {
+        // RECOVERY for users affected by the signup race-condition bug:
+        // If the Firestore doc's name is exactly the fallback string 'User'
+        // but Firebase Auth has a real displayName (set via updateDisplayName
+        // during signup), the Firestore name is stale — recover it by using
+        // and persisting the displayName. This fixes existing users who
+        // signed up before the _createOrUpdateUser fix and see "User"
+        // instead of their real name.
+        final fsName = _user!.name;
+        final fbUser = AuthService.currentUser!;
+        final fbName = fbUser.displayName;
+        if (fsName == 'User' &&
+            fbName != null &&
+            fbName.isNotEmpty &&
+            fbName != 'User') {
+          _user = _user!.copyWith(name: fbName, updatedAt: DateTime.now());
+          // Persist the recovered name to Firestore so it sticks.
+          try {
+            await FirebaseService.usersRef.doc(fbUser.uid).set({
+              'name': fbName,
+              'updatedAt': DateTime.now().toIso8601String(),
+            }, SetOptions(merge: true));
+          } catch (e) {
+            print('[AuthProvider] loadUserData: name recovery persist failed (non-fatal): $e');
+            // Non-fatal — the in-memory _user already has the correct name
+            // for this session.
+          }
+        }
       }
     } catch (e) {
       // Don't fail login if Firestore read fails — keep user authenticated.
