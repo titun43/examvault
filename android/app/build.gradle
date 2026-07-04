@@ -75,13 +75,37 @@ android {
             shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
-            // REAL AdMob App ID
+            // =====================================================================
+            // ADMOB APP ID — MUST STAY IN SYNC WITH app_config.dart!
+            // =====================================================================
+            // The AdMob SDK reads this App ID from the AndroidManifest at NATIVE
+            // init time (MobileAds.instance.initialize()). This happens BELOW
+            // Dart's runZonedGuarded / try-catch, so if the SDK crashes here it
+            // will kill the whole app process and CANNOT be caught in Dart.
+            //
+            // RULE: this value must match AppConfig.admobTestMode in
+            // lib/config/app_config.dart:
+            //   • admobTestMode == true  → use TEST app ID  (ca-app-pub-3940256099942544~3347511713)
+            //   • admobTestMode == false → use REAL app ID  (ca-app-pub-1742730064755213~7890219994)
+            //
+            // WHY: the real AdMob account (pub-1742730064755213) is still
+            // pending Google review. Initializing the native SDK with the real
+            // App ID while the account is unapproved causes a NATIVE CRASH on
+            // real devices (release builds) that bypasses every Dart error
+            // handler. It also leaves AdMobService._initialized = false, so
+            // loadInterstitialAd() short-circuits and NO ad ever loads — which
+            // is exactly the "app crashing + ads not running" symptom.
+            //
+            // Since admobTestMode is currently true, the release manifest MUST
+            // also use the TEST App ID. Flip both back to real when the AdMob
+            // account is approved and serving.
+            // =====================================================================
             manifestPlaceholders = [
-                admobAppId: "ca-app-pub-1742730064755213~7890219994"
+                admobAppId: "ca-app-pub-3940256099942544~3347511713"
             ]
         }
         debug {
-            // Test AdMob App ID
+            // Test AdMob App ID (debug always tests with the sample App ID)
             manifestPlaceholders = [
                 admobAppId: "ca-app-pub-3940256099942544~3347511713"
             ]

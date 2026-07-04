@@ -55,6 +55,19 @@ class AppConfig {
   // TEMPORARILY set to true (Jul 4, 2026) to verify the ad-loading code path
   // works while the real AdMob account/app is still pending Google review.
   // Switch back to false once real ads start serving.
+  //
+  // *** CRITICAL SYNC RULE ***
+  // When you flip admobTestMode, you MUST ALSO update the manifest placeholder
+  // `admobAppId` in android/app/build.gradle (both buildTypes):
+  //   • admobTestMode == true  → build.gradle must use the TEST App ID
+  //                              (ca-app-pub-3940256099942544~3347511713)
+  //   • admobTestMode == false → build.gradle must use the REAL App ID
+  //                              (ca-app-pub-1742730064755213~7890219994)
+  // WHY: MobileAds.instance.initialize() reads the App ID from the merged
+  // AndroidManifest at NATIVE level — BELOW Dart's runZonedGuarded. If the
+  // manifest carries the REAL App ID while the AdMob account is unapproved,
+  // the native SDK crashes on release builds and CANNOT be caught in Dart.
+  // This was the root cause of the "app crashing + ads not running" bug.
   static const bool admobTestMode = true;
 
   // ===== ADMOB MASTER KILL SWITCH =====

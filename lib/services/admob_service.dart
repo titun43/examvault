@@ -51,12 +51,20 @@ class AdMobService {
     }
 
     // Set test device if in test mode — best-effort, don't crash.
+    // NOTE: Google's SAMPLE test ad unit IDs (ca-app-pub-3940256099942544/...)
+    // always serve test ads on ANY device, so we do NOT need to register a
+    // test device ID here. The previous code passed the literal string
+    // 'YOUR_TEST_DEVICE_ID', which matched no real device and was misleading.
+    // We keep the call (harmless) but pass an empty list. If you later switch
+    // to YOUR OWN real ad unit IDs while still in test mode, add the real
+    // device IDs here (logcat prints "Use RequestConfiguration.Builder
+    // .setTestDeviceIds(Arrays.asList("DEVICE-HASH"))" on first run) so real
+    // devices are flagged as test devices and never show live (policy-violating)
+    // impressions.
     if (_initialized && AppConfig.admobTestMode) {
       try {
         await MobileAds.instance.updateRequestConfiguration(
-          RequestConfiguration(
-            testDeviceIds: ['YOUR_TEST_DEVICE_ID'],
-          ),
+          const RequestConfiguration(testDeviceIds: []),
         );
       } catch (e) {
         print('AdMob test-device config failed (non-fatal): $e');
