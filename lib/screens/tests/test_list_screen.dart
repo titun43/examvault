@@ -75,16 +75,31 @@ class _TestListScreenState extends State<TestListScreen> {
   bool? _serverIsPremium;
   bool _premiumChecking = true;
 
+  // Server-side exam-pack access for this category. If the user bought the
+  // category exam pack, ALL tests inside it are unlocked — no per-test
+  // purchase needed. We resolve this once on screen load (cached 60s) and
+  // use it to correctly set `hasAccess` in _buildTestCard. Without this,
+  // exam-pack buyers see a "Buy" button on every test even after paying.
+  bool _serverHasExamPackAccess = false;
+
   @override
   void initState() {
     super.initState();
-    _refreshPremiumStatus();
+    _refreshAccessStatus();
   }
 
-  /// Fetch the server-side premium status. On success, updates
-  /// [_serverIsPremium] and rebuilds. On failure, leaves it null (the UI
-  //  falls back to the local user.isPremium).
-  Future<void> _refreshPremiumStatus() async {
+  /// Fetch server-side premium + exam-pack access in parallel. Both results
+  /// are cached by AccessService for 60 s, so re-opens are instant.
+  Future<void> _refreshAccessStatus() async {
+    final futures = <Future>[
+      _fetchPremiumStatus(),
+      if (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+        _fetchExamPackStatus(widget.categoryId!),
+    ];
+    await Future.wait(futures);
+  }
+
+  Future<void> _fetchPremiumStatus() async {
     try {
       final decision = await AccessService.checkPremiumOnly();
       if (!mounted) return;
@@ -95,9 +110,22 @@ class _TestListScreenState extends State<TestListScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _serverIsPremium = null; // unknown — fall back to local
+        _serverIsPremium = null;
         _premiumChecking = false;
       });
+    }
+  }
+
+  Future<void> _fetchExamPackStatus(String categoryId) async {
+    try {
+      final decision = await AccessService.checkCategoryAccess(categoryId);
+      if (!mounted) return;
+      if (decision.allowed) {
+        setState(() => _serverHasExamPackAccess = true);
+      }
+    } catch (_) {
+      // Silently ignore — the server-side per-test access check in
+      // _startTest will still catch exam-pack ownership correctly.
     }
   }
 
@@ -166,7 +194,10 @@ class _TestListScreenState extends State<TestListScreen> {
     final isPremium = _effectiveIsPremium(user);
     final hasPurchasedTest =
         (user?.purchasedTests.contains(test.id) ?? false);
-    final hasAccess = isPremium || hasPurchasedTest;
+    // Also grant access when the user owns the exam pack for this category.
+    // Without this check, exam-pack buyers see a "Buy" button on every test
+    // inside the category they already paid for.
+    final hasAccess = isPremium || hasPurchasedTest || _serverHasExamPackAccess;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
@@ -380,11 +411,13 @@ class _TestListScreenState extends State<TestListScreen> {
     }
 
     // PAID TESTS with LOCAL access — navigate directly. The local user model
-    // says the user is premium or has purchased this test. TakeTestScreen
-    // will do its own server-side check (cached, so instant) as the final
-    // gatekeeper. This avoids a 350-950ms network round-trip here.
+    // says the user is premium, has purchased this test, or the exam-pack
+    // check (already done on screen load) says the category is unlocked.
+    // TakeTestScreen will do its own server-side check (cached, so instant)
+    // as the final gatekeeper. This avoids a redundant network round-trip.
     final localHasAccess = _effectiveIsPremium(user) ||
-        (user?.purchasedTests.contains(test.id) ?? false);
+        (user?.purchasedTests.contains(test.id) ?? false) ||
+        _serverHasExamPackAccess;
     if (localHasAccess) {
       if (!context.mounted) return;
       Navigator.push(
