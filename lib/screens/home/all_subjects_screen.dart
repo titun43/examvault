@@ -221,11 +221,28 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
   }
 
   Widget _buildSubjectCard(SubjectModel subject) {
+    // FIXED: resolve the authoritative Firestore category id from the loaded
+    // _categories list. subject.categoryId may hold a slug/name due to
+    // getSubjectsStream fallback matching — using that slug as categoryId
+    // would silently fail the exam-pack tier in /api/payments/access-check
+    // because ExamPackPurchase always stores the real Firestore category id.
+    final matchedCategory = _categories.firstWhere(
+      (c) => c.id == subject.categoryId || c.name == subject.categoryId,
+      orElse: () => CategoryModel.empty(),
+    );
+    final authCategoryId = matchedCategory.id.isNotEmpty
+        ? matchedCategory.id
+        : subject.categoryId;
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TestListScreen(subject: subject)),
+          MaterialPageRoute(
+            builder: (_) => TestListScreen(
+              subject: subject,
+              categoryId: authCategoryId,
+            ),
+          ),
         );
       },
       child: Container(

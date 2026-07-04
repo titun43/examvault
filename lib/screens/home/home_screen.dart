@@ -49,6 +49,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  /// Cached category list for resolving authoritative category IDs in subject cards.
+  List<CategoryModel> _categories = [];
   // Banner carousel auto-scroll
   final PageController _bannerController = PageController();
   Timer? _bannerTimer;
@@ -727,6 +729,12 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return _buildSectionEmpty('No categories available');
             }
+            // Cache categories so _buildSubjectCard can resolve authoritative IDs.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && _categories != snapshot.data!) {
+                setState(() => _categories = snapshot.data!);
+              }
+            });
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -1202,12 +1210,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSubjectCard(SubjectModel subject) {
+    // FIXED: resolve authoritative category id so exam-pack access check works.
+    final matchedCategory = _categories.firstWhere(
+      (c) => c.id == subject.categoryId || c.name == subject.categoryId,
+      orElse: () => CategoryModel.empty(),
+    );
+    final authCategoryId = matchedCategory.id.isNotEmpty
+        ? matchedCategory.id
+        : subject.categoryId;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TestListScreen(subject: subject)),
+          MaterialPageRoute(
+            builder: (_) => TestListScreen(
+              subject: subject,
+              categoryId: authCategoryId,
+            ),
+          ),
         );
       },
       child: Container(

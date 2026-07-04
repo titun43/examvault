@@ -91,10 +91,17 @@ class _TestListScreenState extends State<TestListScreen> {
   /// Fetch server-side premium + exam-pack access in parallel. Both results
   /// are cached by AccessService for 60 s, so re-opens are instant.
   Future<void> _refreshAccessStatus() async {
+    // Resolve the best available categoryId: prefer the authoritative one
+    // passed from CategoryDetailScreen; fall back to subject.categoryId.
+    // Without this fallback, exam-pack buyers see tests as locked when
+    // navigating through AllSubjectsScreen or HomeScreen subject cards.
+    final effectiveCategoryId = (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+        ? widget.categoryId!
+        : (widget.subject?.categoryId ?? '');
     final futures = <Future>[
       _fetchPremiumStatus(),
-      if (widget.categoryId != null && widget.categoryId!.isNotEmpty)
-        _fetchExamPackStatus(widget.categoryId!),
+      if (effectiveCategoryId.isNotEmpty)
+        _fetchExamPackStatus(effectiveCategoryId),
     ];
     await Future.wait(futures);
   }
