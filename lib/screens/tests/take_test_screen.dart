@@ -58,15 +58,19 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     _checkAccessAndLoad();
     _timeRemaining = widget.test.duration * 60;
 
-    // Preload the interstitial ad now so it's ready to show the instant the
-    // user submits the test (loading takes a few seconds, so we don't want
-    // to start only after submission — that would just mean it never shows
-    // in time and gets skipped).
-    try {
-      AdMobService.loadInterstitialAd();
-    } catch (e) {
-      print('loadInterstitialAd (initState) failed (non-fatal): $e');
-    }
+    // NOTE (v1.43.4 crash fix): the interstitial ad preload that used to be
+    // here was removed. Calling AdMobService.loadInterstitialAd() inside
+    // initState runs InterstitialAd.load on the native SDK DURING the first
+    // frame build of this screen. On some devices / SDK states that triggers
+    // a NATIVE crash (SIGSEGV) which Dart's runZonedGuarded cannot catch —
+    // the app is killed instantly ("ExamVault keeps stopping"). The exact
+    // symptom: tap a test → blank screen → app closes.
+    //
+    // The preload is now deferred to _loadQuestions() (i.e. only after access
+    // is granted AND questions have actually loaded) and runs inside
+    // addPostFrameCallback so the first frame is fully rendered before any
+    // native ad call is made. If access is denied (paywall), no ad is
+    // preloaded at all — which is the correct behavior anyway.
   }
 
   /// Checks whether the user has access to this test. Uses a FAST LOCAL
@@ -210,6 +214,23 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         _userAnswers = List.filled(questions.length, -1);
         _isLoading = false;
       });
+
+      // Preload the interstitial ad AFTER the first frame with real content
+      // is rendered. Doing it in initState (previous code) could trigger a
+      // native SDK crash during the initial build — see the note in initState.
+      // addPostFrameCallback guarantees the current frame is fully painted
+      // before we touch the AdMob SDK, which is the safest moment to start a
+      // background ad load. Wrapped in try/catch so a non-fatal SDK error
+      // never bubbles up and kills the screen.
+      if (AdMobService.isInitialized) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            AdMobService.loadInterstitialAd();
+          } catch (e) {
+            print('loadInterstitialAd (post-load) failed (non-fatal): $e');
+          }
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
