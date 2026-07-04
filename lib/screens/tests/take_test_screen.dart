@@ -415,19 +415,22 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       print('navigate to result error (non-fatal): $e');
     }
 
-    // 5) Show the interstitial ad AFTER navigating to the result screen —
-    //    fire-and-forget, never awaited, wrapped in try/catch. This is safe
-    //    now that AdMobService wires a fullScreenContentCallback (Jul 4,
-    //    2026 fix), which was the actual cause of the old post-test crash —
-    //    NOT the mere act of showing an ad. We only show it if it already
-    //    finished preloading (from initState) so there's no visible delay.
-    if (AdMobService.isInterstitialReady) {
-      try {
-        AdMobService.showInterstitialAd();
-      } catch (e) {
-        print('showInterstitialAd (post-test) failed (non-fatal): $e');
-      }
-    }
+    // 5) INTERSTITIAL AD — NOT shown here.
+    // The ad is now triggered from ResultScreen's build tree (via a small
+    // _PostTestAdTrigger stateful widget) AFTER the result screen's first
+    // frame is painted + a 2-second safety delay.
+    //
+    // WHY: calling AdMobService.showInterstitialAd() here — immediately after
+    // Navigator.pushReplacement — was causing a NATIVE crash (SIGSEGV below
+    // Dart's runZonedGuarded) because the Activity is mid-transition (test
+    // screen being replaced by result screen). Presenting a full-screen
+    // interstitial on top of a transitioning Activity is not safe at the
+    // native level. The v1.9.0 fix removed this call entirely; commit 817ffd8
+    // re-added it (to restore ads); that re-add is what re-introduced the
+    // "app closes after test submit" crash.
+    //
+    // By moving the ad show to ResultScreen (after it's fully built and
+    // stable), we get both: no crash AND ads still show after the test.
   }
 
   /// Paywall shown when a user tries to open a paid test they haven't bought

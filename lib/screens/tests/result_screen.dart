@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/test_result_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_model.dart';
+import '../../services/admob_service.dart';
 import '../../theme/app_theme.dart';
 
 class ResultScreen extends StatelessWidget {
@@ -30,10 +31,13 @@ class ResultScreen extends StatelessWidget {
         title: const Text('Test Result'),
         automaticallyImplyLeading: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
+      body: Stack(
+        children: [
+          // The actual result content.
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
             // Score Card
             Container(
               padding: const EdgeInsets.all(24),
@@ -167,6 +171,11 @@ class ResultScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+      // Invisible trigger that shows the post-test interstitial ad after
+      // this screen is fully built + a 2s delay. See _PostTestAdTrigger docs.
+      const _PostTestAdTrigger(),
+        ],
       ),
     );
   }
@@ -354,4 +363,77 @@ class ResultScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+// =============================================================================
+// _PostTestAdTrigger — invisible widget that safely shows the interstitial
+// ad after the ResultScreen is fully built and stable.
+// =============================================================================
+// WHY THIS EXISTS:
+// Previously, AdMobService.showInterstitialAd() was called from
+// TakeTestScreen._persistAndNavigate() IMMEDIATELY after Navigator
+// .pushReplacement(...). That call was the #1 cause of the post-submit
+// native crash: the Activity is mid-transition (test screen being replaced
+// by result screen), and presenting a full-screen interstitial on top of a
+// transitioning Activity can SIGSEGV below Dart's runZonedGuarded — the
+// process is killed instantly ("app closes after test submit").
+//
+// FIX: this tiny StatefulWidget sits invisibly inside ResultScreen's build
+// tree. In its initState it schedules the ad show via
+// addPostFrameCallback (guarantees ResultScreen's first frame is painted)
+// + a 2-second Future.delayed (guarantees the navigation transition is
+// complete and the Activity is stable). Only then does it call
+// AdMobService.showInterstitialAd(), which is now safe because the
+// Activity is no longer mid-transition.
+//
+// The widget renders nothing (SizedBox.shrink) — it's purely a lifecycle
+// hook for scheduling the ad show at a safe moment.
+class _PostTestAdTrigger extends StatefulWidget {
+  const _PostTestAdTrigger();
+
+  @override
+  State<_PostTestAdTrigger> createState() => _PostTestAdTriggerState();
+}
+
+class _PostTestAdTriggerState extends State<_PostTestAdTrigger> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Schedule the ad show for AFTER this frame is painted, then wait an
+    // additional 2 seconds so the navigation transition (pushReplacement)
+    // is fully complete and the Activity is stable.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(seconds: 2), () {
+        // Guard: if the user already navigated away from ResultScreen
+        // (e.g. tapped "Home" or "Retake Test" within 2s), skip the ad
+        // — showing it on top of a different screen would be jarring.
+        if (!mounted) return;
+
+        // Guard: only show if the AdMob SDK initialized successfully AND
+        // an interstitial is actually preloaded. This prevents calling
+        // .show() on a null/stale ad reference.
+        if (!AdMobService.isInitialized) return;
+        if (!AdMobService.isInterstitialReady) {
+          // No ad preloaded yet — kick off a preload so the NEXT test's
+          // ad is ready (the preload started in _loadQuestions may still
+          // be in flight on a slow network).
+          try {
+            AdMobService.loadInterstitialAd();
+          } catch (_) {}
+          return;
+        }
+
+        try {
+          AdMobService.showInterstitialAd();
+        } catch (e) {
+          // Non-fatal: a failed show is logged but never crashes the app.
+          print('showInterstitialAd (post-test) failed (non-fatal): $e');
+        }
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
