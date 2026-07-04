@@ -113,7 +113,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     }
     if (widget.category.premiumPrice <= 0) {
       // No exam-pack price configured → fall back to Premium.
-      Navigator.pushNamed(context, '/premium');
+      // FIXED: await push so _checkAccess() runs after returning from premium.
+      Navigator.pushNamed(context, '/premium').then((_) {
+        if (mounted) _checkAccess();
+      });
       return;
     }
 
@@ -451,7 +454,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             width: double.infinity,
             height: 48,
             child: OutlinedButton.icon(
-              onPressed: () => Navigator.pushNamed(context, '/premium'),
+              onPressed: () => Navigator.pushNamed(context, '/premium').then((_) {
+                // FIXED: refresh access when user returns from premium screen.
+                if (mounted) _checkAccess();
+              }),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.accentColor,
                 side: const BorderSide(color: AppTheme.accentColor),
@@ -492,7 +498,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         const SizedBox(height: 24),
         OutlinedButton.icon(
-          onPressed: () => Navigator.pushNamed(context, '/premium'),
+          onPressed: () => Navigator.pushNamed(context, '/premium').then((_) {
+            if (mounted) _checkAccess();
+          }),
           icon: const Icon(Icons.workspace_premium),
           label: const Text('Explore Premium'),
         ),

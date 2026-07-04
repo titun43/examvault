@@ -546,7 +546,10 @@ class _TestListScreenState extends State<TestListScreen> {
                   subtitle: 'Unlimited access to everything',
                   onTap: () {
                     Navigator.pop(sheetCtx);
-                    Navigator.pushNamed(context, '/premium');
+                    // FIXED: refresh access when user returns from premium screen.
+                    Navigator.pushNamed(context, '/premium').then((_) {
+                      if (context.mounted) _refreshAccessStatus();
+                    });
                   },
                 ),
                 const SizedBox(height: 8),

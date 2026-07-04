@@ -977,7 +977,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    Navigator.pushNamed(context, '/premium');
+                    // FIXED: clear stale access cache when user returns from premium.
+                    Navigator.pushNamed(context, '/premium').then((_) {
+                      if (mounted) AccessService.clearCache();
+                    });
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.accentColor,

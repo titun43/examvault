@@ -509,7 +509,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                   height: 48,
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      Navigator.pushNamed(context, '/premium');
+                      // FIXED: refresh access when user returns from premium screen.
+                      Navigator.pushNamed(context, '/premium').then((_) {
+                        if (mounted) _checkAccessAndLoad();
+                      });
                     },
                     icon: const Icon(Icons.workspace_premium,
                         color: AppTheme.accentColor),
