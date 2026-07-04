@@ -752,11 +752,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
     // Show a small crown badge on premium categories so users can see which
     // categories require a subscription before tapping in.
-    // FIXED: listen:true so this card rebuilds when auth.isPremium changes
-    // (e.g., after a successful premium purchase via PremiumScreen).
+    // FIXED: listen:true so this card rebuilds when auth.isPremium or
+    // purchasedCategoryIds changes (e.g., after premium or exam-pack purchase).
     final auth = Provider.of<AuthProvider>(context, listen: true);
-    final userIsPremium = auth.isPremium;
-    final categoryLocked = category.isPremium && !userIsPremium;
+    final categoryLocked = category.isPremium && !auth.hasCategoryAccess(category.id);
     return GestureDetector(
       onTap: () {
         // REAL LOCK: if this is a premium category and the current user is
@@ -1099,6 +1098,9 @@ class _HomeScreenState extends State<HomeScreen> {
         // CategoryDetailScreen's _checkAccess() returns instantly. The
         // background /verify might not have completed yet.
         AccessService.markExamPackPurchased(category.id);
+        // FIXED: update local user model immediately so the category card
+        // unlocks without waiting for a loadUserData() round-trip.
+        auth.addPurchasedCategory(category.id);
         auth.loadUserData();
         if (!mounted) return;
         // Show a PROMINENT success dialog (not a subtle snackbar). The user

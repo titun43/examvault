@@ -100,8 +100,8 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
     final color =
         AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    final userIsPremium = auth.isPremium;
-    final categoryLocked = category.isPremium && !userIsPremium;
+    // FIXED: check exam-pack purchase too, not just premium subscription.
+    final categoryLocked = category.isPremium && !auth.hasCategoryAccess(category.id);
     return GestureDetector(
       onTap: () {
         // Same real-lock behavior as the home screen.

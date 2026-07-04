@@ -31,6 +31,7 @@ class UserModel {
   final String? fcmToken;
   final Map<String, dynamic> preferences;
   final List<String> purchasedTests; // test IDs the user has bought (pay-per-test)
+  final List<String> purchasedCategoryIds; // category IDs unlocked via exam-pack purchase
 
   UserModel({
     required this.id,
@@ -54,6 +55,7 @@ class UserModel {
     this.fcmToken,
     this.preferences = const {},
     this.purchasedTests = const [],
+    this.purchasedCategoryIds = const [],
   });
 
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
@@ -100,6 +102,10 @@ class UserModel {
       purchasedTests: data['purchasedTests'] is List
           ? List<String>.from(
               (data['purchasedTests'] as List).map((e) => e.toString()))
+          : const [],
+      purchasedCategoryIds: data['purchasedCategoryIds'] is List
+          ? List<String>.from(
+              (data['purchasedCategoryIds'] as List).map((e) => e.toString()))
           : const [],
     );
   }
@@ -150,6 +156,7 @@ class UserModel {
       'fcmToken': fcmToken,
       'preferences': preferences,
       'purchasedTests': purchasedTests,
+      'purchasedCategoryIds': purchasedCategoryIds,
     };
   }
 
@@ -161,6 +168,11 @@ class UserModel {
   /// (premium users get all tests unlocked).
   bool hasTestAccess(String testId) =>
       isPremium || purchasedTests.contains(testId);
+
+  /// Whether the user can open a premium category RIGHT NOW —
+  /// either via premium subscription or an exam-pack purchase.
+  bool hasCategoryAccess(String categoryId) =>
+      isPremium || purchasedCategoryIds.contains(categoryId);
 
   bool get isAdmin => role == UserRole.admin;
 
@@ -216,6 +228,7 @@ class UserModel {
     String? fcmToken,
     Map<String, dynamic>? preferences,
     List<String>? purchasedTests,
+    List<String>? purchasedCategoryIds,
     // Individual preference overrides — these are merged into the preferences
     // map on top of any `preferences` value passed above. `null` means "leave
     // unchanged" (use [clearPreference] semantics by setting an explicit
@@ -262,6 +275,7 @@ class UserModel {
       fcmToken: fcmToken ?? this.fcmToken,
       preferences: merged,
       purchasedTests: purchasedTests ?? this.purchasedTests,
+      purchasedCategoryIds: purchasedCategoryIds ?? this.purchasedCategoryIds,
     );
   }
 }

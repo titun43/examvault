@@ -83,6 +83,8 @@ class AuthProvider extends ChangeNotifier {
   bool get isGuest => _user == null && _authInitialized;
   bool get isPremium => _user?.isPremium ?? false;
   bool get isAdmin => _user?.isAdmin ?? false;
+  /// True if the user can open this category — premium subscription OR exam-pack purchase.
+  bool hasCategoryAccess(String categoryId) => _user?.hasCategoryAccess(categoryId) ?? false;
   int? get resendToken => _resendToken;
   bool get authInitialized => _authInitialized;
 
@@ -380,6 +382,28 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       print('[AuthProvider] addPurchasedTest: Firestore persist failed: $e');
       // Non-fatal — the in-memory update is still valid for this session.
+    }
+  }
+
+  /// Optimistically add a purchased category (exam pack) to the user's local
+  /// model and persist to Firestore. Call this in the Razorpay onSuccess
+  /// callback for exam-pack purchases so home/categories screens unlock
+  /// immediately without waiting for the backend verify round-trip.
+  void addPurchasedCategory(String categoryId) async {
+    if (_user == null) return;
+    if (_user!.purchasedCategoryIds.contains(categoryId)) return;
+    _user = _user!.copyWith(
+      purchasedCategoryIds: [..._user!.purchasedCategoryIds, categoryId],
+      updatedAt: DateTime.now(),
+    );
+    notifyListeners();
+    try {
+      await FirebaseService.usersRef.doc(_user!.id).set({
+        'purchasedCategoryIds': _user!.purchasedCategoryIds,
+        'updatedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('[AuthProvider] addPurchasedCategory: Firestore persist failed: $e');
     }
   }
 

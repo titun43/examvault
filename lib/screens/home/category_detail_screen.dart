@@ -200,6 +200,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         // the pattern used by test_list_screen (markTestPurchased) and
         // premium_screen (markPremiumGranted).
         AccessService.markExamPackPurchased(widget.category.id);
+        // FIXED: update local user model immediately so home/all-categories
+        // screens unlock this category without waiting for loadUserData().
+        auth.addPurchasedCategory(widget.category.id);
         auth.loadUserData();
         if (!mounted) return;
         // Show a PROMINENT success dialog (not a subtle snackbar). The user
