@@ -91,6 +91,10 @@ class _TestListScreenState extends State<TestListScreen> {
 
   /// Fetch server-side premium + exam-pack access in parallel. Both results
   /// are cached by AccessService for 60 s, so re-opens are instant.
+  ///
+  /// FAST PATH (v1.30+): free users who have not purchased this category skip
+  /// all network calls. Hitting the server would only confirm what local state
+  /// already knows, adding a noticeable loading delay on every screen open.
   Future<void> _refreshAccessStatus() async {
     // Resolve the best available categoryId: prefer the authoritative one
     // passed from CategoryDetailScreen; fall back to subject.categoryId.
@@ -99,6 +103,39 @@ class _TestListScreenState extends State<TestListScreen> {
     final rawCategoryId = (widget.categoryId != null && widget.categoryId!.isNotEmpty)
         ? widget.categoryId!
         : (widget.subject?.categoryId ?? '');
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+
+    // FAST PATH — guest users can never be premium; skip network call.
+    if (auth.isGuest) {
+      if (mounted) {
+        setState(() {
+          _serverIsPremium = false;
+          _premiumChecking = false;
+        });
+      }
+      return;
+    }
+
+    // FAST PATH — if the local user model confirms non-premium status AND no
+    // exam-pack purchase for this category, resolve immediately without network.
+    // For free users, the server will always return denied; this eliminates the
+    // loading spinner that free users saw on every test list screen open.
+    if (user != null && !user.isPremium) {
+      final hasCategoryLocally = rawCategoryId.isNotEmpty &&
+          user.purchasedCategoryIds.contains(rawCategoryId);
+      if (!hasCategoryLocally) {
+        if (mounted) {
+          setState(() {
+            _serverIsPremium = false;
+            _premiumChecking = false;
+            // _serverHasExamPackAccess stays false (default)
+          });
+        }
+        return;
+      }
+    }
 
     // Resolve slug/name → real Firestore document id IN PARALLEL with the
     // premium check. The subject's `categoryId` field can hold a name or slug

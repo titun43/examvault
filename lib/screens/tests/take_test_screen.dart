@@ -1069,6 +1069,7 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
       return;
     }
+    final wasBookmarked = _bookmarked;
     setState(() => _bookmarked = !_bookmarked);
     try {
       if (_bookmarked) {
@@ -1078,13 +1079,36 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
           widget.test.title,
           subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
         );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bookmark saved'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       } else {
         await FirestoreService.removeBookmark(uid, widget.test.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bookmark removed'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (_) {
-      // Roll back optimistic toggle on error.
+      // Roll back optimistic toggle on error and show feedback.
       if (!mounted) return;
-      setState(() => _bookmarked = !_bookmarked);
+      setState(() => _bookmarked = wasBookmarked);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update bookmark. Please try again.'),
+          duration: Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 

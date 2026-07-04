@@ -50,9 +50,7 @@ class FirestoreService {
           docs.sort((a, b) => a.order.compareTo(b.order));
           return docs;
         })
-        .handleError((e) {
-          print('getCategoriesStream error: $e');
-        });
+        
   }
 
   static Future<String?> addCategory(CategoryModel category) async {
@@ -957,8 +955,6 @@ class FirestoreService {
         return bDate.compareTo(aDate);
       });
       return list;
-    }).handleError((e) {
-      print('getBookmarksStream($uid) error: $e');
     });
   }
 

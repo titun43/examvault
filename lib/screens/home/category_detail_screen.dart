@@ -64,6 +64,26 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       setState(() => _accessState = _AccessState.denied);
       return;
     }
+    // LOCAL FAST PATH — if the local user model already confirms access
+    // (premium subscription or exam-pack purchased), grant immediately without
+    // a network round-trip. This eliminates the loading spinner for premium
+    // users and exam-pack buyers when re-opening a category they already own.
+    if (auth.isPremium || auth.hasCategoryAccess(widget.category.id)) {
+      if (!mounted) return;
+      setState(() => _accessState = _AccessState.allowed);
+      return;
+    }
+    // LOCAL FAST PATH — if the user is confirmed non-premium locally and has no
+    // exam-pack purchase for this category, deny immediately. Free users
+    // visiting a premium category don't need a server round-trip to find out
+    // they lack access — the server would confirm what we already know locally.
+    final user = auth.user;
+    if (user != null && !user.isPremium &&
+        !user.purchasedCategoryIds.contains(widget.category.id)) {
+      if (!mounted) return;
+      setState(() => _accessState = _AccessState.denied);
+      return;
+    }
     try {
       final decision =
           await AccessService.checkCategoryAccess(widget.category.id);
