@@ -15,7 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../auth/login_screen.dart';
-import '../tests/test_list_screen.dart';
+import '../tests/take_test_screen.dart';
 import '../../models/test_model.dart';
 
 class BookmarksScreen extends StatelessWidget {
@@ -126,22 +126,45 @@ class BookmarksScreen extends StatelessWidget {
             const Icon(Icons.arrow_forward_ios, size: 16),
           ],
         ),
-        onTap: () {
-          if (testId.isEmpty) return;
-          // Navigate to TestListScreen in "single test" mode.
-          // TestListScreen + TakeTestScreen will do their own access checks.
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TestListScreen(
-                testId: testId,
-                subject: null,
-              ),
-            ),
-          );
-        },
+        onTap: () => _openBookmarkedTest(context, testId),
       ),
     );
+  }
+
+  /// Fetch the test from Firestore, then navigate to TakeTestScreen.
+  /// Shows a loading indicator on the card while fetching. On error shows a
+  /// snackbar. This avoids TestListScreen(testId:) which shows the full
+  /// published list instead of the specific bookmarked test.
+  Future<void> _openBookmarkedTest(BuildContext context, String testId) async {
+    if (testId.isEmpty) return;
+    // Show progress while we look up the test.
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Opening test…'),
+        duration: Duration(seconds: 10),
+      ),
+    );
+    try {
+      final test = await FirestoreService.getTest(testId);
+      messenger.hideCurrentSnackBar();
+      if (test == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Test not found. It may have been removed.')),
+        );
+        return;
+      }
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+      );
+    } catch (_) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to open test. Check your connection.')),
+      );
+    }
   }
 
   Widget _buildEmpty(BuildContext context) {
