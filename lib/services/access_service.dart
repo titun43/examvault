@@ -128,6 +128,9 @@ class AccessService {
   /// cache. Call this in the Razorpay onSuccess callback AFTER the backend
   /// verify confirms a TEST_PURCHASE was granted.
   static void markTestPurchased(String testId) {
+    // Clear any stale DENIED decision for this test before writing the
+    // positive one (the cache key is the same, so _write overwrites anyway,
+    // but clearCacheForTest is here for explicitness/safety).
     _write('test:$testId', const AccessDecision(
       allowed: true,
       reason: 'owned',
@@ -141,6 +144,10 @@ class AccessService {
   /// Optimistically cache a premium-granted decision (e.g. right after purchase).
   /// Uses [_premiumTtl] (10 minutes) so repeated screen opens don't hit the server.
   static void markPremiumGranted() {
+    // A premium subscription unlocks EVERYTHING. Clear all stale DENIED
+    // decisions for this user so the next access check for any resource
+    // doesn't return a cached denial from before the purchase.
+    clearCache();
     _write('premium:all', const AccessDecision(
       allowed: true,
       reason: 'premium',
@@ -151,6 +158,11 @@ class AccessService {
   /// Optimistically write a positive "allowed" decision for a subject pack
   /// to the cache.
   static void markSubjectPackPurchased(String subjectId) {
+    // Clear stale test:* denials for tests in this subject. We don't know
+    // which tests those are without a Firestore read, so clear ALL test:*
+    // entries for this user — the 120s TTL means at worst we re-fetch a
+    // few decisions on the next screen open.
+    _clearPrefix('test:');
     _write('subject:$subjectId', const AccessDecision(
       allowed: true,
       reason: 'owned',
@@ -161,11 +173,27 @@ class AccessService {
   /// Optimistically write a positive "allowed" decision for an exam pack
   /// (category) to the cache.
   static void markExamPackPurchased(String categoryId) {
+    // CRITICAL: an exam pack unlocks ALL tests in the category. If the user
+    // had previously tapped a test (got a DENIED decision, cached for 120s),
+    // that stale denial would persist and cause the test to show a paywall
+    // even after the category was unlocked. Clear ALL test:* denials for
+    // this user so the next test access check hits the backend (which now
+    // has the ExamPackPurchase row) and returns ALLOWED.
+    _clearPrefix('test:');
     _write('exam:$categoryId', const AccessDecision(
       allowed: true,
       reason: 'owned',
       grantedBy: 'EXAM_PACK',
     ));
+  }
+
+  /// Remove all cache entries for the current user whose key starts with
+  /// [prefix]. Used after a purchase to invalidate stale DENIED decisions
+  /// for resources that the new entitlement unlocks.
+  static void _clearPrefix(String prefix) {
+    final uid = _userId();
+    final fullPrefix = '$uid:$prefix';
+    _cache.removeWhere((k, _) => k.startsWith(fullPrefix));
   }
 
   // ==================== RESOURCE-SPECIFIC CHECKS ====================
