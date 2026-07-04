@@ -49,8 +49,7 @@ class FirestoreService {
               .toList();
           docs.sort((a, b) => a.order.compareTo(b.order));
           return docs;
-        })
-        
+        });
   }
 
   static Future<String?> addCategory(CategoryModel category) async {
