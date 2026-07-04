@@ -1,0 +1,55 @@
+# =============================================================================
+# ExamVault - Deploy Firestore Security Rules
+# =============================================================================
+# Runs automatically whenever firestore.rules is changed on main/master.
+# Can also be triggered manually via workflow_dispatch.
+#
+# Required GitHub Secret:
+#   FIREBASE_TOKEN   — generate with: firebase login:ci
+#                      then add to GitHub → Settings → Secrets → Actions
+# =============================================================================
+
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Rules to Firebase
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Firestore Rules
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::FIREBASE_TOKEN secret is missing."
+            echo "::error::Generate it by running: firebase login:ci"
+            echo "::error::Then add it in GitHub → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          echo "Deploying Firestore rules to project: examvaultnew"
+          firebase deploy --only firestore:rules,firestore:indexes \
+            --project examvaultnew \
+            --token "$FIREBASE_TOKEN" \
+            --non-interactive
+          echo "✅ Firestore rules deployed successfully."
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

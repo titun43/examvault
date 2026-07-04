@@ -1098,14 +1098,26 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
           ),
         );
       }
-    } catch (_) {
+    } catch (e) {
       // Roll back optimistic toggle on error and show feedback.
+      debugPrint('[Bookmark] toggle failed: $e');
       if (!mounted) return;
       setState(() => _bookmarked = wasBookmarked);
+
+      // Show a specific message for permission errors so the admin knows
+      // Firestore security rules need to be deployed.
+      String msg = 'Failed to update bookmark. Please try again.';
+      if (e.toString().contains('permission-denied') ||
+          e.toString().contains('PERMISSION_DENIED')) {
+        msg = 'Bookmark error: permission denied. Admin must deploy Firestore rules.';
+      } else if (e.toString().contains('network') ||
+          e.toString().contains('unavailable')) {
+        msg = 'No internet connection. Please check your network and try again.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to update bookmark. Please try again.'),
-          duration: Duration(seconds: 3),
+        SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
         ),
       );
