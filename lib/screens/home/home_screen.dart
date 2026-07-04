@@ -752,7 +752,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
     // Show a small crown badge on premium categories so users can see which
     // categories require a subscription before tapping in.
-    final auth = Provider.of<AuthProvider>(context, listen: false);
+    // FIXED: listen:true so this card rebuilds when auth.isPremium changes
+    // (e.g., after a successful premium purchase via PremiumScreen).
+    final auth = Provider.of<AuthProvider>(context, listen: true);
     final userIsPremium = auth.isPremium;
     final categoryLocked = category.isPremium && !userIsPremium;
     return GestureDetector(
@@ -977,9 +979,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    // FIXED: clear stale access cache when user returns from premium.
+                    // FIXED: clear stale access cache + force rebuild when user returns from premium.
                     Navigator.pushNamed(context, '/premium').then((_) {
-                      if (mounted) AccessService.clearCache();
+                      if (mounted) {
+                        AccessService.clearCache();
+                        setState(() {});
+                      }
                     });
                   },
                   style: OutlinedButton.styleFrom(

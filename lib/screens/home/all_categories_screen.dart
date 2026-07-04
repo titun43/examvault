@@ -317,7 +317,10 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () {
                     Navigator.pop(ctx);
-                    Navigator.pushNamed(context, '/premium');
+                    // FIXED: refresh lock state when user returns from premium.
+                    Navigator.pushNamed(context, '/premium').then((_) {
+                      if (mounted) setState(() {});
+                    });
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.accentColor,
