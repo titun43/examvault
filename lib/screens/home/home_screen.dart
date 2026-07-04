@@ -51,6 +51,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// Cached category list for resolving authoritative category IDs in subject cards.
   List<CategoryModel> _categories = [];
+  // Dedicated subscription so we can update _categories without triggering a
+  // double-rebuild through the categories StreamBuilder. The pattern
+  //   WidgetsBinding.addPostFrameCallback(() => setState(...))
+  // inside a StreamBuilder builder caused every stream event to rebuild the
+  // widget twice — once for the StreamBuilder and once for setState — making
+  // the categories grid visibly flicker/cut while scrolling.
+  StreamSubscription<List<CategoryModel>>? _categoriesSub;
+
   // Banner carousel auto-scroll
   final PageController _bannerController = PageController();
   Timer? _bannerTimer;
@@ -61,10 +69,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _startBannerAutoScroll();
+    // Subscribe to categories once here so _categories stays fresh without
+    // triggering setState inside the StreamBuilder (which caused the flicker).
+    _categoriesSub = FirestoreService.getCategoriesStream().listen((cats) {
+      if (mounted && _categories != cats) {
+        setState(() => _categories = cats);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _categoriesSub?.cancel();
     _bannerTimer?.cancel();
     _bannerController.dispose();
     super.dispose();
@@ -729,12 +745,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return _buildSectionEmpty('No categories available');
             }
-            // Cache categories so _buildSubjectCard can resolve authoritative IDs.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && _categories != snapshot.data!) {
-                setState(() => _categories = snapshot.data!);
-              }
-            });
+            // _categories is kept fresh by the dedicated subscription in
+            // initState — no setState needed here.
             return GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
