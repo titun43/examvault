@@ -89,6 +89,10 @@ class AuthService {
   static String _friendlyPhoneError(FirebaseAuthException e) {
     // Log the raw code + message for developer debugging.
     print('PhoneAuth error code: ${e.code}, message: ${e.message}');
+    // TEMPORARY DIAGNOSTIC (Jul 4, 2026): append the raw Firebase error code
+    // to every message so it's visible on-screen without needing device
+    // logs. Remove the "(code: ...)" suffix once OTP is confirmed working.
+    final suffix = ' (code: ${e.code})';
     // For configuration errors, append the raw code so the app admin can
     // diagnose (e.g. add the signing SHA-1 to the Firebase Console). Regular
     // users still see a friendly lead-in; the code in parentheses is the only
@@ -96,38 +100,38 @@ class AuthService {
     // Console instructions on the end user.
     switch (e.code) {
       case 'invalid-phone-number':
-        return 'Phone number is invalid. Enter a valid 10-digit mobile number.';
+        return 'Phone number is invalid. Enter a valid 10-digit mobile number.$suffix';
       case 'too-many-requests':
-        return 'Too many OTP requests from this number. Please wait a few minutes and try again.';
+        return 'Too many OTP requests from this number. Please wait a few minutes and try again.$suffix';
       case 'quota-exceeded':
-        return 'Daily SMS quota exceeded. Please try again tomorrow.';
+        return 'Daily SMS quota exceeded. Please try again tomorrow.$suffix';
       case 'network-request-failed':
-        return 'Network error. Check your internet connection and try again.';
+        return 'Network error. Check your internet connection and try again.$suffix';
       case 'operation-not-allowed':
         // Real cause: Phone Auth not enabled in Firebase Console.
         // This is an ADMIN configuration issue — the end user can't fix it.
         // We tell them to use Email sign-in instead (which always works).
         return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.';
+            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
       case 'app-not-authorized':
         // Real cause: app signing key (SHA-1) not registered in Firebase Console.
         return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.';
+            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
       case 'captcha-check-failed':
-        return 'Verification failed. Check your network and try again.';
+        return 'Verification failed. Check your network and try again.$suffix';
       case 'invalid-verification-code':
-        return 'Incorrect OTP. Please check and re-enter the 6-digit code.';
+        return 'Incorrect OTP. Please check and re-enter the 6-digit code.$suffix';
       case 'session-expired':
-        return 'OTP session expired. Please request a new OTP.';
+        return 'OTP session expired. Please request a new OTP.$suffix';
       case 'credential-already-in-use':
-        return 'This phone number is already linked to another account.';
+        return 'This phone number is already linked to another account.$suffix';
       case 'missing-client-identifier':
         // reCAPTCHA / SafetyNet could not be resolved — often a SHA-1 issue.
         return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.';
+            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
       default:
         return 'Unable to send OTP right now. '
-            'Please use Email sign-in instead — tap the "Email" tab above.';
+            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
     }
   }
 
