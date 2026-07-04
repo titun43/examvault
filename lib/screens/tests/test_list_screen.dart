@@ -126,6 +126,23 @@ class _TestListScreenState extends State<TestListScreen> {
       return;
     }
 
+    // FAST PATH — locally-confirmed premium user.
+    // Premium subscription covers ALL content in ALL categories — no server
+    // call needed. Skipping the 3 background calls (_fetchPremiumStatus +
+    // resolveCategoryId + _fetchExamPackStatus) eliminates the 300-900ms
+    // network overhead premium users were experiencing on every test list open.
+    // The local model is set by markPremium() on purchase and persisted to
+    // Firestore, so it is reliable across restarts.
+    if (user?.isPremium == true) {
+      if (mounted) {
+        setState(() {
+          _serverIsPremium = true;
+          _premiumChecking = false;
+        });
+      }
+      return;
+    }
+
     // INSTANT RENDER: Set _premiumChecking=false immediately using local state
     // so the list renders without a spinner. The server check below will update
     // _serverIsPremium if the result differs from local. Doing this eliminates

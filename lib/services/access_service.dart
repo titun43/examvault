@@ -68,9 +68,15 @@ class AccessService {
   AccessService._();
 
   // Cache: key = "userId:resourceKey" → (decision, fetchedAt).
-  // 60-second TTL keeps the UI snappy while preventing API abuse.
+  // Per-resource TTLs: premium decisions last 10 minutes (subscriptions last
+  // months — 60s was causing needless network calls on every screen open).
+  // Exam-pack, subject-pack, and test purchases use 2 minutes so a webhook
+  // that fires shortly after purchase is reflected quickly.
   static final Map<String, _CacheEntry> _cache = {};
-  static const Duration _ttl = Duration(seconds: 60);
+  /// Default TTL for exam-pack / test / subject access decisions.
+  static const Duration _ttl = Duration(seconds: 120);
+  /// Extended TTL for premium subscription decisions (lasts months, not minutes).
+  static const Duration _premiumTtl = Duration(minutes: 10);
 
   static String _userId() {
     final u = FirebaseAuth.instance.currentUser;
@@ -80,10 +86,12 @@ class AccessService {
   static String _key(String resource) => '${_userId()}:$resource';
 
   /// Returns a cached decision if fresh, else null.
+  /// Uses [_premiumTtl] for the premium:all resource, [_ttl] for all others.
   static AccessDecision? _read(String resource) {
     final e = _cache[_key(resource)];
     if (e == null) return null;
-    if (DateTime.now().difference(e.fetchedAt) > _ttl) {
+    final ttl = resource == 'premium:all' ? _premiumTtl : _ttl;
+    if (DateTime.now().difference(e.fetchedAt) > ttl) {
       _cache.remove(_key(resource));
       return null;
     }
@@ -130,6 +138,8 @@ class AccessService {
   /// Optimistically write a positive "allowed" decision for premium (all
   /// content) to the cache. Call this in the Razorpay onSuccess callback
   /// AFTER the backend verify confirms a PREMIUM_SUBSCRIPTION was granted.
+  /// Optimistically cache a premium-granted decision (e.g. right after purchase).
+  /// Uses [_premiumTtl] (10 minutes) so repeated screen opens don't hit the server.
   static void markPremiumGranted() {
     _write('premium:all', const AccessDecision(
       allowed: true,
