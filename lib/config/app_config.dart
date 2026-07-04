@@ -52,7 +52,10 @@ class AppConfig {
 
   // ==================== ADMOB ====================
   // Real AdMob IDs (production). Set admobTestMode=false before release.
-  static const bool admobTestMode = false;
+  // TEMPORARILY set to true (Jul 4, 2026) to verify the ad-loading code path
+  // works while the real AdMob account/app is still pending Google review.
+  // Switch back to false once real ads start serving.
+  static const bool admobTestMode = true;
 
   // ===== ADMOB MASTER KILL SWITCH =====
   // Set to false to COMPLETELY disable AdMob: no SDK init, no banner ads,
