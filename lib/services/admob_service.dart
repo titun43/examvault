@@ -92,24 +92,51 @@ class AdMobService {
   static void loadInterstitialAd() {
     if (!_initialized) return; // don't try if SDK isn't ready
     if (!AppConfig.admobEnabled) return; // master kill switch
-    InterstitialAd.load(
-      adUnitId: interstitialAdUnitId,
-      request: const AdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          _interstitialAd = ad;
-          _interstitialLoadAttempts = 0;
-        },
-        onAdFailedToLoad: (error) {
-          _interstitialLoadAttempts++;
-          _interstitialAd = null;
-          if (_interstitialLoadAttempts < 3) {
-            loadInterstitialAd();
-          }
-        },
-      ),
-    );
+    try {
+      InterstitialAd.load(
+        adUnitId: interstitialAdUnitId,
+        request: const AdRequest(),
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (ad) {
+            _interstitialAd = ad;
+            _interstitialLoadAttempts = 0;
+
+            // CRASH FIX (Jul 4, 2026): the previous crash was caused by
+            // showing an interstitial WITHOUT a fullScreenContentCallback —
+            // when the ad was dismissed/failed, nothing disposed it or
+            // cleared our reference, leaving the native Activity in a
+            // broken state that could crash the app. We now always wire
+            // these callbacks so dismiss/failure is handled cleanly and a
+            // fresh ad is preloaded for next time.
+            ad.fullScreenContentCallback = FullScreenContentCallback(
+              onAdDismissedFullScreenContent: (ad) {
+                ad.dispose();
+                _interstitialAd = null;
+                loadInterstitialAd();
+              },
+              onAdFailedToShowFullScreenContent: (ad, error) {
+                ad.dispose();
+                _interstitialAd = null;
+                loadInterstitialAd();
+              },
+            );
+          },
+          onAdFailedToLoad: (error) {
+            _interstitialLoadAttempts++;
+            _interstitialAd = null;
+            if (_interstitialLoadAttempts < 3) {
+              loadInterstitialAd();
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      print('loadInterstitialAd failed (non-fatal): $e');
+    }
   }
+
+  /// True once a preloaded interstitial is ready to show immediately.
+  static bool get isInterstitialReady => _interstitialAd != null;
 
   static Future<bool> showInterstitialAd() async {
     if (!_initialized) return false;
@@ -119,13 +146,19 @@ class AdMobService {
       return false;
     }
     try {
+      // NOTE: .show() itself completes immediately after presenting the ad —
+      // the actual dismiss/failure is handled by fullScreenContentCallback
+      // above (wired in onAdLoaded), NOT by awaiting this call.
       await _interstitialAd!.show();
+      return true;
     } catch (e) {
+      // Non-fatal: clear the stale reference and preload the next one so a
+      // broken ad instance never blocks future test submissions.
       print('showInterstitialAd failed (non-fatal): $e');
+      _interstitialAd = null;
+      loadInterstitialAd();
+      return false;
     }
-    _interstitialAd = null;
-    loadInterstitialAd();
-    return true;
   }
 
   // ==================== CLEANUP ====================
