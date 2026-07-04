@@ -64,7 +64,7 @@ class AdMobService {
     if (_initialized && AppConfig.admobTestMode) {
       try {
         await MobileAds.instance.updateRequestConfiguration(
-          const RequestConfiguration(testDeviceIds: []),
+          RequestConfiguration(testDeviceIds: const []),
         );
       } catch (e) {
         print('AdMob test-device config failed (non-fatal): $e');
