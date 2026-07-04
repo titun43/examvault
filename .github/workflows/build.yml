@@ -159,6 +159,29 @@ jobs:
           echo "✅ Keystore fingerprint verified — matches the official ExamVault signing key."
 
       # -------------------------------------------------------------------------
+      # STEP 2b: Print the SHA-256 fingerprint too (Jul 4, 2026).
+      # Mobile OTP login was failing with "operation-not-allowed" even though
+      # Phone sign-in was Enabled in Firebase Console — root cause: only the
+      # SHA-1 fingerprint was registered there, but Google's Play Integrity
+      # check (used to silently verify Phone Auth requests) requires SHA-256
+      # too. This step just prints it in the build log (not a secret value)
+      # so the admin can copy it into Firebase Console > Project Settings >
+      # Your apps > Android app > "Add fingerprint".
+      # -------------------------------------------------------------------------
+      - name: Print SHA-256 fingerprint (for Firebase Console)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "Copy the SHA-256 value below into Firebase Console:"
+          echo "Project Settings -> Your apps -> com.examvault.education -> Add fingerprint"
+          echo ""
+          keytool -list -v -keystore android/app/examvault-release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" 2>/dev/null \
+            | grep -i 'SHA256:'
+
+      # -------------------------------------------------------------------------
       # STEP 3: Write key.properties from secrets (no hardcoded passwords).
       # -------------------------------------------------------------------------
       - name: Write key.properties
