@@ -63,9 +63,11 @@ class AppConfig {
   // which reintroduced a native crash on login (HomeScreen's BannerAdWidget
   // calls BannerAd.load() with the real ad unit ID; the native SDK can crash
   // below Dart if the ad unit / account is not fully approved/serving yet).
-  // Keep this false until the AdMob ad units are verified serving real ads
-  // in the AdMob console, then flip to true and rebuild.
-  static const bool admobEnabled = false;
+  // RE-ENABLED (v1.44): Banner ad on the home screen has been removed
+  // entirely (owner request — no banner ads). Only the interstitial ad
+  // (shown after a test is submitted) remains, which is lower-risk since it
+  // is not created on the screen that loads immediately after login.
+  static const bool admobEnabled = true;
 
   // Test AdMob IDs (Google sample — for development only)
   static const String testAdmobAppId = 'ca-app-pub-3940256099942544~3347511713';
