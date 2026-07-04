@@ -92,14 +92,22 @@ class _TestListScreenState extends State<TestListScreen> {
   /// Fetch server-side premium + exam-pack access in parallel. Both results
   /// are cached by AccessService for 60 s, so re-opens are instant.
   ///
-  /// FAST PATH (v1.30+): free users who have not purchased this category skip
-  /// all network calls. Hitting the server would only confirm what local state
-  /// already knows, adding a noticeable loading delay on every screen open.
+  /// PERFORMANCE (v1.30+): We set _premiumChecking=false immediately using the
+  /// local UserModel so the list renders instantly without a loading spinner.
+  /// The server check then runs in the background and updates _serverIsPremium
+  /// if the result differs from local state. This means:
+  ///   • FREE users: list renders instantly (local says non-premium → buttons
+  ///     show correctly). Server check runs and no-op for free users.
+  ///   • PREMIUM users: list renders instantly (local says premium → "Start"
+  ///     buttons). Server check confirms/corrects in background.
+  ///   • GUEST users: skip server entirely — guests can never be premium.
+  ///
+  /// Edge case: if the user is premium on the server but local model is stale
+  /// (e.g. bought on another device), _fetchPremiumStatus will update
+  /// _serverIsPremium=true after returning, and the UI re-renders with the
+  /// correct (unlocked) button labels. There may be a brief flash of "Buy"
+  /// buttons, but the content is accessible within one network round-trip.
   Future<void> _refreshAccessStatus() async {
-    // Resolve the best available categoryId: prefer the authoritative one
-    // passed from CategoryDetailScreen; fall back to subject.categoryId.
-    // Without this fallback, exam-pack buyers see tests as locked when
-    // navigating through AllSubjectsScreen or HomeScreen subject cards.
     final rawCategoryId = (widget.categoryId != null && widget.categoryId!.isNotEmpty)
         ? widget.categoryId!
         : (widget.subject?.categoryId ?? '');
@@ -107,7 +115,7 @@ class _TestListScreenState extends State<TestListScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
 
-    // FAST PATH — guest users can never be premium; skip network call.
+    // GUEST: no premium possible. Skip server call entirely.
     if (auth.isGuest) {
       if (mounted) {
         setState(() {
@@ -118,23 +126,17 @@ class _TestListScreenState extends State<TestListScreen> {
       return;
     }
 
-    // FAST PATH — if the local user model confirms non-premium status AND no
-    // exam-pack purchase for this category, resolve immediately without network.
-    // For free users, the server will always return denied; this eliminates the
-    // loading spinner that free users saw on every test list screen open.
-    if (user != null && !user.isPremium) {
-      final hasCategoryLocally = rawCategoryId.isNotEmpty &&
-          user.purchasedCategoryIds.contains(rawCategoryId);
-      if (!hasCategoryLocally) {
-        if (mounted) {
-          setState(() {
-            _serverIsPremium = false;
-            _premiumChecking = false;
-            // _serverHasExamPackAccess stays false (default)
-          });
-        }
-        return;
-      }
+    // INSTANT RENDER: Set _premiumChecking=false immediately using local state
+    // so the list renders without a spinner. The server check below will update
+    // _serverIsPremium if the result differs from local. Doing this eliminates
+    // the 300-800ms loading delay free users experienced on every screen open.
+    if (mounted) {
+      setState(() {
+        // Use local isPremium as the initial value; server check will correct
+        // if stale. Using null here would keep premiumChecking=true (old bug).
+        _serverIsPremium = user?.isPremium ?? false;
+        _premiumChecking = false;
+      });
     }
 
     // Resolve slug/name → real Firestore document id IN PARALLEL with the
@@ -155,6 +157,7 @@ class _TestListScreenState extends State<TestListScreen> {
       await _fetchExamPackStatus(resolvedCategoryId);
     }
   }
+
 
   Future<void> _fetchPremiumStatus() async {
     try {
