@@ -39,7 +39,6 @@ import '../profile/bookmarks_screen.dart';
 import '../search/search_screen.dart';
 import 'all_subjects_screen.dart';
 import 'all_categories_screen.dart';
-import '../../widgets/banner_ad_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -193,12 +192,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildCurrentAffairs(),
               const SizedBox(height: 24),
               _buildPremiumBanner(),
-              const SizedBox(height: 24),
-              // AdMob banner ad — only shows for free (non-premium) users.
-              // The BannerAdWidget internally checks auth.isPremium and returns
-              // a zero-size widget for premium users, so this line is safe to
-              // keep for everyone.
-              Center(child: BannerAdWidget()),
               const SizedBox(height: 24),
             ],
           ),
