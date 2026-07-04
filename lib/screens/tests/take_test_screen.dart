@@ -100,6 +100,13 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     // the ultimate gatekeeper, but for a snappy UX we trust the local state
     // first. The 60s cache in AccessService will also return a positive
     // decision instantly if we just checked.
+    //
+    // NOTE: exam-pack (category) access is NOT in the local UserModel — it
+    // lives only in the AccessService cache (written by markExamPackPurchased
+    // or by a prior checkCategoryAccess call). We intentionally do NOT
+    // short-circuit here for exam-pack — we fall through to the server check
+    // below, which will hit the cache (instant) if CategoryDetailScreen or
+    // TestListScreen already ran the category access check.
     final localIsPremium = user?.isPremium ?? false;
     final localHasTest =
         user?.purchasedTests.contains(widget.test.id) ?? false;
