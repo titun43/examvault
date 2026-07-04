@@ -194,6 +194,15 @@ class AuthProvider extends ChangeNotifier {
   }
 
   // ==================== PHONE AUTH ====================
+  /// SAFETY-NET TIMEOUT (added Jul 4, 2026): on some devices, Firebase's
+  /// native phone-verification call can silently never invoke ANY callback
+  /// (neither codeSent nor verificationFailed) — e.g. if the SafetyNet/Play
+  /// Integrity/reCAPTCHA app-verification step hangs or its result gets lost
+  /// natively. Without a timeout, the user is stuck staring at a dead button
+  /// forever with zero feedback. We race the real call against a timer so
+  /// the user ALWAYS sees a message within ~20s.
+  bool _phoneAuthSettled = false;
+
   Future<void> verifyPhoneNumber({
     required String phoneNumber,
     required void Function(String verificationId, int? resendToken) onCodeSent,
@@ -201,26 +210,50 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _isLoading = true;
     _errorMessage = null;
+    _phoneAuthSettled = false;
     notifyListeners();
 
+    void settleOnce(void Function() action) {
+      if (_phoneAuthSettled) return;
+      _phoneAuthSettled = true;
+      action();
+    }
+
     try {
-      await AuthService.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        forceResendingToken: _resendToken,
-        onCodeSent: (verificationId, resendToken) {
-          // Remember the resend token so "Resend OTP" can use it later.
-          _resendToken = resendToken;
-          onCodeSent(verificationId, resendToken);
-        },
-        onVerificationFailed: (e) {
-          _errorMessage = e.message;
-          onError(e.message);
-        },
-        onCodeAutoRetrievalTimeout: (_) {},
-      );
+      await Future.any<void>([
+        AuthService.verifyPhoneNumber(
+          phoneNumber: phoneNumber,
+          forceResendingToken: _resendToken,
+          onCodeSent: (verificationId, resendToken) {
+            settleOnce(() {
+              // Remember the resend token so "Resend OTP" can use it later.
+              _resendToken = resendToken;
+              onCodeSent(verificationId, resendToken);
+            });
+          },
+          onVerificationFailed: (e) {
+            settleOnce(() {
+              _errorMessage = e.message;
+              onError(e.message);
+            });
+          },
+          onCodeAutoRetrievalTimeout: (_) {},
+        ),
+        Future.delayed(const Duration(seconds: 20), () {
+          settleOnce(() {
+            _errorMessage =
+                'OTP request timed out. This usually means a temporary '
+                'network/verification issue. Please try again, or use '
+                'Email sign-in instead. (code: client-timeout)';
+            onError(_errorMessage!);
+          });
+        }),
+      ]);
     } catch (e) {
-      _errorMessage = _friendlyAuthError(e);
-      onError(_errorMessage!);
+      settleOnce(() {
+        _errorMessage = _friendlyAuthError(e);
+        onError(_errorMessage!);
+      });
     } finally {
       _isLoading = false;
       notifyListeners();
