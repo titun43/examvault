@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
-import 'test_list_screen.dart';
+import 'take_test_screen.dart';
 
 class TestSeriesScreen extends StatelessWidget {
   const TestSeriesScreen({super.key});
@@ -154,10 +154,14 @@ class TestSeriesScreen extends StatelessWidget {
               height: 44,
               child: ElevatedButton.icon(
                 onPressed: () {
+                  // Navigate directly to TakeTestScreen so categoryId is
+                  // resolved inside TakeTestScreen via getSubjectById +
+                  // resolveCategoryId — fixing the "Go Premium" bug for
+                  // exam-pack holders who arrive through Test Series.
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TestListScreen(testId: test.id),
+                      builder: (_) => TakeTestScreen(test: test),
                     ),
                   );
                 },

@@ -41,6 +41,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import 'take_test_screen.dart';
+import '../auth/login_screen.dart';
 
 class TestListScreen extends StatefulWidget {
   final SubjectModel? subject;
@@ -95,15 +96,27 @@ class _TestListScreenState extends State<TestListScreen> {
     // passed from CategoryDetailScreen; fall back to subject.categoryId.
     // Without this fallback, exam-pack buyers see tests as locked when
     // navigating through AllSubjectsScreen or HomeScreen subject cards.
-    final effectiveCategoryId = (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+    final rawCategoryId = (widget.categoryId != null && widget.categoryId!.isNotEmpty)
         ? widget.categoryId!
         : (widget.subject?.categoryId ?? '');
-    final futures = <Future>[
+
+    // Resolve slug/name → real Firestore document id IN PARALLEL with the
+    // premium check. The subject's `categoryId` field can hold a name or slug
+    // (the admin may have typed it that way). Without resolution, the backend's
+    // exam-pack access tier silently fails because ExamPackPurchase stores the
+    // real document id (not the slug) — so a paid user sees "Go Premium".
+    String resolvedCategoryId = rawCategoryId;
+    await Future.wait(<Future>[
       _fetchPremiumStatus(),
-      if (effectiveCategoryId.isNotEmpty)
-        _fetchExamPackStatus(effectiveCategoryId),
-    ];
-    await Future.wait(futures);
+      if (rawCategoryId.isNotEmpty)
+        FirestoreService.resolveCategoryId(rawCategoryId).then((r) {
+          if (r != null && r.isNotEmpty) resolvedCategoryId = r;
+        }),
+    ]);
+
+    if (resolvedCategoryId.isNotEmpty) {
+      await _fetchExamPackStatus(resolvedCategoryId);
+    }
   }
 
   Future<void> _fetchPremiumStatus() async {
@@ -404,15 +417,15 @@ class _TestListScreenState extends State<TestListScreen> {
       return;
     }
 
-    // GUEST MODE — paid tests require an account. Skip the server check (it
-    // would 401) and open TakeTestScreen, whose paywall will show a Sign-In
-    // CTA. This keeps the navigation consistent (the user sees the test title
-    // and the lock screen) instead of a bare snackbar.
+    // GUEST MODE — paid tests require an account. Send guest directly to the
+    // login screen so they can sign up and then purchase / access the test.
+    // This is cleaner than going through TakeTestScreen's paywall because the
+    // user doesn't have an account yet — there's nothing to buy until they log in.
     if (auth.isGuest) {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
       return;
     }
@@ -487,9 +500,12 @@ class _TestListScreenState extends State<TestListScreen> {
   /// prices are not yet admin-configurable — the hardcoded ₹99 placeholder was
   /// confusing users.
   void _showPurchaseSheet(BuildContext context, TestModel test, UserModel? user) {
+    // Guest / not signed in — send them to the login screen.
+    // They can't purchase anything without an account.
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to purchase tests.')),
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
       return;
     }

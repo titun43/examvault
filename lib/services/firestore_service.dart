@@ -887,6 +887,124 @@ class FirestoreService {
         });
   }
 
+  // ==================== CATEGORY ID RESOLUTION ====================
+  // The admin may have stored a category's NAME or SLUG in subject.categoryId
+  // instead of the real Firestore document ID. This method tries all three
+  // representations and returns the authoritative document id so the backend's
+  // exam-pack access tier (ExamPackPurchase.categoryId) can match correctly.
+  //
+  // Always call this before passing categoryId to /api/payments/access-check
+  // when the categoryId came from a subject document (not from a CategoryModel
+  // that was already loaded from Firestore).
+  static Future<String?> resolveCategoryId(String? ref) async {
+    if (ref == null || ref.isEmpty) return null;
+    try {
+      // Fast path: ref IS the real Firestore document id.
+      final doc = await _db.collection('categories').doc(ref).get();
+      if (doc.exists) return doc.id;
+    } catch (_) {}
+    try {
+      // Fallback 1: match by category name.
+      final byName = await _db
+          .collection('categories')
+          .where('name', isEqualTo: ref)
+          .limit(1)
+          .get();
+      if (byName.docs.isNotEmpty) return byName.docs.first.id;
+    } catch (_) {}
+    try {
+      // Fallback 2: match by slug.
+      final bySlug = await _db
+          .collection('categories')
+          .where('slug', isEqualTo: ref)
+          .limit(1)
+          .get();
+      if (bySlug.docs.isNotEmpty) return bySlug.docs.first.id;
+    } catch (_) {}
+    // Could not resolve — return the input as-is. The access check will still
+    // run; it will simply miss the exam-pack tier if the id is wrong.
+    return ref;
+  }
+
+  // ==================== BOOKMARKS ====================
+  // Stored at: users/{uid}/bookmarks/{testId}
+  // Fields: testId, testTitle, subjectId, addedAt
+  //
+  // Bookmarks are per-user and keyed by testId so toggling is idempotent.
+  // The BookmarksScreen streams this subcollection ordered by addedAt desc.
+
+  static Stream<List<Map<String, dynamic>>> getBookmarksStream(String uid) {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .orderBy('addedAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
+            .toList())
+        .handleError((e) {
+      print('getBookmarksStream($uid) error: $e');
+    });
+  }
+
+  static Future<void> addBookmark(
+    String uid,
+    String testId,
+    String testTitle, {
+    String? subjectId,
+  }) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .doc(testId)
+        .set({
+      'testId': testId,
+      'testTitle': testTitle,
+      'subjectId': subjectId ?? '',
+      'addedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  static Future<void> removeBookmark(String uid, String testId) async {
+    await _db
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .doc(testId)
+        .delete();
+  }
+
+  static Future<bool> isBookmarked(String uid, String testId) async {
+    try {
+      final doc = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('bookmarks')
+          .doc(testId)
+          .get();
+      return doc.exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Returns a list of testId strings the user has bookmarked.
+  /// Used for bulk operations (e.g. "clear all"). Does NOT throw.
+  static Future<List<String>> getBookmarksOnce(String uid) async {
+    try {
+      final snap = await _db
+          .collection('users')
+          .doc(uid)
+          .collection('bookmarks')
+          .get();
+      return snap.docs.map((d) => d.id).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ==================== ANALYTICS (for Admin Dashboard) ====================
   static Future<Map<String, dynamic>> getDashboardStats() async {
     final usersCount = await _db.collection('users').count().get();

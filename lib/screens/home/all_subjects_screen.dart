@@ -227,7 +227,10 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
     // would silently fail the exam-pack tier in /api/payments/access-check
     // because ExamPackPurchase always stores the real Firestore category id.
     final matchedCategory = _categories.firstWhere(
-      (c) => c.id == subject.categoryId || c.name == subject.categoryId,
+      (c) =>
+          c.id == subject.categoryId ||
+          c.name == subject.categoryId ||
+          c.slug == subject.categoryId,
       orElse: () => CategoryModel.empty(),
     );
     final authCategoryId = matchedCategory.id.isNotEmpty

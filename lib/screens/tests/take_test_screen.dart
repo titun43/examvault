@@ -133,7 +133,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         widget.test.subjectId.isNotEmpty) {
       final subject =
           await FirestoreService.getSubjectById(widget.test.subjectId);
-      resolvedCategoryId = subject?.categoryId;
+      // subject.categoryId may be a name or slug instead of the real Firestore
+      // document id (the admin may have written it that way). Resolve it to
+      // the real id so the backend's exam-pack tier can match correctly.
+      resolvedCategoryId =
+          await FirestoreService.resolveCategoryId(subject?.categoryId);
     }
     try {
       final decision = await AccessService.checkTestAccess(
@@ -750,6 +754,8 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                 ),
               ),
             ),
+            // Bookmark toggle button — saves this test to the user's bookmarks.
+            _BookmarkButton(test: widget.test),
             IconButton(
               icon: const Icon(Icons.grid_view),
               onPressed: _showQuestionPalette,
@@ -1012,6 +1018,86 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           ],
         );
       },
+    );
+  }
+}
+
+// =============================================================================
+// _BookmarkButton — stateful bookmark toggle shown in TakeTestScreen's AppBar.
+// Reads the initial bookmark state once on mount, then toggles on tap.
+// Skips the Firestore call for guests (no uid).
+// =============================================================================
+class _BookmarkButton extends StatefulWidget {
+  final TestModel test;
+  const _BookmarkButton({required this.test});
+
+  @override
+  State<_BookmarkButton> createState() => _BookmarkButtonState();
+}
+
+class _BookmarkButtonState extends State<_BookmarkButton> {
+  bool _bookmarked = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBookmark();
+  }
+
+  Future<void> _checkBookmark() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final uid = auth.user?.id;
+    if (uid == null || uid.isEmpty) {
+      setState(() => _loading = false);
+      return;
+    }
+    final b = await FirestoreService.isBookmarked(uid, widget.test.id);
+    if (!mounted) return;
+    setState(() {
+      _bookmarked = b;
+      _loading = false;
+    });
+  }
+
+  Future<void> _toggle() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final uid = auth.user?.id;
+    if (uid == null || uid.isEmpty) {
+      // Guest — prompt login.
+      if (!mounted) return;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      return;
+    }
+    setState(() => _bookmarked = !_bookmarked);
+    try {
+      if (_bookmarked) {
+        await FirestoreService.addBookmark(
+          uid,
+          widget.test.id,
+          widget.test.title,
+          subjectId: widget.test.subjectId.isNotEmpty ? widget.test.subjectId : null,
+        );
+      } else {
+        await FirestoreService.removeBookmark(uid, widget.test.id);
+      }
+    } catch (_) {
+      // Roll back optimistic toggle on error.
+      if (!mounted) return;
+      setState(() => _bookmarked = !_bookmarked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox(width: 48);
+    return IconButton(
+      icon: Icon(
+        _bookmarked ? Icons.bookmark : Icons.bookmark_border,
+        color: Colors.white,
+      ),
+      tooltip: _bookmarked ? 'Remove bookmark' : 'Bookmark this test',
+      onPressed: _toggle,
     );
   }
 }

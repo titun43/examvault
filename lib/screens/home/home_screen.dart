@@ -1212,7 +1212,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSubjectCard(SubjectModel subject) {
     // FIXED: resolve authoritative category id so exam-pack access check works.
     final matchedCategory = _categories.firstWhere(
-      (c) => c.id == subject.categoryId || c.name == subject.categoryId,
+      (c) =>
+          c.id == subject.categoryId ||
+          c.name == subject.categoryId ||
+          c.slug == subject.categoryId,
       orElse: () => CategoryModel.empty(),
     );
     final authCategoryId = matchedCategory.id.isNotEmpty

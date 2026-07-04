@@ -100,6 +100,17 @@ class CategoryModel {
     };
   }
 
+  /// Convenience factory used as `orElse` sentinel in `firstWhere` calls that
+  /// look up a category by subject.categoryId. Always check `.id.isNotEmpty`
+  /// before using the result — an empty-id model means "no match found".
+  factory CategoryModel.empty() => CategoryModel(
+        id: '',
+        name: '',
+        slug: '',
+        createdAt: DateTime(0),
+        updatedAt: DateTime(0),
+      );
+
   CategoryModel copyWith({
     String? name,
     String? slug,
