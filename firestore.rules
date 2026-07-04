@@ -39,6 +39,12 @@ service cloud.firestore {
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
+
+      // ---- BOOKMARKS subcollection ----
+      // Each doc is keyed by testId. Only the owner can read/write their bookmarks.
+      match /bookmarks/{bookmarkId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ==================== ADMINS ====================

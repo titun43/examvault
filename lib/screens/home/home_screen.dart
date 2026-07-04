@@ -51,12 +51,14 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// Cached category list for resolving authoritative category IDs in subject cards.
   List<CategoryModel> _categories = [];
-  // Dedicated subscription so we can update _categories without triggering a
-  // double-rebuild through the categories StreamBuilder. The pattern
-  //   WidgetsBinding.addPostFrameCallback(() => setState(...))
-  // inside a StreamBuilder builder caused every stream event to rebuild the
-  // widget twice — once for the StreamBuilder and once for setState — making
-  // the categories grid visibly flicker/cut while scrolling.
+  /// True once the first batch of categories has arrived from Firestore.
+  /// Used to decide whether to show shimmer or the real grid.
+  bool _categoriesLoaded = false;
+  // Single subscription — _buildCategoriesSection reads _categories directly
+  // from local state instead of using a StreamBuilder, so there is only ONE
+  // Firestore listener for categories. Having BOTH a StreamSubscription AND a
+  // StreamBuilder was causing every Firestore event to rebuild the widget
+  // twice: once for the subscription setState and once for the StreamBuilder.
   StreamSubscription<List<CategoryModel>>? _categoriesSub;
 
   // Banner carousel auto-scroll
@@ -69,11 +71,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _startBannerAutoScroll();
-    // Subscribe to categories once here so _categories stays fresh without
-    // triggering setState inside the StreamBuilder (which caused the flicker).
+    // Single subscription for categories. The grid reads _categories directly,
+    // so there is no StreamBuilder double-listening.
     _categoriesSub = FirestoreService.getCategoriesStream().listen((cats) {
-      if (mounted && _categories != cats) {
-        setState(() => _categories = cats);
+      if (mounted) {
+        setState(() {
+          _categories = cats;
+          _categoriesLoaded = true;
+        });
       }
     });
   }
@@ -733,154 +738,144 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        StreamBuilder<List<CategoryModel>>(
-          stream: FirestoreService.getCategoriesStream(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildShimmerGrid();
-            }
-            if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load categories');
-            }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildSectionEmpty('No categories available');
-            }
-            // _categories is kept fresh by the dedicated subscription in
-            // initState — no setState needed here.
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: snapshot.data!.length,
-              itemBuilder: (context, index) {
-                final category = snapshot.data![index];
-                return _buildCategoryCard(category);
-              },
-            );
-          },
-        ),
+        // _categories is kept fresh by _categoriesSub in initState.
+        // No StreamBuilder here — having both a subscription AND a StreamBuilder
+        // created two Firestore listeners and caused every update to rebuild
+        // the widget twice.
+        if (!_categoriesLoaded)
+          _buildShimmerGrid()
+        else if (_categories.isEmpty)
+          _buildSectionEmpty('No categories available')
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.85,
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, index) {
+              return _buildCategoryCard(_categories[index]);
+            },
+          ),
       ],
     );
   }
 
   Widget _buildCategoryCard(CategoryModel category) {
     final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
-    // Show a small crown badge on premium categories so users can see which
-    // categories require a subscription before tapping in.
-    // FIXED: listen:true so this card rebuilds when auth.isPremium or
-    // purchasedCategoryIds changes (e.g., after premium or exam-pack purchase).
-    final auth = Provider.of<AuthProvider>(context, listen: true);
-    final categoryLocked = category.isPremium && !auth.hasCategoryAccess(category.id);
-    return GestureDetector(
-      onTap: () {
-        // REAL LOCK: if this is a premium category and the current user is
-        // NOT a premium subscriber, show a paywall dialog instead of opening
-        // the category. Previously the lock badge was decorative — users
-        // could tap in and access everything. Now they must subscribe first.
-        if (categoryLocked) {
-          _showCategoryPaywall(context, category);
-          return;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CategoryDetailScreen(category: category),
+    // Use Selector so only the lock state (a single bool) is watched from
+    // AuthProvider. Without this, EVERY notifyListeners() call (including
+    // unrelated auth events) would rebuild every category card in the grid,
+    // making the app noticeably slow after a premium purchase.
+    return Selector<AuthProvider, bool>(
+      selector: (_, auth) =>
+          category.isPremium && !auth.hasCategoryAccess(category.id),
+      builder: (context, categoryLocked, _) {
+        return GestureDetector(
+          onTap: () {
+            if (categoryLocked) {
+              _showCategoryPaywall(context, category);
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => CategoryDetailScreen(category: category),
+              ),
+            );
+          },
+          child: Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      child: Center(
+                        child: Text(
+                          category.icon ?? '📚',
+                          style: const TextStyle(fontSize: 24),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      category.name,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${category.subjectCount} Subjects',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    // Premium price hint under the subject count for locked cats.
+                    if (categoryLocked && category.premiumPrice > 0) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${category.premiumPrice}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              // Crown badge for premium categories (top-right corner).
+              if (category.isPremium)
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: categoryLocked
+                          ? AppTheme.accentColor
+                          : AppTheme.accentColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      categoryLocked ? Icons.lock : Icons.workspace_premium,
+                      size: 12,
+                      color: categoryLocked ? Colors.white : AppTheme.accentColor,
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       },
-      child: Stack(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: Center(
-                    child: Text(
-                      category.icon ?? '📚',
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  category.name,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${category.subjectCount} Subjects',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                // Premium price hint under the subject count for locked cats.
-                if (categoryLocked && category.premiumPrice > 0) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    '₹${category.premiumPrice}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.accentColor,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          // Crown badge for premium categories (top-right corner).
-          if (category.isPremium)
-            Positioned(
-              top: 6,
-              right: 6,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: categoryLocked
-                      ? AppTheme.accentColor
-                      : AppTheme.accentColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  categoryLocked ? Icons.lock : Icons.workspace_premium,
-                  size: 12,
-                  color: categoryLocked
-                      ? Colors.white
-                      : AppTheme.accentColor,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 
