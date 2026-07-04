@@ -18,8 +18,12 @@ import '../../services/access_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/test_model.dart';
+import '../../models/category_model.dart';
+import '../../models/subject_model.dart';
 import '../../theme/app_theme.dart';
 import '../tests/take_test_screen.dart';
+import '../tests/test_list_screen.dart';
+import '../home/category_detail_screen.dart';
 
 class MyPurchasesScreen extends StatefulWidget {
   const MyPurchasesScreen({super.key});
@@ -146,6 +150,230 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
         const SnackBar(content: Text('Could not open invoice.')),
       );
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Navigation helpers — navigate to category / subject from purchased packs
+  // ---------------------------------------------------------------------------
+
+  /// Tap on an exam pack → navigate to that category's detail screen so the
+  /// user can start any test they've unlocked.
+  Future<void> _openCategory(String categoryId, String packName) async {
+    if (categoryId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Category info not available. Try refreshing.')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Opening category…'),
+          ]),
+        ),
+      ),
+    );
+    try {
+      // Try direct id lookup first; fall back to slug resolution.
+      CategoryModel? cat = await FirestoreService.getCategoryById(categoryId);
+      if (cat == null) {
+        final resolved = await FirestoreService.resolveCategoryId(categoryId);
+        if (resolved != null && resolved != categoryId) {
+          cat = await FirestoreService.getCategoryById(resolved);
+        }
+      }
+      if (!mounted) return;
+      Navigator.pop(context); // dismiss loader
+      if (cat == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"$packName" category not found.')),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => CategoryDetailScreen(category: cat!)),
+      );
+    } catch (_) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open category. Please try again.')),
+        );
+      }
+    }
+  }
+
+  /// Tap on a subject pack → navigate to that subject's test list.
+  Future<void> _openSubject(String subjectId, String packName) async {
+    if (subjectId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subject info not available. Try refreshing.')),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 20),
+            Text('Opening subject…'),
+          ]),
+        ),
+      ),
+    );
+    try {
+      final subject = await FirestoreService.getSubjectById(subjectId);
+      if (!mounted) return;
+      Navigator.pop(context);
+      if (subject == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"$packName" subject not found.')),
+        );
+        return;
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => TestListScreen(subject: subject),
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open subject. Please try again.')),
+        );
+      }
+    }
+  }
+
+  /// Shows a payment detail bottom sheet — no external URL needed.
+  void _showPaymentDetail(Map<String, dynamic> m) {
+    final product = (m['productName'] ?? m['description'] ?? 'Payment').toString();
+    final date = _parseDate(m['createdAt'] ?? m['completedAt'] ?? m['date']);
+    final amountPaise = _toInt(m['amount'], 0);
+    final status = (m['status'] ?? 'created').toString().toLowerCase();
+    final razorpayId = (m['paymentId'] ?? m['id'] ?? '').toString();
+    final method = (m['method'] ?? '').toString();
+
+    final statusColor = status == 'captured' || status == 'success'
+        ? AppTheme.successColor
+        : status == 'failed'
+            ? AppTheme.errorColor
+            : status == 'refunded'
+                ? AppTheme.infoColor
+                : AppTheme.warningColor;
+    final statusLabel = status == 'captured' || status == 'success'
+        ? 'Success'
+        : status[0].toUpperCase() + status.substring(1);
+
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.receipt_outlined, color: statusColor, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(product,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(statusLabel,
+                        style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
+              Text('₹${(amountPaise / 100).toStringAsFixed(0)}',
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            ]),
+            const SizedBox(height: 20),
+            const Divider(),
+            const SizedBox(height: 12),
+            if (date != null) ...[
+              _detailRow('Date', _formatDate(date)),
+              const SizedBox(height: 8),
+            ],
+            if (method.isNotEmpty) ...[
+              _detailRow('Method', method),
+              const SizedBox(height: 8),
+            ],
+            if (razorpayId.isNotEmpty) ...[
+              _detailRow('Payment ID', razorpayId),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Close'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: Text(label,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ),
+        Expanded(
+          child: Text(value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
   }
 
   /// Opens a purchased test from the "Individual Tests" section. Fetches the
@@ -429,12 +657,15 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
     final m = pack is Map ? Map<String, dynamic>.from(pack) : <String, dynamic>{};
     final name = (m['productName'] ?? m['name'] ?? 'Exam Pack').toString();
     final meta = m['meta'];
+    final categoryId = (m['categoryId'] ??
+            (meta is Map ? meta['categoryId'] : null) ??
+            '')
+        .toString();
     final categoryName = (m['categoryName'] ??
             (meta is Map ? meta['categoryName'] : null) ??
             '')
         .toString();
     final purchasedAt = _parseDate(m['purchasedAt'] ?? m['createdAt']);
-    final paymentId = m['paymentId']?.toString();
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -459,21 +690,27 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               ),
           ],
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppTheme.successColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text('Active',
-              style: TextStyle(
-                  color: AppTheme.successColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.successColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('Active',
+                  style: TextStyle(
+                      color: AppTheme.successColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_forward_ios, size: 14),
+          ],
         ),
-        onTap: paymentId != null && paymentId.isNotEmpty
-            ? () => _openInvoice(paymentId)
-            : null,
+        // Tap → open the category directly so the user can start their tests.
+        onTap: () => _openCategory(categoryId, name),
       ),
     );
   }
@@ -482,12 +719,15 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
     final m = pack is Map ? Map<String, dynamic>.from(pack) : <String, dynamic>{};
     final name = (m['productName'] ?? m['name'] ?? 'Subject Pack').toString();
     final meta = m['meta'];
+    final subjectId = (m['subjectId'] ??
+            (meta is Map ? meta['subjectId'] : null) ??
+            '')
+        .toString();
     final subjectName = (m['subjectName'] ??
             (meta is Map ? meta['subjectName'] : null) ??
             '')
         .toString();
     final purchasedAt = _parseDate(m['purchasedAt'] ?? m['createdAt']);
-    final paymentId = m['paymentId']?.toString();
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -512,21 +752,27 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               ),
           ],
         ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppTheme.successColor.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text('Active',
-              style: TextStyle(
-                  color: AppTheme.successColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppTheme.successColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text('Active',
+                  style: TextStyle(
+                      color: AppTheme.successColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.arrow_forward_ios, size: 14),
+          ],
         ),
-        onTap: paymentId != null && paymentId.isNotEmpty
-            ? () => _openInvoice(paymentId)
-            : null,
+        // Tap → open the subject's test list so the user can start their tests.
+        onTap: () => _openSubject(subjectId, name),
       ),
     );
   }
@@ -629,7 +875,8 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
             ),
           ],
         ),
-        onTap: paymentId.isNotEmpty ? () => _openInvoice(paymentId) : null,
+        // Tap → show in-app payment detail sheet. No external URLs needed.
+        onTap: () => _showPaymentDetail(m),
       ),
     );
   }

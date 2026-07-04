@@ -934,18 +934,45 @@ class FirestoreService {
   // The BookmarksScreen streams this subcollection ordered by addedAt desc.
 
   static Stream<List<Map<String, dynamic>>> getBookmarksStream(String uid) {
+    // No server-side orderBy — Firestore's orderBy on a subcollection may need
+    // a composite index that isn't always deployed, causing the stream to hang
+    // in ConnectionState.waiting indefinitely. Sort client-side instead.
     return _db
         .collection('users')
         .doc(uid)
         .collection('bookmarks')
-        .orderBy('addedAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
-            .toList())
-        .handleError((e) {
+        .map((snap) {
+      final list = snap.docs
+          .map((d) => <String, dynamic>{'id': d.id, ...d.data()})
+          .toList();
+      // Sort by addedAt descending (newest first). Treat null/missing as epoch.
+      list.sort((a, b) {
+        final aTs = a['addedAt'];
+        final bTs = b['addedAt'];
+        DateTime aDate = DateTime(1970);
+        DateTime bDate = DateTime(1970);
+        if (aTs is Timestamp) aDate = aTs.toDate();
+        if (bTs is Timestamp) bDate = bTs.toDate();
+        return bDate.compareTo(aDate);
+      });
+      return list;
+    }).handleError((e) {
       print('getBookmarksStream($uid) error: $e');
     });
+  }
+
+  /// Returns the CategoryModel for the given Firestore document id, or null.
+  static Future<CategoryModel?> getCategoryById(String id) async {
+    if (id.isEmpty) return null;
+    try {
+      final doc = await _db.collection('categories').doc(id).get();
+      if (!doc.exists) return null;
+      return CategoryModel.fromFirestore(doc);
+    } catch (e) {
+      print('getCategoryById($id) error: $e');
+      return null;
+    }
   }
 
   static Future<void> addBookmark(
