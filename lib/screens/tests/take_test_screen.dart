@@ -9,6 +9,7 @@ import '../../models/test_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
 import '../../services/access_service.dart';
+import '../../services/admob_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
@@ -56,6 +57,16 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     super.initState();
     _checkAccessAndLoad();
     _timeRemaining = widget.test.duration * 60;
+
+    // Preload the interstitial ad now so it's ready to show the instant the
+    // user submits the test (loading takes a few seconds, so we don't want
+    // to start only after submission — that would just mean it never shows
+    // in time and gets skipped).
+    try {
+      AdMobService.loadInterstitialAd();
+    } catch (e) {
+      print('loadInterstitialAd (initState) failed (non-fatal): $e');
+    }
   }
 
   /// Checks whether the user has access to this test. Uses a FAST LOCAL
@@ -367,7 +378,6 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
 
     // 4) Navigate to result screen. Use pushReplacement so the test screen is
     //    popped off the stack (prevents "back" returning to a finished test).
-    //    No interstitial ad in between — see comment in _submitTest().
     if (!mounted) return;
     try {
       Navigator.pushReplacement(
@@ -382,6 +392,20 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       );
     } catch (e) {
       print('navigate to result error (non-fatal): $e');
+    }
+
+    // 5) Show the interstitial ad AFTER navigating to the result screen —
+    //    fire-and-forget, never awaited, wrapped in try/catch. This is safe
+    //    now that AdMobService wires a fullScreenContentCallback (Jul 4,
+    //    2026 fix), which was the actual cause of the old post-test crash —
+    //    NOT the mere act of showing an ad. We only show it if it already
+    //    finished preloading (from initState) so there's no visible delay.
+    if (AdMobService.isInterstitialReady) {
+      try {
+        AdMobService.showInterstitialAd();
+      } catch (e) {
+        print('showInterstitialAd (post-test) failed (non-fatal): $e');
+      }
     }
   }
 
