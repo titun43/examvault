@@ -333,7 +333,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               onTap: _isUploadingPhoto
                                   ? null
                                   : () {
-                                      setState(() => _photoUrl = null);
+                                      // Empty string is the "delete" sentinel:
+                                      // AuthService.updateProfileExtended
+                                      // sees photoUrl='' and writes
+                                      // FieldValue.delete() to Firestore so the
+                                      // field is actually removed.
+                                      setState(() => _photoUrl = '');
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
                                         const SnackBar(

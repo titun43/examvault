@@ -440,7 +440,17 @@ class AuthService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (name != null) data['name'] = name;
-    if (photoUrl != null) data['photoUrl'] = photoUrl;
+    // Photo handling: a non-null value is always written.
+    //   - non-empty string → set the URL
+    //   - empty string     → delete the field (user tapped "Remove")
+    //   - null (not passed) → leave unchanged
+    if (photoUrl != null) {
+      if (photoUrl.isEmpty) {
+        data['photoUrl'] = FieldValue.delete();
+      } else {
+        data['photoUrl'] = photoUrl;
+      }
+    }
 
     // For preferences, read the existing doc and merge locally so we preserve
     // any preference keys that aren't being edited.
