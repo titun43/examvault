@@ -558,6 +558,66 @@ class FirestoreService {
         'lastActiveAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // LEADERBOARD WRITE: the user app cannot read other users' docs
+      // (Firestore rules: users collection is owner-read-only). The
+      // `leaderboard` collection is public-read + signed-in-write, so we
+      // mirror the user's fresh stats into it after every test so the
+      // Ranks screen can populate. We write 3 entries (allTime, weekly,
+      // monthly) keyed by type + userId. The stream sorts by totalXp and
+      // assigns rank client-side, so no rank field needs to be correct
+      // here. For weekly/monthly, periodStart marks the current week/month
+      // so the stream can exclude stale entries from previous periods.
+      final String userName = (data['name'] ?? 'User').toString();
+      final String? userPhoto = data['photoUrl']?.toString();
+      final lbNow = DateTime.now();
+      // Week bounds (week starts on Monday; weekday: 1=Mon..7=Sun).
+      final daysFromMonday = lbNow.weekday - 1;
+      final startOfWeek = DateTime(lbNow.year, lbNow.month, lbNow.day)
+          .subtract(Duration(days: daysFromMonday));
+      final startOfMonth = DateTime(lbNow.year, lbNow.month, 1);
+      final baseEntry = <String, dynamic>{
+        'userId': userId,
+        'userName': userName,
+        'userPhoto': userPhoto,
+        'totalXp': newXp,
+        'totalTestsAttempted': newAttempts,
+        'averageScore': newAvg,
+        'streak': newStreak,
+        'rank': 0, // computed client-side by getLeaderboardStream
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+      final lbBatch = _db.batch();
+      lbBatch.set(
+        _db.collection('leaderboard').doc('allTime_$userId'),
+        {
+          ...baseEntry,
+          'type': 'allTime',
+          'periodStart': Timestamp.fromDate(DateTime(2020, 1, 1)),
+          'periodEnd': FieldValue.serverTimestamp(),
+        },
+      );
+      lbBatch.set(
+        _db.collection('leaderboard').doc('weekly_$userId'),
+        {
+          ...baseEntry,
+          'type': 'weekly',
+          'periodStart': Timestamp.fromDate(startOfWeek),
+          'periodEnd': Timestamp.fromDate(
+              startOfWeek.add(const Duration(days: 7))),
+        },
+      );
+      lbBatch.set(
+        _db.collection('leaderboard').doc('monthly_$userId'),
+        {
+          ...baseEntry,
+          'type': 'monthly',
+          'periodStart': Timestamp.fromDate(startOfMonth),
+          'periodEnd': Timestamp.fromDate(
+              DateTime(lbNow.year, lbNow.month + 1, 1)),
+        },
+      );
+      await lbBatch.commit();
     } catch (e) {
       // Swallow — stats update is best-effort. The result was already saved.
       print('updateUserStatsAfterTest error: $e');
@@ -665,15 +725,68 @@ class FirestoreService {
     LeaderboardType type = LeaderboardType.allTime,
     int limit = 100,
   }) {
-    // Single-field filter (type) — sort client-side by rank.
+    // Compute the minimum periodStart for weekly/monthly so stale entries
+    // from previous periods are excluded. For allTime, no period filter.
+    final now = DateTime.now();
+    DateTime? minPeriodStart;
+    switch (type) {
+      case LeaderboardType.weekly:
+        // Week starts on Monday (weekday: 1=Mon..7=Sun).
+        final daysFromMonday = now.weekday - 1;
+        minPeriodStart = DateTime(now.year, now.month, now.day)
+            .subtract(Duration(days: daysFromMonday));
+        break;
+      case LeaderboardType.monthly:
+        minPeriodStart = DateTime(now.year, now.month, 1);
+        break;
+      case LeaderboardType.allTime:
+      case LeaderboardType.testSpecific:
+        minPeriodStart = null;
+        break;
+    }
+    // Single-field filter (type) only — period filtering is client-side to
+    // avoid needing a composite index (type + periodStart).
     return _db.collection('leaderboard')
         .where('type', isEqualTo: type.name)
-        .limit(limit * 2)
+        .limit(limit * 3)
         .snapshots()
         .map((snapshot) {
-          var docs = snapshot.docs.map((doc) => LeaderboardModel.fromFirestore(doc)).toList();
-          docs.sort((a, b) => a.rank.compareTo(b.rank));
-          return docs.take(limit).toList();
+          var docs = snapshot.docs
+              .map((doc) => LeaderboardModel.fromFirestore(doc))
+              .toList();
+          // Client-side period filter (excludes entries from previous
+          // weeks/months that haven't been refreshed this period).
+          if (minPeriodStart != null) {
+            docs = docs
+                .where((d) =>
+                    !d.periodStart.isBefore(minPeriodStart!))
+                .toList();
+          }
+          // Sort by totalXp desc (the stored rank field is stale/0 — rank
+          // is computed live here so ties and new entries are always correct).
+          docs.sort((a, b) => b.totalXp.compareTo(a.totalXp));
+          // Assign live ranks and take the top `limit`.
+          final ranked = <LeaderboardModel>[];
+          for (var i = 0; i < docs.length && i < limit; i++) {
+            final d = docs[i];
+            ranked.add(LeaderboardModel(
+              id: d.id,
+              userId: d.userId,
+              userName: d.userName,
+              userPhoto: d.userPhoto,
+              totalXp: d.totalXp,
+              totalTestsAttempted: d.totalTestsAttempted,
+              averageScore: d.averageScore,
+              rank: i + 1,
+              streak: d.streak,
+              type: d.type,
+              testId: d.testId,
+              periodStart: d.periodStart,
+              periodEnd: d.periodEnd,
+              updatedAt: d.updatedAt,
+            ));
+          }
+          return ranked;
         })
         .handleError((e) {
           print('getLeaderboardStream error: $e');
