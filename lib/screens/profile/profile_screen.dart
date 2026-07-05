@@ -12,7 +12,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
-import '../../services/firestore_service.dart';
 import '../../config/app_config.dart';
 import '../../models/user_model.dart';
 import '../../utils/streak_helper.dart';
