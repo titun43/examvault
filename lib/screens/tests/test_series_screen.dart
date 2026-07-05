@@ -4,10 +4,12 @@
 
 import 'package:flutter/material.dart';
 import '../../models/test_model.dart';
+import '../../models/subject_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../search/search_screen.dart';
 import 'take_test_screen.dart';
+import 'test_list_screen.dart';
 
 class TestSeriesScreen extends StatelessWidget {
   const TestSeriesScreen({super.key});
@@ -51,7 +53,7 @@ class TestSeriesScreen extends StatelessWidget {
             _buildTestList(context, TestType.previousYear),
             _buildTestList(context, TestType.dailyQuiz),
             _buildTestList(context, TestType.practice),
-            _buildTestList(context, TestType.subjectwise),
+            _buildSubjectList(context),
           ],
         ),
       ),
@@ -259,5 +261,79 @@ class TestSeriesScreen extends StatelessWidget {
       case TestType.subjectwise:
         return 'SUBJECT WISE';
     }
+  }
+
+  /// Subject-wise tab: shows ALL subjects (not tests of type=subjectwise).
+  /// Tapping a subject opens its test list. This makes the tab genuinely
+  /// "subject-wise" browsing and ensures it's never empty as long as
+  /// subjects exist. The previous implementation filtered tests by
+  /// type=='subjectwise' which no test ever had (seed uses mock/practice),
+  /// so the tab always showed "No tests available".
+  Widget _buildSubjectList(BuildContext context) {
+    return StreamBuilder<List<SubjectModel>>(
+      stream: FirestoreService.getSubjectsStream(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.menu_book, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('No subjects available'),
+              ],
+            ),
+          );
+        }
+        // Sort by name for easy scanning.
+        final subjects = List<SubjectModel>.from(snapshot.data!)
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: subjects.length,
+          itemBuilder: (context, index) {
+            final subject = subjects[index];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                  child: Text(
+                    subject.icon ?? '📘',
+                    style: const TextStyle(fontSize: 20),
+                  ),
+                ),
+                title: Text(
+                  subject.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  '${subject.testCount} ${subject.testCount == 1 ? 'Test' : 'Tests'}'
+                  '${subject.description != null && subject.description!.isNotEmpty ? ' · ${subject.description}' : ''}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TestListScreen(subject: subject),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
