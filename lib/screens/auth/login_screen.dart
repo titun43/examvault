@@ -175,22 +175,22 @@ class _LoginScreenState extends State<LoginScreen> {
     String subtitle;
     IconData icon;
     if (_otpWaitSeconds < 3) {
-      title = 'OTP পাঠানো হচ্ছে...';
-      subtitle = 'একটু অপেক্ষা করুন';
+      title = 'Sending OTP...';
+      subtitle = 'Please wait a moment';
       icon = Icons.send;
     } else if (_otpWaitSeconds < 8) {
-      title = 'ভেরিফিকেশন হচ্ছে...';
-      subtitle = 'Firebase আপনার নম্বর verify করছে। কিছুক্ষণ সময় লাগতে পারে।';
+      title = 'Verifying...';
+      subtitle = 'Firebase is verifying your number. This may take a few seconds.';
       icon = Icons.verified_user;
     } else if (_otpWaitSeconds < 15) {
-      title = 'এখনও কাজ চলছে...';
-      subtitle = 'ভেরিফিকেশন হচ্ছে। যদি কোনো ভেরিফিকেশন পেজ খোলে, '
-          'সেটি সম্পূর্ণ করুন — OTP তারপর আসবে।';
+      title = 'Still working...';
+      subtitle = 'Verification in progress. If a verification page opens, '
+          'please complete it — the OTP will arrive afterwards.';
       icon = Icons.hourglass_top;
     } else {
-      title = 'বেশি সময় লাগছে...';
-      subtitle = 'নেটওয়ার্কে সমস্যা থাকতে পারে। ধৈর্য ধরুন, বা একটু পরে আবার '
-          'চেষ্টা করুন।';
+      title = 'Taking longer than usual...';
+      subtitle = 'There may be a network issue. Please be patient, or try '
+          'again in a moment.';
       icon = Icons.signal_wifi_off;
     }
     return Container(
