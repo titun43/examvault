@@ -1,10 +1,15 @@
 // =============================================================================
 // ExamVault - Global Search Screen
-// Fetches all categories, subjects, tests, and current affairs once via
-// FirestoreService, then filters client-side by the query string. Shows
+// Subscribes to live Firestore streams for categories, subjects, tests, and
+// current affairs, then filters client-side by the query string. Shows
 // grouped results with tappable items that navigate to the right screen.
+//
+// REAL-TIME: because we use streams (not one-shot Futures), admin changes
+// (premium toggle, rename, add/remove) reflect here immediately without
+// needing to close & reopen the screen.
 // =============================================================================
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/category_model.dart';
@@ -17,21 +22,6 @@ import '../tests/test_list_screen.dart';
 import '../tests/take_test_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 
-/// Bundle of all searchable content, loaded once on screen open.
-class _SearchIndex {
-  final List<CategoryModel> categories;
-  final List<SubjectModel> subjects;
-  final List<TestModel> tests;
-  final List<CurrentAffairModel> currentAffairs;
-
-  const _SearchIndex({
-    this.categories = const [],
-    this.subjects = const [],
-    this.tests = const [],
-    this.currentAffairs = const [],
-  });
-}
-
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -42,38 +32,108 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-  final Future<_SearchIndex> _indexFuture = _loadIndex();
   String _query = '';
 
-  /// Loads all searchable content in parallel. Each call has its own
-  /// try/catch in FirestoreService, so a failure on one collection returns
-  /// an empty list instead of breaking the whole search.
-  static Future<_SearchIndex> _loadIndex() async {
-    final results = await Future.wait([
-      FirestoreService.getCategories(),
-      FirestoreService.getSubjects(),
-      FirestoreService.getTests(isPublished: true),
-      FirestoreService.getCurrentAffairs(limit: 100),
-    ]);
-    return _SearchIndex(
-      categories: results[0] as List<CategoryModel>,
-      subjects: results[1] as List<SubjectModel>,
-      tests: results[2] as List<TestModel>,
-      currentAffairs: results[3] as List<CurrentAffairModel>,
-    );
-  }
+  // Live data from Firestore streams — updates in real-time when admin
+  // toggles premium, renames items, adds/removes content, etc.
+  List<CategoryModel> _categories = const [];
+  List<SubjectModel> _subjects = const [];
+  List<TestModel> _tests = const [];
+  List<CurrentAffairModel> _currentAffairs = const [];
+
+  // Track which streams have emitted their first snapshot so we can show a
+  // loading spinner only until ALL four are ready.
+  bool _categoriesReady = false;
+  bool _subjectsReady = false;
+  bool _testsReady = false;
+  bool _affairsReady = false;
+
+  StreamSubscription? _categoriesSub;
+  StreamSubscription? _subjectsSub;
+  StreamSubscription? _testsSub;
+  StreamSubscription? _affairsSub;
+
+  bool get _isLoading =>
+      !(_categoriesReady && _subjectsReady && _testsReady && _affairsReady);
 
   @override
   void initState() {
     super.initState();
+    _initStreams();
     // Auto-focus the search field on open.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
   }
 
+  void _initStreams() {
+    _categoriesSub = FirestoreService.getCategoriesStream().listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _categories = data;
+          _categoriesReady = true;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() => _categoriesReady = true);
+      },
+    );
+    _subjectsSub = FirestoreService.getSubjectsStream().listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _subjects = data;
+          _subjectsReady = true;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _subjectsReady = true;
+        });
+      },
+    );
+    _testsSub = FirestoreService.getTestsStream(isPublished: true).listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _tests = data;
+          _testsReady = true;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _testsReady = true;
+        });
+      },
+    );
+    _affairsSub =
+        FirestoreService.getCurrentAffairsStream(limit: 100).listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _currentAffairs = data;
+          _affairsReady = true;
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _affairsReady = true;
+        });
+      },
+    );
+  }
+
   @override
   void dispose() {
+    _categoriesSub?.cancel();
+    _subjectsSub?.cancel();
+    _testsSub?.cancel();
+    _affairsSub?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -130,109 +190,99 @@ class _SearchScreenState extends State<SearchScreen> {
           const Divider(height: 1),
           // Results
           Expanded(
-            child: FutureBuilder<_SearchIndex>(
-              future: _indexFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return _buildMessageState(
-                    icon: Icons.cloud_off,
-                    message: 'Could not load search data. Try again later.',
-                  );
-                }
-                final index = snapshot.data ?? const _SearchIndex();
-
-                // Empty query → prompt the user to start typing.
-                if (_query.isEmpty) {
-                  return _buildMessageState(
-                    icon: Icons.search,
-                    message: 'Start typing to search...',
-                  );
-                }
-
-                final q = _query.toLowerCase();
-                final matchedCategories = index.categories
-                    .where((c) =>
-                        _matches(c.name, q) || _matches(c.slug, q))
-                    .toList();
-                final matchedSubjects = index.subjects
-                    .where((s) =>
-                        _matches(s.name, q) || _matches(s.slug, q))
-                    .toList();
-                final matchedTests = index.tests
-                    .where((t) =>
-                        _matches(t.title, q) || _matches(t.slug, q))
-                    .toList();
-                final matchedAffairs = index.currentAffairs
-                    .where((a) =>
-                        _matches(a.title, q) ||
-                        _matches(a.summary, q) ||
-                        _matches(a.category, q))
-                    .toList();
-
-                final hasAny = matchedCategories.isNotEmpty ||
-                    matchedSubjects.isNotEmpty ||
-                    matchedTests.isNotEmpty ||
-                    matchedAffairs.isNotEmpty;
-                if (!hasAny) {
-                  return _buildMessageState(
-                    icon: Icons.sentiment_dissatisfied,
-                    message: 'No results found for "$_query"',
-                  );
-                }
-
-                return ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  children: [
-                    if (matchedCategories.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Categories',
-                        icon: Icons.category,
-                        count: matchedCategories.length,
-                        children: matchedCategories
-                            .map((c) => _buildCategoryTile(context, c))
-                            .toList(),
-                      ),
-                    if (matchedSubjects.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Subjects',
-                        icon: Icons.menu_book,
-                        count: matchedSubjects.length,
-                        children: matchedSubjects
-                            .map((s) => _buildSubjectTile(context, s))
-                            .toList(),
-                      ),
-                    if (matchedTests.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Tests',
-                        icon: Icons.assignment,
-                        count: matchedTests.length,
-                        children: matchedTests
-                            .map((t) => _buildTestTile(context, t))
-                            .toList(),
-                      ),
-                    if (matchedAffairs.isNotEmpty)
-                      _buildSection(
-                        context,
-                        title: 'Current Affairs',
-                        icon: Icons.newspaper,
-                        count: matchedAffairs.length,
-                        children: matchedAffairs
-                            .map((a) => _buildAffairTile(context, a))
-                            .toList(),
-                      ),
-                  ],
-                );
-              },
-            ),
+            child: _buildResults(),
           ),
         ],
       ),
+    );
+  }
+
+  /// Builds the results area from the live stream state. Re-runs the
+  /// client-side filter on every stream update AND every query keystroke.
+  Widget _buildResults() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    // Empty query → prompt the user to start typing.
+    if (_query.isEmpty) {
+      return _buildMessageState(
+        icon: Icons.search,
+        message: 'Start typing to search...',
+      );
+    }
+
+    final q = _query.toLowerCase();
+    final matchedCategories = _categories
+        .where((c) => _matches(c.name, q) || _matches(c.slug, q))
+        .toList();
+    final matchedSubjects = _subjects
+        .where((s) => _matches(s.name, q) || _matches(s.slug, q))
+        .toList();
+    final matchedTests = _tests
+        .where((t) => _matches(t.title, q) || _matches(t.slug, q))
+        .toList();
+    final matchedAffairs = _currentAffairs
+        .where((a) =>
+            _matches(a.title, q) ||
+            _matches(a.summary, q) ||
+            _matches(a.category, q))
+        .toList();
+
+    final hasAny = matchedCategories.isNotEmpty ||
+        matchedSubjects.isNotEmpty ||
+        matchedTests.isNotEmpty ||
+        matchedAffairs.isNotEmpty;
+    if (!hasAny) {
+      return _buildMessageState(
+        icon: Icons.sentiment_dissatisfied,
+        message: 'No results found for "$_query"',
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        if (matchedCategories.isNotEmpty)
+          _buildSection(
+            context,
+            title: 'Categories',
+            icon: Icons.category,
+            count: matchedCategories.length,
+            children: matchedCategories
+                .map((c) => _buildCategoryTile(context, c))
+                .toList(),
+          ),
+        if (matchedSubjects.isNotEmpty)
+          _buildSection(
+            context,
+            title: 'Subjects',
+            icon: Icons.menu_book,
+            count: matchedSubjects.length,
+            children: matchedSubjects
+                .map((s) => _buildSubjectTile(context, s))
+                .toList(),
+          ),
+        if (matchedTests.isNotEmpty)
+          _buildSection(
+            context,
+            title: 'Tests',
+            icon: Icons.assignment,
+            count: matchedTests.length,
+            children: matchedTests
+                .map((t) => _buildTestTile(context, t))
+                .toList(),
+          ),
+        if (matchedAffairs.isNotEmpty)
+          _buildSection(
+            context,
+            title: 'Current Affairs',
+            icon: Icons.newspaper,
+            count: matchedAffairs.length,
+            children: matchedAffairs
+                .map((a) => _buildAffairTile(context, a))
+                .toList(),
+          ),
+      ],
     );
   }
 

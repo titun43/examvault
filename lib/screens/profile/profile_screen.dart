@@ -18,6 +18,7 @@ import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
 import '../home/main_navigation.dart';
 import '../premium/premium_screen.dart';
+import '../search/search_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 import 'settings_screen.dart';
 import 'test_history_screen.dart';
@@ -107,6 +108,17 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
+          // Global search — available on every bottom-nav tab, not just Home.
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SearchScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             tooltip: 'Edit Profile',

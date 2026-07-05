@@ -2,6 +2,7 @@
 // ExamVault - Auth Provider
 // =============================================================================
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -78,6 +79,12 @@ class AuthProvider extends ChangeNotifier {
   // (_syncPremiumFromBackend) from calling notifyListeners() after the
   // provider is no longer in the widget tree.
   bool _disposed = false;
+  // Real-time subscription to the user's Firestore document. When the admin
+  // grants/revokes entitlements (isPremium, purchasedCategoryIds,
+  // purchasedTests) or edits profile fields server-side, this listener
+  // updates the in-memory _user model + invalidates AccessService caches so
+  // the change reflects in the UI WITHOUT requiring the user to re-login.
+  StreamSubscription<DocumentSnapshot>? _userDocSub;
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -111,6 +118,10 @@ class AuthProvider extends ChangeNotifier {
       if (firebaseUser != null) {
         await loadUserData();
       } else {
+        // Cancel the user-doc listener on sign-out so we don't get stray
+        // updates for the previous user's document.
+        _userDocSub?.cancel();
+        _userDocSub = null;
         _user = null;
         notifyListeners();
       }
@@ -210,6 +221,98 @@ class AuthProvider extends ChangeNotifier {
     // fire-and-forget so the UI is NOT blocked — the cached value applied
     // above bridges the gap until this completes. See _syncPremiumFromBackend.
     _syncPremiumFromBackend();
+    // REAL-TIME USER-DOC LISTENER: subscribe to the user's Firestore document
+    // so admin-granted entitlements (isPremium, purchasedCategoryIds,
+    // purchasedTests) and profile edits propagate live without re-login.
+    // See _startUserDocListener.
+    _startUserDocListener();
+  }
+
+  // ==================== REAL-TIME USER DOC SUBSCRIPTION ====================
+  // Subscribes to the user's Firestore document. When the admin grants or
+  // revokes entitlements server-side (e.g. manually adds a categoryId to
+  // purchasedCategoryIds, or flips isPremium), this listener fires, updates
+  // the in-memory _user model, invalidates the relevant AccessService cache
+  // entries, and notifies the UI — all in real-time, WITHOUT requiring the
+  // user to re-login or restart the app.
+  //
+  // FEEDBACK-LOOP SAFETY: when the app itself writes to the user doc (via
+  // addPurchasedTest / addPurchasedCategory / markPremium), this listener
+  // fires too — but the local _user is already updated optimistically, so
+  // re-parsing from the snapshot is a harmless no-op (the data matches).
+  void _startUserDocListener() {
+    // Cancel any existing subscription (e.g. from a previous login session).
+    _userDocSub?.cancel();
+    _userDocSub = null;
+    if (_user == null) return;
+    final uid = _user!.id;
+    _userDocSub = FirebaseService.usersRef.doc(uid).snapshots().listen(
+      (doc) {
+        if (_disposed || _user == null || _user!.id != uid) return;
+        if (!doc.exists) return; // doc deleted — auth-state will handle sign-out
+
+        final newUser = UserModel.fromFirestore(doc);
+        final oldUser = _user!;
+
+        // Detect entitlement changes that require AccessService cache
+        // invalidation so stale ALLOWED/DENIED decisions don't bypass the
+        // new entitlement state.
+        final premiumChanged = newUser.isPremium != oldUser.isPremium;
+        final categoriesChanged =
+            !_sameStringList(newUser.purchasedCategoryIds, oldUser.purchasedCategoryIds);
+        final testsChanged =
+            !_sameStringList(newUser.purchasedTests, oldUser.purchasedTests);
+
+        // Always adopt the fresh snapshot (name, photo, stats, entitlements).
+        _user = newUser;
+
+        if (premiumChanged) {
+          // Premium affects ALL access decisions — clear everything so the
+          // next check hits the server with the new premium state.
+          AccessService.clearCache();
+          // Keep the SharedPreferences premium cache in sync.
+          if (newUser.isPremium) {
+            PremiumCacheService.setPremium(userId: uid);
+          } else {
+            PremiumCacheService.clearPremium(uid);
+          }
+        } else {
+          // Only invalidate caches for entitlements that actually changed.
+          if (categoriesChanged) {
+            // Clear stale exam-pack caches for removed categories.
+            for (final id in oldUser.purchasedCategoryIds) {
+              if (!newUser.purchasedCategoryIds.contains(id)) {
+                AccessService.clearCacheForCategory(id);
+              }
+            }
+          }
+          if (testsChanged) {
+            for (final id in oldUser.purchasedTests) {
+              if (!newUser.purchasedTests.contains(id)) {
+                AccessService.clearCacheForTest(id);
+              }
+            }
+          }
+        }
+
+        if (!_disposed) notifyListeners();
+      },
+      onError: (e) {
+        // Firestore rules error / network issue — non-fatal. The app
+        // continues with the existing in-memory _user; the next login /
+        // app launch will re-subscribe.
+        print('[AuthProvider] user doc stream error (non-fatal): $e');
+      },
+    );
+  }
+
+  /// Order-insensitive equality check for two string lists.
+  bool _sameStringList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (final v in a) {
+      if (!b.contains(v)) return false;
+    }
+    return true;
   }
 
   // ==================== USER-SPECIFIC PREMIUM CACHE ====================
@@ -485,6 +588,10 @@ class AuthProvider extends ChangeNotifier {
 
   // ==================== LOGOUT ====================
   Future<void> logout() async {
+    // Stop listening to the user's Firestore doc so we don't get stray
+    // updates after the user has signed out.
+    _userDocSub?.cancel();
+    _userDocSub = null;
     await AuthService.logout();
     _user = null;
     _resendToken = null;
@@ -645,6 +752,8 @@ class AuthProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _userDocSub?.cancel();
+    _userDocSub = null;
     super.dispose();
   }
 }

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../search/search_screen.dart';
 import 'take_test_screen.dart';
 
 class TestSeriesScreen extends StatelessWidget {
@@ -18,6 +19,19 @@ class TestSeriesScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Test Series'),
+          actions: [
+            // Global search — available on every bottom-nav tab, not just Home.
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SearchScreen()),
+                );
+              },
+            ),
+          ],
           bottom: const TabBar(
             isScrollable: true,
             tabs: [

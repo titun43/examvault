@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../theme/app_theme.dart';
 import '../../models/subject_model.dart';
 import '../../models/category_model.dart';
@@ -23,36 +24,68 @@ class AllSubjectsScreen extends StatefulWidget {
 }
 
 class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
-  List<SubjectModel> _allSubjects = [];
+  List<SubjectModel> _allSubjects = const [];
   List<CategoryModel> _categories = [];
   List<SubjectModel> _filtered = [];
-  bool _isLoading = true;
+  bool _subjectsReady = false;
+  bool _categoriesReady = false;
   String _query = '';
   String? _selectedCategoryId;
+
+  StreamSubscription? _subjectsSub;
+  StreamSubscription? _categoriesSub;
+
+  bool get _isLoading => !(_subjectsReady && _categoriesReady);
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _initStreams();
   }
 
-  Future<void> _loadData() async {
-    try {
-      final results = await Future.wait([
-        FirestoreService.getSubjects(),
-        FirestoreService.getCategories(),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _allSubjects = results[0] as List<SubjectModel>;
-        _categories = results[1] as List<CategoryModel>;
-        _applyFilter();
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    }
+  void _initStreams() {
+    // LIVE streams: admin changes (add/rename/remove subjects & categories,
+    // change testCount) reflect here immediately without pull-to-refresh.
+    _subjectsSub = FirestoreService.getSubjectsStream().listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _allSubjects = data;
+          _subjectsReady = true;
+          _applyFilter();
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _subjectsReady = true;
+          _applyFilter();
+        });
+      },
+    );
+    _categoriesSub = FirestoreService.getCategoriesStream().listen(
+      (data) {
+        if (!mounted) return;
+        setState(() {
+          _categories = data;
+          _categoriesReady = true;
+          _applyFilter();
+        });
+      },
+      onError: (_) {
+        if (!mounted) return;
+        setState(() {
+          _categoriesReady = true;
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _subjectsSub?.cancel();
+    _categoriesSub?.cancel();
+    super.dispose();
   }
 
   void _applyFilter() {
