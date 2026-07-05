@@ -47,25 +47,23 @@ class AuthService {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       forceResendingToken: forceResendingToken,
-      // FORCE Play Integrity API — do NOT fall back to reCAPTCHA.
+      // NOTE on browser/reCAPTCHA: firebase_auth 4.x does NOT expose an
+      // `androidProvider` parameter (that was added in 5.x, which would
+      // require upgrading the entire Firebase stack — firebase_core 3.x,
+      // cloud_firestore 5.x, and 5 other packages). So we cannot force
+      // Play Integrity from Dart in this version.
       //
-      // Why: without this, when Play Integrity is unavailable (e.g. the app
-      // was installed as a direct APK instead of from the Play Store, or the
-      // device lacks Google Play Services), Firebase opens a browser/
-      // WebView for reCAPTCHA verification. That browser pop-up is confusing
-      // and looks broken to users ("browser khulche").
+      // What happens natively: the Firebase SDK tries Play Integrity first
+      // (silent, no browser). If Play Integrity is unavailable — which is
+      // the case for DIRECT APK installs because Play Integrity requires a
+      // Play Store install — it falls back to reCAPTCHA, which opens a
+      // browser/Chrome Custom Tab.
       //
-      // By forcing Play Integrity:
-      //   - Play Store installs  → silent verification, NO browser ✅
-      //   - Direct APK installs  → verificationFailed fires (NO browser, but
-      //                             OTP won't send — user must install from
-      //                             Play Store, which is the supported path)
-      //   - Test phone numbers   → still bypass verification entirely ✅
-      //
-      // This is the correct production behaviour. For testing, install the
-      // app from the Play Store internal testing track (not a direct APK),
-      // or use a Firebase test phone number.
-      androidProvider: AndroidProvider.playIntegrity,
+      // For Play Store installs (the production path), Play Integrity works
+      // and NO browser opens. For direct-APK testing, the browser may still
+      // open — this is a Firebase SDK limitation, not an app bug.
+      // Mitigation: test via the Play Store internal testing track, or use a
+      // Firebase test phone number.
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
           final result = await _auth.signInWithCredential(credential);
@@ -145,20 +143,20 @@ class AuthService {
       case 'credential-already-in-use':
         return 'This phone number is already linked to another account.$suffix';
       case 'missing-client-identifier':
-        // Play Integrity could not verify the app. With androidProvider
-        // forced to playIntegrity, this is the error users see when the app
-        // was NOT installed from the Play Store (direct APK install), or
-        // when the signing key's SHA-1/SHA-256 isn't registered in Firebase.
+        // Play Integrity could not verify the app. This typically means the
+        // app was installed as a direct APK (Play Integrity requires a Play
+        // Store install) or the signing key's SHA-1 isn't registered in
+        // Firebase Console.
         return 'OTP login needs the Play Store version of the app. '
             'Please install/update ExamVault from Google Play Store, '
             'then try again. (code: ${e.code})';
       default:
-        // When Play Integrity is forced and the app isn't Play-Store-
-        // installed, Firebase may return a generic error here. Give the
-        // same actionable hint as missing-client-identifier.
-        if (e.message.toLowerCase().contains('play integrity') ||
-            e.message.toLowerCase().contains('integrity') ||
-            e.message.toLowerCase().contains('verification')) {
+        // Generic fallback. If the raw Firebase message mentions integrity /
+        // verification, give the same actionable hint as above.
+        final rawMsg = (e.message ?? '').toLowerCase();
+        if (rawMsg.contains('play integrity') ||
+            rawMsg.contains('integrity') ||
+            rawMsg.contains('verification')) {
           return 'OTP login needs the Play Store version of the app. '
               'Please install/update ExamVault from Google Play Store, '
               'then try again. (code: ${e.code})';

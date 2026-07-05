@@ -33,8 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // True while we are WAITING for Firebase to send the OTP (between tapping
   // "Send OTP" and the onCodeSent / onError callback firing). During this
   // window we show an informative loading panel so the user knows the app is
-  // working — not frozen. Firebase Phone Auth (with forced Play Integrity)
-  // usually completes in 2-8 seconds and runs entirely in the background.
+  // working — not frozen. Firebase Phone Auth can take 2-20 seconds.
   bool _isSendingOtp = false;
   // Elapsed seconds counter for the loading panel — lets us show escalating
   // hints ("Sending..." -> "Verifying..." -> "Still working...").
@@ -167,8 +166,9 @@ class _LoginScreenState extends State<LoginScreen> {
   /// Informative loading panel shown while Firebase is sending the OTP.
   /// Shows evolving, reassuring messages based on how long we've been
   /// waiting, so the user knows the app is working — not frozen. Firebase
-  /// Phone Auth (with forced Play Integrity) usually completes in 2-8s and
-  /// runs entirely in the background — no browser opens.
+  /// Phone Auth can take 2-20 seconds. For Play Store installs it runs
+  /// silently (Play Integrity); for direct APK installs a verification page
+  /// may open (reCAPTCHA fallback — a Firebase SDK 4.x limitation).
   Widget _buildOtpLoadingPanel() {
     // Pick a message based on elapsed time — escalating detail.
     String title;
@@ -184,8 +184,8 @@ class _LoginScreenState extends State<LoginScreen> {
       icon = Icons.verified_user;
     } else if (_otpWaitSeconds < 15) {
       title = 'এখনও কাজ চলছে...';
-      subtitle = 'নেটওয়ার্ক স্লো থাকলে সময় বেশি লাগতে পারে। OTP আসা পর্যন্ত '
-          'অপেক্ষা করুন।';
+      subtitle = 'ভেরিফিকেশন হচ্ছে। যদি কোনো ভেরিফিকেশন পেজ খোলে, '
+          'সেটি সম্পূর্ণ করুন — OTP তারপর আসবে।';
       icon = Icons.hourglass_top;
     } else {
       title = 'বেশি সময় লাগছে...';
@@ -463,12 +463,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
                 ),
                 // ─── Informative loading panel while sending OTP ───
-                // Firebase Phone Auth (with forced Play Integrity) usually
-                // completes in 2-8 seconds and runs silently in the
-                // background. Without this panel the user sees a dead spinner
-                // and thinks the app has frozen ("kichui hocche na"). We show
-                // evolving, reassuring messages so the user knows the app is
-                // working.
+                // Firebase Phone Auth can take 2-20 seconds. Without this
+                // panel the user sees a dead spinner and thinks the app has
+                // frozen ("kichui hocche na"). We show evolving, reassuring
+                // messages so the user knows the app is working.
                 if (_isSendingOtp && !_otpSent) ...[
                   const SizedBox(height: 16),
                   _buildOtpLoadingPanel(),
@@ -658,11 +656,12 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     // ─── Start the "sending OTP" loading state ───
-    // Firebase Phone Auth (with forced Play Integrity) usually completes in
-    // 2-8 seconds and runs entirely in the background — no browser opens.
-    // Without a visible loading indicator the user thinks the app has
-    // frozen ("kichui hocche na"). We tick a counter every second and show
-    // escalating messages.
+    // Firebase Phone Auth can take 2-20 seconds. For Play Store installs
+    // it runs silently (Play Integrity). For direct APK installs it may
+    // open a verification page (reCAPTCHA fallback) — that's a Firebase
+    // SDK limitation in 4.x, not an app bug. Without a visible loading
+    // indicator the user thinks the app has frozen ("kichui hocche na").
+    // We tick a counter every second and show escalating messages.
     _isSendingOtp = true;
     _otpWaitSeconds = 0;
     setState(() {});
