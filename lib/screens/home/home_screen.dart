@@ -631,6 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
       itemBuilder: (context, index) {
         final action = actions[index];
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             final label = action['label'] as String;
             if (label == 'Daily Quiz') {
@@ -707,6 +708,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         final list = snapshot.data!;
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const AnnouncementsScreen()));
@@ -865,6 +867,13 @@ class _HomeScreenState extends State<HomeScreen> {
           category.isPremium && !auth.hasCategoryAccess(category.id),
       builder: (context, categoryLocked, _) {
         return GestureDetector(
+          // CRITICAL: opaque hit-testing so taps register anywhere on the
+          // card — not just on painted pixels. Without this, transparent
+          // areas of the Stack (edges, gaps in dark mode) swallow taps and
+          // the user thinks the category button is "not clicking".
+          // This matches the Upcoming Exam (Material+InkWell) and Current
+          // Affairs (GestureDetector+opaque) cards which DO click reliably.
+          behavior: HitTestBehavior.opaque,
           onTap: () {
             if (categoryLocked) {
               _showCategoryPaywall(context, category);
@@ -910,13 +919,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      category.name,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    // Fixed-height name block so every card looks the SAME
+                    // size regardless of name length. Short names ("LIC",
+                    // "SSC") center in the 32px box; long names ("Maharashtra",
+                    // "Assam APSC") wrap to 2 lines and clip with ellipsis.
+                    // Previously, short names were 1 line and long names were
+                    // 2 lines, making the cards look "some big some small".
+                    SizedBox(
+                      height: 32,
+                      child: Center(
+                        child: Text(
+                          category.name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 4),
                     Text(
