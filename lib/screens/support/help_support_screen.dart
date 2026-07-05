@@ -143,7 +143,19 @@ class _TicketList extends StatelessWidget {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final docs = snapshot.data?.docs ?? [];
+              final rawDocs = snapshot.data?.docs ?? [];
+              // Sort client-side so OPEN conversations stay on top and
+              // RESOLVED ones sink to the bottom. Within each group, newer
+              // (updatedAt) first. This makes sure that once admin resolves a
+              // ticket it no longer lingers at the top of the user's list.
+              final docs = [...rawDocs]..sort((a, b) {
+                  final ta = SupportTicketModel.fromFirestore(a);
+                  final tb = SupportTicketModel.fromFirestore(b);
+                  final aOpen = ta.status == TicketStatus.open;
+                  final bOpen = tb.status == TicketStatus.open;
+                  if (aOpen != bOpen) return aOpen ? -1 : 1;
+                  return tb.updatedAt.compareTo(ta.updatedAt);
+                });
               if (docs.isEmpty) {
                 return Center(
                   child: Padding(
@@ -368,7 +380,9 @@ class _TicketTile extends StatelessWidget {
                 Icon(
                   ticket.lastSender == 'admin'
                       ? Icons.support_agent
-                      : Icons.person,
+                      : ticket.lastSender == 'system'
+                          ? Icons.info_outline
+                          : Icons.person,
                   size: 12,
                   color: Colors.grey,
                 ),
@@ -663,6 +677,31 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // System messages (resolve / reopen events) render as a centered pill
+    // so they read clearly as status events, not chat from either party.
+    if (message.sender == MessageSender.system) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            message.text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ),
+      );
+    }
     final isUser = message.sender == MessageSender.user;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
