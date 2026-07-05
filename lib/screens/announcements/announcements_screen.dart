@@ -5,10 +5,11 @@
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/announcement_model.dart';
+import '../../models/action_button.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/in_app_navigator.dart';
 
 class AnnouncementsScreen extends StatelessWidget {
   const AnnouncementsScreen({super.key});
@@ -82,6 +83,42 @@ class _AnnouncementCard extends StatelessWidget {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 30) return '${diff.inDays}d ago';
     return '${d.day}/${d.month}/${d.year}';
+  }
+
+  /// Renders a single CTA button. Primary buttons are filled with the
+  /// announcement's type color; secondary buttons are outlined. Each runs
+  /// only its own [ActionButton] on tap via [runActionButton].
+  Widget _buildActionButton(
+    BuildContext context,
+    ActionButton button, {
+    required bool isPrimary,
+  }) {
+    final icon = button.type == ActionType.inApp
+        ? Icons.arrow_forward_rounded
+        : Icons.open_in_new;
+    if (isPrimary) {
+      return TextButton.icon(
+        onPressed: () => runActionButton(context, button),
+        icon: Icon(icon, size: 14),
+        label: Text(button.label),
+        style: TextButton.styleFrom(
+          foregroundColor: _typeColor,
+          backgroundColor: _typeColor.withOpacity(0.1),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          minimumSize: const Size(0, 32),
+        ),
+      );
+    }
+    return TextButton.icon(
+      onPressed: () => runActionButton(context, button),
+      icon: Icon(icon, size: 14),
+      label: Text(button.label),
+      style: TextButton.styleFrom(
+        foregroundColor: _typeColor,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        minimumSize: const Size(0, 32),
+      ),
+    );
   }
 
   @override
@@ -220,19 +257,15 @@ class _AnnouncementCard extends StatelessWidget {
                   style: TextStyle(fontSize: 11, color: mutedColor),
                 ),
                 const Spacer(),
-                if (a.link != null && a.link!.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: () async {
-                      final uri = Uri.tryParse(a.link!);
-                      if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    },
-                    icon: const Icon(Icons.open_in_new, size: 14),
-                    label: Text(a.linkLabel ?? 'Open Link'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: _typeColor,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  ),
+                // Up to two CTA buttons, each independently configured by the
+                // admin as an external link OR an in-app screen. Tapping a
+                // button runs only its own action.
+                if (a.primaryButton != null && a.primaryButton!.isSet)
+                  _buildActionButton(context, a.primaryButton!, isPrimary: true),
+                if (a.secondaryButton != null && a.secondaryButton!.isSet) ...[
+                  const SizedBox(width: 6),
+                  _buildActionButton(context, a.secondaryButton!, isPrimary: false),
+                ],
               ],
             ),
           ],

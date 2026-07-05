@@ -22,6 +22,8 @@ import '../../models/upcoming_exam_model.dart';
 import '../../models/banner_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/access_service.dart';
+import '../../models/action_button.dart';
+import '../../utils/in_app_navigator.dart';
 import '../../services/razorpay_service.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -309,18 +311,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () async {
-                      // Banner tap handler. The user reported that taps were
-                      // being swallowed by the PageView's horizontal drag
-                      // gesture. `behavior: HitTestBehavior.opaque` ensures
-                      // taps anywhere on the banner are delivered to this
-                      // handler (not just on the non-transparent pixels).
+                      // Whole-banner tap → run the primary button's action
+                      // (if any). The two explicit buttons below handle their
+                      // own taps; this is a convenience so tapping anywhere
+                      // on the image still does something useful.
+                      final primary = b.primaryButton;
+                      if (primary != null && primary.isSet) {
+                        await runActionButton(context, primary);
+                        return;
+                      }
+                      // No primary button — fall back to legacy link field.
                       if (b.link == null || b.link!.isEmpty) {
-                        // No link set — give the user a small toast so they
-                        // know the tap registered (otherwise it feels dead).
                         if (!mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('This banner has no link.'),
+                            content: Text('This banner has no action set.'),
                             duration: Duration(seconds: 2),
                           ),
                         );
@@ -337,8 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                         return;
                       }
-                      // Try external app first; if it fails (no handler),
-                      // fall back to in-app browser so the link still opens.
                       try {
                         final launched = await launchUrl(uri,
                             mode: LaunchMode.externalApplication);
@@ -347,7 +350,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               mode: LaunchMode.inAppBrowserView);
                         }
                       } catch (_) {
-                        // Last-resort fallback.
                         try {
                           await launchUrl(uri);
                         } catch (_) {
@@ -451,7 +453,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ),
-                            // Text + CTA
+                            // Text + CTA buttons (up to 2, each independently
+                            // configured by the admin as external link OR
+                            // in-app screen). Tapping a button runs only that
+                            // button's action; tapping elsewhere on the banner
+                            // runs the primary button's action (see onTap above).
                             Positioned(
                               left: 12,
                               right: 12,
@@ -482,23 +488,45 @@ class _HomeScreenState extends State<HomeScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
-                                  if (b.linkLabel != null && b.link != null) ...[
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        b.linkLabel!,
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppTheme.primaryColor,
-                                        ),
-                                      ),
+                                  if (b.primaryButton != null ||
+                                      b.secondaryButton != null) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        if (b.primaryButton != null &&
+                                            b.primaryButton!.isSet)
+                                          Expanded(
+                                            child: _buildBannerButton(
+                                              context,
+                                              b.primaryButton!,
+                                              isPrimary: true,
+                                            ),
+                                          ),
+                                        if (b.primaryButton != null &&
+                                            b.primaryButton!.isSet &&
+                                            b.secondaryButton != null &&
+                                            b.secondaryButton!.isSet) ...[
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: _buildBannerButton(
+                                              context,
+                                              b.secondaryButton!,
+                                              isPrimary: false,
+                                            ),
+                                          ),
+                                        ] else if (b.secondaryButton != null &&
+                                            b.secondaryButton!.isSet) ...[
+                                          // Only secondary set (no primary) —
+                                          // show it full width.
+                                          Expanded(
+                                            child: _buildBannerButton(
+                                              context,
+                                              b.secondaryButton!,
+                                              isPrimary: false,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
                                     ),
                                   ],
                                 ],
@@ -535,6 +563,44 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  /// Renders a single CTA button inside a banner. Primary buttons are solid
+  /// white (high contrast against the banner image); secondary buttons are
+  /// translucent so the two are visually distinct. Each button runs only its
+  /// own [ActionButton] on tap — the outer banner GestureDetector does NOT
+  /// receive these taps because Material InkWell / GestureDetector here wins
+  /// the hit-test.
+  Widget _buildBannerButton(
+    BuildContext context,
+    ActionButton button, {
+    required bool isPrimary,
+  }) {
+    final label = button.isSet ? button.label : '';
+    if (label.isEmpty) return const SizedBox.shrink();
+    final btn = Material(
+      color: isPrimary ? Colors.white : Colors.white.withOpacity(0.22),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => runActionButton(context, button),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: isPrimary ? AppTheme.primaryColor : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+    return btn;
   }
 
   /// Slim banner shown only in guest mode. Reminds the user they're browsing
