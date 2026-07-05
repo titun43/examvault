@@ -3,6 +3,7 @@
 // Shows all published upcoming exams with countdown + apply link
 // =============================================================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
@@ -67,6 +68,8 @@ class _UpcomingExamCard extends StatelessWidget {
     final days = exam.daysRemaining;
     final isPast = days < 0;
     final isSoon = !isPast && days <= 30;
+    // Admin-uploaded banner image — shown at the top of the card when present.
+    final hasImage = exam.imageUrl != null && exam.imageUrl!.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
@@ -80,11 +83,36 @@ class _UpcomingExamCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      // Clip children so the banner image inherits the card's rounded corners.
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasImage)
+            CachedNetworkImage(
+              imageUrl: exam.imageUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: 140,
+              placeholder: (_, __) => Container(
+                color: Colors.grey.shade200,
+                width: double.infinity,
+                height: 140,
+              ),
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.grey.shade200,
+                width: double.infinity,
+                height: 140,
+                child: const Center(
+                  child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -243,6 +271,8 @@ class _UpcomingExamCard extends StatelessWidget {
           ],
         ),
       ),
+          ],
+        ),
     );
   }
 }

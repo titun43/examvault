@@ -7,6 +7,7 @@
 // subject list.
 // =============================================================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/category_model.dart';
@@ -102,6 +103,114 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     // FIXED: check exam-pack purchase too, not just premium subscription.
     final categoryLocked = category.isPremium && !auth.hasCategoryAccess(category.id);
+    // Show admin-uploaded category image as the card background when present.
+    final hasImage =
+        category.image != null && category.image!.isNotEmpty;
+
+    // Shared content layer (emoji circle + name + subject count + price tag).
+    // Rendered on top of either the image background or the color gradient.
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Center(
+            child: Text(
+              category.icon ?? '📚',
+              style: const TextStyle(fontSize: 28),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          category.name,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '${category.subjectCount} Subjects',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: 11,
+          ),
+        ),
+        if (categoryLocked && category.premiumPrice > 0) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '₹${category.premiumPrice}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    // Background layer: full-bleed image + dark overlay (when image present),
+    // otherwise the original color gradient. Falls back to the gradient on
+    // image load error or while loading so the card never looks empty.
+    final BoxDecoration gradientDecoration = BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [color, color.withOpacity(0.7)],
+      ),
+    );
+    final Widget background;
+    if (hasImage) {
+      background = Stack(
+        fit: StackFit.expand,
+        children: [
+          CachedNetworkImage(
+            imageUrl: category.image!,
+            fit: BoxFit.cover,
+            placeholder: (_, __) =>
+                DecoratedBox(decoration: gradientDecoration),
+            errorWidget: (_, __, ___) =>
+                DecoratedBox(decoration: gradientDecoration),
+          ),
+          // Dark gradient overlay so the white text stays legible on top
+          // of any image. Stronger at the bottom, lighter near the top.
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: [
+                  Colors.black.withOpacity(0.65),
+                  Colors.black.withOpacity(0.2),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      background = DecoratedBox(decoration: gradientDecoration);
+    }
+
     return GestureDetector(
       onTap: () {
         // Same real-lock behavior as the home screen.
@@ -119,13 +228,8 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
       child: Stack(
         children: [
           Container(
-            padding: const EdgeInsets.all(16),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [color, color.withOpacity(0.7)],
-              ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -135,62 +239,14 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                 ),
               ],
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: Center(
-                    child: Text(
-                      category.icon ?? '📚',
-                      style: const TextStyle(fontSize: 28),
-                    ),
-                  ),
+                background,
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: content,
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  category.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${category.subjectCount} Subjects',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 11,
-                  ),
-                ),
-                if (categoryLocked && category.premiumPrice > 0) ...[
-                  const SizedBox(height: 4),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '₹${category.premiumPrice}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

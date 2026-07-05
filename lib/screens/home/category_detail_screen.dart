@@ -10,6 +10,7 @@
 // the legacy local check (auth.isPremium) so the app keeps working.
 // =============================================================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/category_model.dart';
@@ -254,6 +255,32 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       ),
       body: Column(
         children: [
+          // Category image banner (admin-uploaded). Shown only when an image
+          // URL is set; otherwise the gradient header below stands on its own.
+          if (widget.category.image != null &&
+              widget.category.image!.isNotEmpty)
+            SizedBox(
+              width: double.infinity,
+              height: 180,
+              child: CachedNetworkImage(
+                imageUrl: widget.category.image!,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  color: (AppTheme.categoryColors[widget.category.name] ??
+                          AppTheme.primaryColor)
+                      .withOpacity(0.3),
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  color: (AppTheme.categoryColors[widget.category.name] ??
+                          AppTheme.primaryColor)
+                      .withOpacity(0.3),
+                  child: const Center(
+                    child: Icon(Icons.broken_image,
+                        color: Colors.white, size: 40),
+                  ),
+                ),
+              ),
+            ),
           // Header
           Container(
             width: double.infinity,

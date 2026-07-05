@@ -3,6 +3,7 @@
 // Shows all published announcements (admin pushes → user sees here + ticker)
 // =============================================================================
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
@@ -90,6 +91,8 @@ class _AnnouncementCard extends StatelessWidget {
     final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
     final subtitleColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
     final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade500;
+    // Admin-uploaded banner image — shown at the top of the card when present.
+    final hasImage = a.imageUrl != null && a.imageUrl!.isNotEmpty;
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -105,11 +108,36 @@ class _AnnouncementCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      // Clip children so the banner image inherits the card's rounded corners.
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (hasImage)
+            CachedNetworkImage(
+              imageUrl: a.imageUrl!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: 160,
+              placeholder: (_, __) => Container(
+                color: Colors.grey.shade200,
+                width: double.infinity,
+                height: 160,
+              ),
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.grey.shade200,
+                width: double.infinity,
+                height: 160,
+                child: const Center(
+                  child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
             Row(
               children: [
                 Icon(_typeIcon, color: _typeColor, size: 20),
@@ -210,6 +238,8 @@ class _AnnouncementCard extends StatelessWidget {
           ],
         ),
       ),
+          ],
+        ),
     );
   }
 }
