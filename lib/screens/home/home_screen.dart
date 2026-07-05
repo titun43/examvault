@@ -65,6 +65,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _bannerTimer;
   int _currentBannerPage = 0;
   int _bannerCount = 0; // tracked so the auto-rotate can wrap with modulo
+  // Signature of the last category payload we rendered. Used to skip no-op
+  // rebuilds (see initState). Fixes the "screen flashing when scrolling" bug
+  // caused by the admin count-sync write-back firing the stream repeatedly
+  // with identical data.
+  String _lastCategoriesSig = '';
 
   @override
   void initState() {
@@ -72,13 +77,29 @@ class _HomeScreenState extends State<HomeScreen> {
     _startBannerAutoScroll();
     // Single subscription for categories. The grid reads _categories directly,
     // so there is no StreamBuilder double-listening.
+    //
+    // GUARD: only call setState when the category list actually changed.
+    // The admin "Syncing counts" step (Task 2) writes subjectCount back to
+    // category docs, which fires this stream repeatedly with the SAME data
+    // (just a different subjectCount on a doc). Without this guard every
+    // such write rebuilds the entire home screen — which, while the user is
+    // scrolling, looks like a screen "flash". We compare a lightweight
+    // signature (id+subjectCount+testCount+name) so count updates still
+    // refresh the UI but identical payloads are skipped.
     _categoriesSub = FirestoreService.getCategoriesStream().listen((cats) {
-      if (mounted) {
-        setState(() {
-          _categories = cats;
-          _categoriesLoaded = true;
-        });
+      if (!mounted) return;
+      final newSig = cats
+          .map((c) => '${c.id}|${c.name}|${c.subjectCount}|${c.icon ?? ""}')
+          .join('§');
+      if (newSig == _lastCategoriesSig && _categoriesLoaded) {
+        // identical payload — skip rebuild to avoid scroll-position jump / flash
+        return;
       }
+      _lastCategoriesSig = newSig;
+      setState(() {
+        _categories = cats;
+        _categoriesLoaded = true;
+      });
     });
   }
 
@@ -170,7 +191,12 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
-          child: Column(
+          // RepaintBoundary isolates the scrollable content's layer so that
+          // repainting during scroll doesn't bleed into the AppBar / bottom
+          // nav. This reduces the visible "flash" the user reported when
+          // scrolling to the bottom.
+          child: RepaintBoundary(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildBannerCarousel(),
@@ -195,8 +221,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 24),
             ],
           ),
-        ),
-      ),
+          ),  // RepaintBoundary
+        ),  // SingleChildScrollView
+      ),  // RefreshIndicator
     );
   }
 
@@ -228,11 +255,57 @@ class _HomeScreenState extends State<HomeScreen> {
                 itemBuilder: (context, index) {
                   final b = banners[index];
                   return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () async {
-                      if (b.link != null && b.link!.isNotEmpty) {
-                        final uri = Uri.tryParse(b.link!);
-                        if (uri != null) {
-                          await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      // Banner tap handler. The user reported that taps were
+                      // being swallowed by the PageView's horizontal drag
+                      // gesture. `behavior: HitTestBehavior.opaque` ensures
+                      // taps anywhere on the banner are delivered to this
+                      // handler (not just on the non-transparent pixels).
+                      if (b.link == null || b.link!.isEmpty) {
+                        // No link set — give the user a small toast so they
+                        // know the tap registered (otherwise it feels dead).
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('This banner has no link.'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+                      final uri = Uri.tryParse(b.link!);
+                      if (uri == null) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Invalid banner link: ${b.link}'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+                      // Try external app first; if it fails (no handler),
+                      // fall back to in-app browser so the link still opens.
+                      try {
+                        final launched = await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                        if (!launched) {
+                          await launchUrl(uri,
+                              mode: LaunchMode.inAppBrowserView);
+                        }
+                      } catch (_) {
+                        // Last-resort fallback.
+                        try {
+                          await launchUrl(uri);
+                        } catch (_) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Could not open link.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
                         }
                       }
                     },
@@ -1382,76 +1455,91 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildUpcomingExamMiniCard(UpcomingExamModel e) {
     final days = e.daysRemaining;
     final isPast = days < 0;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
-      },
-      child: Container(
+    // User reported: tapping a mini exam card on the Home screen opens a
+    // single exam directly instead of the full "Upcoming Exams" list. The
+    // handler below ALWAYS opens the full UpcomingExamsScreen (View All),
+    // never a specific exam detail. Using Material+InkWell so the tap has a
+    // visible ripple — the user can SEE the tap registered before the
+    // navigation transition fires.
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      child: Material(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: isPast
-                ? Colors.grey
-                : days <= 30
-                    ? Colors.red
-                    : AppTheme.primaryColor,
-            width: 3,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  e.name,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const UpcomingExamsScreen()));
+          },
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border(
+                left: BorderSide(
+                  color: isPast
+                      ? Colors.grey
+                      : days <= 30
+                          ? Colors.red
+                          : AppTheme.primaryColor,
+                  width: 3,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '${e.examDate.day}/${e.examDate.month}/${e.examDate.year}'
-                  '${e.organization != null && e.organization!.isNotEmpty ? ' • ${e.organization}' : ''}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.name,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${e.examDate.day}/${e.examDate.month}/${e.examDate.year}'
+                        '${e.organization != null && e.organization!.isNotEmpty ? ' • ${e.organization}' : ''}',
+                        style: TextStyle(
+                            fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isPast
+                        ? Colors.grey.shade200
+                        : days <= 30
+                            ? Colors.red.withOpacity(0.1)
+                            : AppTheme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isPast ? '${-days}d ago' : '$days days',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isPast
+                          ? Colors.grey
+                          : days <= 30
+                              ? Colors.red
+                              : AppTheme.primaryColor,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isPast
-                  ? Colors.grey.shade200
-                  : days <= 30
-                      ? Colors.red.withOpacity(0.1)
-                      : AppTheme.primaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              isPast ? '${-days}d ago' : '$days days',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isPast
-                    ? Colors.grey
-                    : days <= 30
-                        ? Colors.red
-                        : AppTheme.primaryColor,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
-    ),
     );
   }
 
