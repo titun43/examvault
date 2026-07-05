@@ -71,10 +71,33 @@ class _HomeScreenState extends State<HomeScreen> {
   // with identical data.
   String _lastCategoriesSig = '';
 
+  // Cached Firestore streams. Creating a stream inline inside build() is a
+  // classic Flutter anti-pattern: every parent rebuild (the banner auto-scroll
+  // setState fires every 4s, the category subscription setState, theme toggle,
+  // premium state changes, etc.) hands each StreamBuilder a BRAND-NEW stream
+  // object, so Flutter cancels the old subscription and re-subscribes —
+  // resetting the connection state to "waiting" and flashing the shimmer
+  // placeholder. This is why the sections below "Popular Subjects" kept
+  // "reloading" every few seconds. Caching the stream instances once in
+  // initState means StreamBuilder sees the same stream object across rebuilds
+  // and never re-subscribes, so those sections stay stable.
+  late final Stream<List<BannerModel>> _bannersStream;
+  late final Stream<List<AnnouncementModel>> _announcementsStream;
+  late final Stream<List<SubjectModel>> _subjectsStream;
+  late final Stream<List<UpcomingExamModel>> _upcomingExamsStream;
+  late final Stream<List<CurrentAffairModel>> _currentAffairsStream;
+
   @override
   void initState() {
     super.initState();
     _startBannerAutoScroll();
+    // Cache the Firestore streams ONCE so the StreamBuilders below don't
+    // re-subscribe (and flash shimmer) on every parent rebuild.
+    _bannersStream = FirestoreService.getActiveBannersStream();
+    _announcementsStream = FirestoreService.getAnnouncementsStream(limit: 5);
+    _subjectsStream = FirestoreService.getSubjectsStream();
+    _upcomingExamsStream = FirestoreService.getUpcomingExamsStream(limit: 3);
+    _currentAffairsStream = FirestoreService.getCurrentAffairsStream(limit: 3);
     // Single subscription for categories. The grid reads _categories directly,
     // so there is no StreamBuilder double-listening.
     //
@@ -230,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ==================== BANNER CAROUSEL ====================
   Widget _buildBannerCarousel() {
     return StreamBuilder<List<BannerModel>>(
-      stream: FirestoreService.getActiveBannersStream(),
+      stream: _bannersStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink(); // no banners → hide carousel
@@ -677,7 +700,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ==================== ANNOUNCEMENTS TICKER ====================
   Widget _buildAnnouncementsTicker() {
     return StreamBuilder<List<AnnouncementModel>>(
-      stream: FirestoreService.getAnnouncementsStream(limit: 5),
+      stream: _announcementsStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
@@ -1250,7 +1273,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<SubjectModel>>(
-          stream: FirestoreService.getSubjectsStream(),
+          stream: _subjectsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
@@ -1424,7 +1447,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<UpcomingExamModel>>(
-          stream: FirestoreService.getUpcomingExamsStream(limit: 3),
+          stream: _upcomingExamsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
@@ -1613,7 +1636,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         StreamBuilder<List<CurrentAffairModel>>(
-          stream: FirestoreService.getCurrentAffairsStream(limit: 3),
+          stream: _currentAffairsStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
