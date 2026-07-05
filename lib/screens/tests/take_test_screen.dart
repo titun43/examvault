@@ -404,6 +404,15 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       print('saveResult error (non-fatal): $e');
     }
 
+    // 1b. Atomically increment the test's attemptCount so the "N attempts"
+    //     counter on test cards (test list, test series, daily quiz) reflects
+    //     real engagement. Race-safe via FieldValue.increment. Best-effort.
+    try {
+      await FirestoreService.incrementAttemptCount(widget.test.id);
+    } catch (e) {
+      print('incrementAttemptCount error (non-fatal): $e');
+    }
+
     // 2) Update user aggregate stats (totalTestsAttempted, XP, level, streak,
     //    averageScore). This is what makes the profile test-count update.
     if (userId.isNotEmpty) {

@@ -259,6 +259,8 @@ class _DailyQuizCard extends StatelessWidget {
                 _metaChip(Icons.timer, '${test.duration} min', mutedColor),
                 _metaChip(
                     Icons.star_border, '${test.totalMarks} marks', mutedColor),
+                _metaChip(Icons.trending_up, '${test.attemptCount} attempts',
+                    mutedColor),
               ],
             ),
             if (test.instructions != null &&

@@ -158,6 +158,8 @@ class TestSeriesScreen extends StatelessWidget {
                 _buildInfoChip(Icons.help_outline, '${test.questionCount} Qs'),
                 _buildInfoChip(Icons.timer_outlined, '${test.duration} min'),
                 _buildInfoChip(Icons.star_outline, '${test.totalMarks} marks'),
+                _buildInfoChip(
+                    Icons.trending_up, '${test.attemptCount} attempts'),
                 _buildDifficultyChip(test.difficulty),
               ],
             ),

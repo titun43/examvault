@@ -415,6 +415,17 @@ class FirestoreService {
     await _db.collection('tests').doc(id).delete();
   }
 
+  /// Atomically increments the `attemptCount` field on a test document by 1.
+  /// Called after a user submits a test so the "N attempts" counter on test
+  /// cards reflects real engagement. Uses FieldValue.increment so concurrent
+  /// submissions never overwrite each other (race-safe). The field is created
+  /// if it doesn't exist yet. Best-effort — callers wrap in try/catch.
+  static Future<void> incrementAttemptCount(String testId) async {
+    await _db.collection('tests').doc(testId).update({
+      'attemptCount': FieldValue.increment(1),
+    });
+  }
+
   // ==================== QUESTIONS ====================
   static Future<List<QuestionModel>> getQuestions(String testId) async {
     try {
