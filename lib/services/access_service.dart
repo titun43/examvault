@@ -11,6 +11,7 @@
 // =============================================================================
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'exam_pack_cache_service.dart';
 import 'payment_api_service.dart';
 
 /// Immutable access decision returned by [AccessService].
@@ -171,7 +172,10 @@ class AccessService {
   }
 
   /// Optimistically write a positive "allowed" decision for an exam pack
-  /// (category) to the cache.
+  /// (category) to the cache. ALSO writes to the persistent
+  /// SharedPreferences exam-pack cache (user-specific) so the next screen
+  /// open / app restart reads it INSTANTLY — no "Buy" flash while the
+  /// server access-check runs. See ExamPackCacheService for details.
   static void markExamPackPurchased(String categoryId) {
     // CRITICAL: an exam pack unlocks ALL tests in the category. If the user
     // had previously tapped a test (got a DENIED decision, cached for 120s),
@@ -185,6 +189,14 @@ class AccessService {
       reason: 'owned',
       grantedBy: 'EXAM_PACK',
     ));
+    // Persist to the user-specific SharedPreferences cache so the unlocked
+    // category survives app restarts and prevents the "Buy" flash on the
+    // next screen open. Fire-and-forget — the in-memory cache above already
+    // gives immediate access for this session.
+    final uid = _userId();
+    if (uid != 'anon') {
+      ExamPackCacheService.addCategory(userId: uid, categoryId: categoryId);
+    }
   }
 
   /// Remove all cache entries for the current user whose key starts with
@@ -248,6 +260,10 @@ class AccessService {
   }
 
   /// Check access to all subjects/tests in a category (exam pack).
+  /// On a successful server decision, the result is ALSO mirrored to the
+  /// persistent SharedPreferences exam-pack cache (user-specific) so the
+  /// next screen open reads it INSTANTLY. If the server says DENIED, the
+  /// categoryId is removed from the cache to prevent stale free access.
   static Future<AccessDecision> checkCategoryAccess(String categoryId) async {
     final resource = 'exam:$categoryId';
     final cached = _read(resource);
@@ -260,6 +276,19 @@ class AccessService {
       );
       final d = AccessDecision.fromMap(m);
       _write(resource, d);
+      // Mirror the server's truth to the persistent local cache. This keeps
+      // the SharedPreferences cache in sync — adding newly-purchased
+      // categories and removing revoked/expired ones. Fire-and-forget.
+      final uid = _userId();
+      if (uid != 'anon') {
+        if (d.allowed) {
+          await ExamPackCacheService.addCategory(
+              userId: uid, categoryId: categoryId);
+        } else {
+          await ExamPackCacheService.removeCategory(
+              userId: uid, categoryId: categoryId);
+        }
+      }
       return d;
     } on PaymentApiException catch (e) {
       if (e.statusCode == 404) rethrow;

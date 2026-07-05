@@ -9,6 +9,7 @@ import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_service.dart';
 import '../services/premium_cache_service.dart';
+import '../services/exam_pack_cache_service.dart';
 import '../services/access_service.dart';
 
 /// Converts raw Firebase auth exceptions into user-friendly messages.
@@ -546,6 +547,15 @@ class AuthProvider extends ChangeNotifier {
   /// model and persist to Firestore. Call this in the Razorpay onSuccess
   /// callback for exam-pack purchases so home/categories screens unlock
   /// immediately without waiting for the backend verify round-trip.
+  ///
+  /// PERSISTENT LOCAL CACHE (v1.44.6):
+  /// In addition to the in-memory + Firestore updates, we now write the
+  /// categoryId to the user-specific SharedPreferences exam-pack cache
+  /// (examPackCategories_${userId}). This survives app restarts and closes
+  /// the "Buy" flash gap that occurs when the test list screen opens and
+  /// _serverHasExamPackAccess is still false (waiting for the server
+  /// access-check). The cache is user-specific — a different user logging in
+  /// checks their own key. See ExamPackCacheService for details.
   void addPurchasedCategory(String categoryId) async {
     if (_user == null) return;
     if (_user!.purchasedCategoryIds.contains(categoryId)) return;
@@ -554,6 +564,13 @@ class AuthProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     notifyListeners();
+    // Persist to the USER-SPECIFIC SharedPreferences cache (survives restart).
+    // This is the key fix for the exam-pack "Buy" flash — the cache is read
+    // instantly on the next screen open, before the server sync completes.
+    ExamPackCacheService.addCategory(
+      userId: _user!.id,
+      categoryId: categoryId,
+    );
     try {
       await FirebaseService.usersRef.doc(_user!.id).set({
         'purchasedCategoryIds': _user!.purchasedCategoryIds,

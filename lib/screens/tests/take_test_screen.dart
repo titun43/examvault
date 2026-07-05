@@ -10,6 +10,7 @@ import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
 import '../../services/access_service.dart';
 import '../../services/admob_service.dart';
+import '../../services/exam_pack_cache_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
@@ -116,22 +117,53 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     // first. The 60s cache in AccessService will also return a positive
     // decision instantly if we just checked.
     //
-    // NOTE: exam-pack (category) access is NOT in the local UserModel — it
-    // lives only in the AccessService cache (written by markExamPackPurchased
-    // or by a prior checkCategoryAccess call). We intentionally do NOT
-    // short-circuit here for exam-pack — we fall through to the server check
-    // below, which will hit the cache (instant) if CategoryDetailScreen or
-    // TestListScreen already ran the category access check.
+    // v1.44.6: exam-pack (category) access is NOW checked locally too —
+    // both the Firestore-loaded purchasedCategoryIds AND the persistent
+    // SharedPreferences exam-pack cache. Previously the comment below said
+    // exam-pack was NOT in the local model; that was outdated —
+    // purchasedCategoryIds IS in the UserModel (persisted to Firestore by
+    // addPurchasedCategory). We now consult it here so exam-pack buyers open
+    // their tests INSTANTLY (no 300-900ms server access-check delay, no
+    // loading spinner). The server check still runs as the final gatekeeper
+    // for tests the user doesn't locally own.
     final localIsPremium = user?.isPremium ?? false;
     final localHasTest =
         user?.purchasedTests.contains(widget.test.id) ?? false;
-    if (localIsPremium || localHasTest) {
+    // Local exam-pack check: Firestore-loaded purchasedCategoryIds. We check
+    // BOTH the passed-in categoryId and resolve later if needed. The passed-in
+    // categoryId (from CategoryDetailScreen) is the real Firestore id, so this
+    // local check works for the common navigation path.
+    final localHasExamPack = widget.categoryId != null &&
+        widget.categoryId!.isNotEmpty &&
+        (user?.purchasedCategoryIds.contains(widget.categoryId) ?? false);
+    if (localIsPremium || localHasTest || localHasExamPack) {
       _accessGranted = true;
       _accessChecking = false;
       _loadQuestions();
       _startTimer();
       if (mounted) setState(() {});
       return;
+    }
+    // ASYNC CACHE CHECK — if the local UserModel doesn't have the exam-pack
+    // (e.g. Firestore read failed on launch), check the persistent
+    // SharedPreferences cache before falling through to the server. This is
+    // fast (~10ms) and catches the edge case where the cache has the purchase
+    // but the UserModel doesn't.
+    if (widget.categoryId != null && widget.categoryId!.isNotEmpty &&
+        user != null) {
+      final cachedExamPack = await ExamPackCacheService.hasCategoryAccess(
+        userId: user.id,
+        categoryId: widget.categoryId!,
+      );
+      if (cachedExamPack) {
+        if (!mounted) return;
+        _accessGranted = true;
+        _accessChecking = false;
+        _loadQuestions();
+        _startTimer();
+        if (mounted) setState(() {});
+        return;
+      }
     }
 
     // SERVER CHECK — for tests the user doesn't locally own. This catches
@@ -721,13 +753,139 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     );
   }
 
+  /// Builds a skeleton loading screen that mirrors the actual test layout
+  /// (progress bar + question card + 4 option rows). Replaces the old bare
+  /// CircularProgressIndicator so the user sees a content-shaped placeholder
+  /// instead of a spinning circle. Cheap to render (no network, no data) and
+  /// disappears as soon as access + questions finish loading.
+  Widget _buildLoadingSkeleton(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.grey.shade800 : Colors.grey.shade300;
+    final highlightColor =
+        isDark ? Colors.grey.shade700 : Colors.grey.shade100;
+
+    Widget shimmerBox({double width = double.infinity, double height = 16}) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: baseColor,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.test.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        actions: [
+          Center(
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: shimmerBox(
+                  width: 48, height: 14),
+            ),
+          ),
+          const SizedBox(width: 48),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Progress bar placeholder
+          LinearProgressIndicator(
+            value: 0.0,
+            backgroundColor: highlightColor,
+            valueColor:
+                AlwaysStoppedAnimation<Color>(baseColor),
+            minHeight: 4,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                shimmerBox(width: 100, height: 14),
+                shimmerBox(width: 60, height: 14),
+              ],
+            ),
+          ),
+          // Question card skeleton
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Question text lines
+                  shimmerBox(height: 18),
+                  const SizedBox(height: 10),
+                  shimmerBox(height: 18, width: 260),
+                  const SizedBox(height: 10),
+                  shimmerBox(height: 18, width: 180),
+                  const SizedBox(height: 28),
+                  // Option rows (4 placeholders)
+                  ...List.generate(4, (i) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: highlightColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: baseColor, width: 1),
+                          ),
+                          child: Row(
+                            children: [
+                              shimmerBox(width: 24, height: 24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: shimmerBox(
+                                    height: 14,
+                                    width: 180 + (i * 20.0)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+          // Bottom nav placeholder
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                shimmerBox(width: 90, height: 40),
+                shimmerBox(width: 90, height: 40),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_accessChecking || _isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Loading...')),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      // SKELETON UI (v1.44.6): instead of a bare CircularProgressIndicator,
+      // show a content-shaped skeleton that mirrors the actual test layout
+      // (progress bar + question card + option rows). This gives the user
+      // immediate visual feedback that the test is loading and looks far
+      // more polished than a spinning circle. The skeleton is cheap (no
+      // network, no data) and disappears as soon as access + questions load.
+      return _buildLoadingSkeleton(context);
     }
 
     // Paywall: if the test is paid and the user hasn't purchased it and isn't

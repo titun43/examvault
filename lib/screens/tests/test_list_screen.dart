@@ -33,6 +33,7 @@ import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
 import '../../models/user_model.dart';
 import '../../services/access_service.dart';
+import '../../services/exam_pack_cache_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
@@ -86,7 +87,64 @@ class _TestListScreenState extends State<TestListScreen> {
   @override
   void initState() {
     super.initState();
+    // INSTANT LOCAL PRE-SEED (synchronous) — before the first frame builds,
+    // check the Firestore-loaded purchasedCategoryIds for this category. If
+    // the user already bought this exam pack, _serverHasExamPackAccess flips
+    // to true NOW — no "Buy" flash while the server access-check runs.
+    // This is the key fix for the exam-pack flash: the UI renders correctly
+    // on the VERY FIRST frame, not after a 300-900ms network round-trip.
+    _seedLocalExamPackAccess();
+    // ASYNC CACHE PRE-SEED (fast, ~10ms) — also check the persistent
+    // SharedPreferences exam-pack cache. This catches the edge case where
+    // Firestore read failed on launch (fallback UserModel has empty
+    // purchasedCategoryIds) but the cache still has the purchase from a
+    // previous session. Fire-and-forget; setState when it returns.
+    _seedCachedExamPackAccess();
     _refreshAccessStatus();
+  }
+
+  /// Synchronous local pre-seed for exam-pack access. Reads the
+  /// Firestore-loaded `purchasedCategoryIds` from the in-memory UserModel
+  /// and sets `_serverHasExamPackAccess = true` if this category is in the
+  /// list. Runs in initState BEFORE the first build → no flash.
+  void _seedLocalExamPackAccess() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) return;
+    final rawCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId!
+            : (widget.subject?.categoryId ?? '');
+    if (rawCategoryId.isEmpty) return;
+    if (user.purchasedCategoryIds.contains(rawCategoryId)) {
+      _serverHasExamPackAccess = true;
+    }
+  }
+
+  /// Async pre-seed from the persistent SharedPreferences exam-pack cache.
+  /// Fast (~10ms) but still async, so it runs as fire-and-forget in initState.
+  /// If the cache says the user has this category, flips
+  /// `_serverHasExamPackAccess = true` and setState. This complements the
+  /// synchronous `_seedLocalExamPackAccess` for the edge case where the
+  /// Firestore UserModel is missing the purchase (e.g. Firestore read failed
+  /// on launch) but the cache still has it.
+  Future<void> _seedCachedExamPackAccess() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) return;
+    final rawCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId!
+            : (widget.subject?.categoryId ?? '');
+    if (rawCategoryId.isEmpty) return;
+    if (_serverHasExamPackAccess) return; // already seeded synchronously
+    final cached = await ExamPackCacheService.hasCategoryAccess(
+      userId: user.id,
+      categoryId: rawCategoryId,
+    );
+    if (cached && mounted && !_serverHasExamPackAccess) {
+      setState(() => _serverHasExamPackAccess = true);
+    }
   }
 
   /// Fetch server-side premium + exam-pack access in parallel. Both results
@@ -198,12 +256,17 @@ class _TestListScreenState extends State<TestListScreen> {
     try {
       final decision = await AccessService.checkCategoryAccess(categoryId);
       if (!mounted) return;
-      if (decision.allowed) {
-        setState(() => _serverHasExamPackAccess = true);
-      }
+      // Set the flag to the SERVER'S decision — true if allowed, false if
+      // denied. Setting false on denial is important now that we pre-seed
+      // from local sources: if a refund/expiry revoked the exam pack, the
+      // server denial must overwrite the optimistic local true. (The actual
+      // test-open gate in TakeTestScreen does its own server check as the
+      // final gatekeeper, so a brief true→false flip here is safe.)
+      setState(() => _serverHasExamPackAccess = decision.allowed);
     } catch (_) {
       // Silently ignore — the server-side per-test access check in
-      // _startTest will still catch exam-pack ownership correctly.
+      // _startTest will still catch exam-pack ownership correctly. Leave
+      // the locally-seeded value as-is (optimistic).
     }
   }
 
@@ -272,10 +335,21 @@ class _TestListScreenState extends State<TestListScreen> {
     final isPremium = _effectiveIsPremium(user);
     final hasPurchasedTest =
         (user?.purchasedTests.contains(test.id) ?? false);
-    // Also grant access when the user owns the exam pack for this category.
-    // Without this check, exam-pack buyers see a "Buy" button on every test
-    // inside the category they already paid for.
-    final hasAccess = isPremium || hasPurchasedTest || _serverHasExamPackAccess;
+    // LOCAL exam-pack check (synchronous) — the Firestore-loaded
+    // purchasedCategoryIds. This is the instant source that prevents the
+    // "Buy" flash: even before _serverHasExamPackAccess flips to true (after
+    // the 300-900ms server round-trip), this local check grants access.
+    final rawCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId!
+            : (widget.subject?.categoryId ?? '');
+    final localHasExamPack = rawCategoryId.isNotEmpty &&
+        (user?.purchasedCategoryIds.contains(rawCategoryId) ?? false);
+    // Also grant access when the user owns the exam pack for this category
+    // (local OR server-confirmed). Without this check, exam-pack buyers see
+    // a "Buy" button on every test inside the category they already paid for.
+    final hasAccess =
+        isPremium || hasPurchasedTest || localHasExamPack || _serverHasExamPackAccess;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
@@ -493,8 +567,15 @@ class _TestListScreenState extends State<TestListScreen> {
     // check (already done on screen load) says the category is unlocked.
     // TakeTestScreen will do its own server-side check (cached, so instant)
     // as the final gatekeeper. This avoids a redundant network round-trip.
+    // LOCAL exam-pack check — same logic as _buildTestCard. The Firestore-
+    // loaded purchasedCategoryIds is the instant source; _serverHasExamPackAccess
+    // is the server-confirmed source. Either one grants the fast-path open.
+    final localExamPack = effectiveCategoryId != null &&
+        effectiveCategoryId.isNotEmpty &&
+        (user?.purchasedCategoryIds.contains(effectiveCategoryId) ?? false);
     final localHasAccess = _effectiveIsPremium(user) ||
         (user?.purchasedTests.contains(test.id) ?? false) ||
+        localExamPack ||
         _serverHasExamPackAccess;
     if (localHasAccess) {
       if (!context.mounted) return;
