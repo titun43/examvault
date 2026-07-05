@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/upcoming_exam_model.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/share_helper.dart';
 
 class UpcomingExamsScreen extends StatelessWidget {
   const UpcomingExamsScreen({super.key});
@@ -409,8 +410,24 @@ class _UpcomingExamCard extends StatelessWidget {
           ],
         ),
       ),
-          ],
-        ),
+          // Share row — always visible so the user can share any exam (mirrors
+          // the Current Affairs list card). Shares via ShareHelper.shareExam
+          // which always appends the ExamVault Play Store link.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => ShareHelper.shareExam(exam),
+                  icon: const Icon(Icons.share, size: 16),
+                  label: const Text('Share'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
