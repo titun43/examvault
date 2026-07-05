@@ -253,6 +253,40 @@ class LeaderboardScreen extends StatelessWidget {
                   color: Colors.grey,
                 ),
               ),
+              // Streak chip — only shown when the user has a streak of at
+              // least 1 day. Leaderboard entries are refreshed after every
+              // test submission, so the stored streak value is reasonably
+              // fresh (no client-side staleness computation needed here).
+              if (entry.streak > 0) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.local_fire_department,
+                        size: 11,
+                        color: AppTheme.accentColor,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${entry.streak}',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.accentColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],

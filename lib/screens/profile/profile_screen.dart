@@ -15,6 +15,8 @@ import '../../providers/theme_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../config/app_config.dart';
 import '../../models/user_model.dart';
+import '../../utils/streak_helper.dart';
+import '../../widgets/weekly_streak_indicator.dart';
 import '../auth/login_screen.dart';
 import '../home/main_navigation.dart';
 import '../premium/premium_screen.dart';
@@ -336,9 +338,20 @@ class ProfileScreen extends StatelessWidget {
                   _buildStat('Tests', auth.user?.totalTestsAttempted.toString() ?? '0'),
                   _buildStat('XP', auth.user?.totalXp.toString() ?? '0'),
                   _buildStat('Level', auth.user?.level.toString() ?? '1'),
-                  _buildStat('Streak', '${auth.user?.streak ?? 0}🔥'),
+                  // Streak is computed client-side from `streak` + `lastActiveAt`
+                  // so a broken streak shows 0 immediately instead of waiting
+                  // for the next test submission to reset it server-side.
+                  _buildStat(
+                    'Streak',
+                    '${computeEffectiveStreak(auth.user?.streak ?? 0, auth.user?.lastActiveAt)}🔥',
+                  ),
                 ],
               ),
+              const SizedBox(height: 14),
+              // Weekly streak indicator — 7 dots (Mon→Sun) showing which days
+              // the user was active this week. Renders on the dark header so
+              // we pass light colors for the inactive state.
+              _buildHeaderWeeklyStreak(auth.user?.lastActiveAt),
             ],
           ),
         ),
@@ -534,6 +547,46 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// Weekly streak indicator rendered inside the dark profile header. Uses
+  /// translucent white tones so it stays legible over the gradient.
+  Widget _buildHeaderWeeklyStreak(DateTime? lastActiveAt) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.calendar_today,
+                  size: 12, color: Colors.white70),
+              const SizedBox(width: 6),
+              Text(
+                'This Week',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          WeeklyStreakIndicator(
+            lastActiveAt: lastActiveAt,
+            activeColor: AppTheme.accentColor,
+            inactiveColor: Colors.white30,
+            labelColor: Colors.white60,
+            dotSize: 26,
+          ),
+        ],
+      ),
     );
   }
 

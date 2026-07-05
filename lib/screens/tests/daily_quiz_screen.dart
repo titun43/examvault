@@ -6,9 +6,13 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
+import '../../providers/auth_provider.dart';
+import '../../utils/streak_helper.dart';
+import '../../widgets/weekly_streak_indicator.dart';
 import 'take_test_screen.dart';
 
 class DailyQuizScreen extends StatelessWidget {
@@ -44,8 +48,10 @@ class DailyQuizScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Streak / motivational card
-                _buildStreakCard(),
+                // Streak / motivational card — shows the user's actual current
+                // streak + a 7-day weekly activity strip. Reads from
+                // AuthProvider so it reflects the latest test submission.
+                _buildStreakCard(context),
                 const SizedBox(height: 24),
                 // Today's Quiz
                 Text(
@@ -85,38 +91,83 @@ class DailyQuizScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStreakCard() {
+  Widget _buildStreakCard(BuildContext context) {
+    // Read the live user from AuthProvider so the card reflects the latest
+    // test submission (streak + lastActiveAt update after each test).
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.user;
+    final storedStreak = user?.streak ?? 0;
+    final lastActive = user?.lastActiveAt;
+    final effectiveStreak = computeEffectiveStreak(storedStreak, lastActive);
+    final message = streakMessage(effectiveStreak, lastActive);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: AppTheme.accentGradient,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.local_fire_department, color: Colors.white, size: 50),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Keep your streak going!',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
+          Row(
+            children: [
+              const Icon(Icons.local_fire_department,
+                  color: Colors.white, size: 44),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$effectiveStreak',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 4),
+                          child: Text(
+                            'day streak',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.95),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  "Take today's quiz to stay sharp.",
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Weekly activity strip — Mon→Sun dots. Only the days we can prove
+          // activity on are filled; the rest render as empty rings so the
+          // user sees exactly which days they still need to cover.
+          WeeklyStreakIndicator(
+            lastActiveAt: lastActive,
+            activeColor: Colors.white,
+            inactiveColor: Colors.white38,
+            labelColor: Colors.white70,
+            dotSize: 30,
           ),
         ],
       ),
