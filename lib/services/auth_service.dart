@@ -47,6 +47,25 @@ class AuthService {
     await _auth.verifyPhoneNumber(
       phoneNumber: phoneNumber,
       forceResendingToken: forceResendingToken,
+      // FORCE Play Integrity API — do NOT fall back to reCAPTCHA.
+      //
+      // Why: without this, when Play Integrity is unavailable (e.g. the app
+      // was installed as a direct APK instead of from the Play Store, or the
+      // device lacks Google Play Services), Firebase opens a browser/
+      // WebView for reCAPTCHA verification. That browser pop-up is confusing
+      // and looks broken to users ("browser khulche").
+      //
+      // By forcing Play Integrity:
+      //   - Play Store installs  → silent verification, NO browser ✅
+      //   - Direct APK installs  → verificationFailed fires (NO browser, but
+      //                             OTP won't send — user must install from
+      //                             Play Store, which is the supported path)
+      //   - Test phone numbers   → still bypass verification entirely ✅
+      //
+      // This is the correct production behaviour. For testing, install the
+      // app from the Play Store internal testing track (not a direct APK),
+      // or use a Firebase test phone number.
+      androidProvider: AndroidProvider.playIntegrity,
       verificationCompleted: (PhoneAuthCredential credential) async {
         try {
           final result = await _auth.signInWithCredential(credential);
@@ -126,12 +145,26 @@ class AuthService {
       case 'credential-already-in-use':
         return 'This phone number is already linked to another account.$suffix';
       case 'missing-client-identifier':
-        // reCAPTCHA / SafetyNet could not be resolved — often a SHA-1 issue.
-        return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
+        // Play Integrity could not verify the app. With androidProvider
+        // forced to playIntegrity, this is the error users see when the app
+        // was NOT installed from the Play Store (direct APK install), or
+        // when the signing key's SHA-1/SHA-256 isn't registered in Firebase.
+        return 'OTP login needs the Play Store version of the app. '
+            'Please install/update ExamVault from Google Play Store, '
+            'then try again. (code: ${e.code})';
       default:
-        return 'Unable to send OTP right now. '
-            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
+        // When Play Integrity is forced and the app isn't Play-Store-
+        // installed, Firebase may return a generic error here. Give the
+        // same actionable hint as missing-client-identifier.
+        if (e.message.toLowerCase().contains('play integrity') ||
+            e.message.toLowerCase().contains('integrity') ||
+            e.message.toLowerCase().contains('verification')) {
+          return 'OTP login needs the Play Store version of the app. '
+              'Please install/update ExamVault from Google Play Store, '
+              'then try again. (code: ${e.code})';
+        }
+        return 'Unable to send OTP right now. Please try again, or use '
+            'Email sign-in — tap the "Email" tab above. (code: ${e.code})';
     }
   }
 
