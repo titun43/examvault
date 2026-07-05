@@ -4,6 +4,7 @@
 // Admin login: HIDDEN — tap the logo 7 times to open the admin login door
 // =============================================================================
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';
@@ -29,6 +30,17 @@ class _LoginScreenState extends State<LoginScreen> {
   final _otpController = TextEditingController();
   String? _verificationId;
   bool _otpSent = false;
+  // True while we are WAITING for Firebase to send the OTP (between tapping
+  // "Send OTP" and the onCodeSent / onError callback firing). During this
+  // window we show an informative loading panel so the user knows the app is
+  // working — not frozen. Firebase Phone Auth can take 5-20 seconds here,
+  // especially when it falls back to the browser reCAPTCHA flow, so without
+  // this the user thinks the app has hung.
+  bool _isSendingOtp = false;
+  // Elapsed seconds counter for the loading panel — lets us show escalating
+  // hints ("Sending..." -> "Still working..." -> "A browser may open for
+  // verification — this is normal"). Driven by a Timer in _sendOtp().
+  int _otpWaitSeconds = 0;
   // True when the LAST OTP attempt failed with a Firebase CONFIG error
   // (operation-not-allowed / app-not-authorized / missing-client-identifier).
   // When true, we show a persistent banner on the Mobile tab telling the
@@ -52,6 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    _otpWaitTimer?.cancel();
     _phoneController.dispose();
     _otpController.dispose();
     _emailController.dispose();
@@ -148,6 +161,110 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Informative loading panel shown while Firebase is sending the OTP.
+  /// Shows evolving, reassuring messages based on how long we've been
+  /// waiting, so the user knows the app is working — not frozen. Firebase
+  /// Phone Auth can take 5-20s, and may open a browser for reCAPTCHA which
+  /// is very confusing without prior warning.
+  Widget _buildOtpLoadingPanel() {
+    // Pick a message based on elapsed time — escalating detail.
+    String title;
+    String subtitle;
+    IconData icon;
+    if (_otpWaitSeconds < 3) {
+      title = 'OTP পাঠানো হচ্ছে...';
+      subtitle = 'একটু অপেক্ষা করুন';
+      icon = Icons.send;
+    } else if (_otpWaitSeconds < 8) {
+      title = 'ভেরিফিকেশন হচ্ছে...';
+      subtitle = 'Firebase আপনার নম্বর verify করছে। কিছুক্ষণ সময় লাগতে পারে।';
+      icon = Icons.verified_user;
+    } else if (_otpWaitSeconds < 15) {
+      title = 'ব্রাউজার খুলতে পারে';
+      subtitle = 'যদি ব্রাউজার খোলে, ভেরিফিকেশন সম্পূর্ণ করুন — এটা স্বাভাবিক। '
+          'OTP তারপর আপনার মেসেজ বক্সে আসবে।';
+      icon = Icons.open_in_browser;
+    } else {
+      title = 'এখনও কাজ চলছে...';
+      subtitle = 'নেটওয়ার্ক স্লো থাকলে সময় বেশি লাগতে পারে। ধৈর্য ধরুন বা '
+          'একটু পরে আবার চেষ্টা করুন।';
+      icon = Icons.hourglass_top;
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryColor.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Animated spinner
+          const SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 16, color: AppTheme.primaryColor),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    // Elapsed seconds badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_otpWaitSeconds}s',
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -346,6 +463,16 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                       : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
                 ),
+                // ─── Informative loading panel while sending OTP ───
+                // Firebase Phone Auth can take 5-20 seconds, and on some
+                // devices it opens a browser for reCAPTCHA verification.
+                // Without this panel the user sees a dead spinner and thinks
+                // the app has frozen ("kichui hocche na"). We show evolving,
+                // reassuring messages so the user knows the app is working.
+                if (_isSendingOtp && !_otpSent) ...[
+                  const SizedBox(height: 16),
+                  _buildOtpLoadingPanel(),
+                ],
                 if (_otpSent) ...[
                   const SizedBox(height: 8),
                   Row(
@@ -494,6 +621,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ==================== OTP METHODS ====================
+  Timer? _otpWaitTimer;
+
   void _sendOtp() async {
     // Reset the "OTP unavailable" banner for this fresh attempt — it will be
     // re-set if THIS attempt fails with a config error.
@@ -528,10 +657,26 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    // ─── Start the "sending OTP" loading state ───
+    // Firebase Phone Auth can take 5-20 seconds, and may open a browser for
+    // reCAPTCHA verification. Without a visible loading indicator + evolving
+    // hints, the user thinks the app has frozen. We tick a counter every
+    // second and show escalating messages.
+    _isSendingOtp = true;
+    _otpWaitSeconds = 0;
+    setState(() {});
+    _otpWaitTimer?.cancel();
+    _otpWaitTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!_isSendingOtp || !mounted) return;
+      _otpWaitSeconds++;
+      setState(() {});
+    });
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     await auth.verifyPhoneNumber(
       phoneNumber: fullPhone,
       onCodeSent: (verificationId, _) {
+        _stopOtpWait();
         setState(() {
           _verificationId = verificationId;
           _otpSent = true;
@@ -541,6 +686,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
       onError: (error) {
+        _stopOtpWait();
         // Show a persistent banner with the EXACT error message on the Mobile
         // tab. We NO LONGER auto-switch to the Email tab — the old code called
         // _pageController.animateToPage(), but _pageController was never
@@ -571,6 +717,17 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
     );
+  }
+
+  /// Stops the OTP-wait timer and clears the loading flag. Called from both
+  /// onCodeSent and onError so the UI always settles no matter which path
+  /// Firebase takes.
+  void _stopOtpWait() {
+    _isSendingOtp = false;
+    _otpWaitSeconds = 0;
+    _otpWaitTimer?.cancel();
+    _otpWaitTimer = null;
+    if (mounted) setState(() {});
   }
 
   void _verifyOtp() async {
