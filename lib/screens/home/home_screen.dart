@@ -28,8 +28,10 @@ import '../../widgets/payment_success_dialog.dart';
 import 'category_detail_screen.dart';
 import '../auth/login_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
+import '../current_affairs/current_affair_detail_screen.dart';
 import '../announcements/announcements_screen.dart';
 import '../upcoming_exams/upcoming_exams_screen.dart';
+import '../upcoming_exams/upcoming_exam_detail_screen.dart';
 import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
 import '../tests/test_series_screen.dart';
@@ -1527,12 +1529,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildUpcomingExamMiniCard(UpcomingExamModel e) {
     final days = e.daysRemaining;
     final isPast = days < 0;
-    // User reported: tapping a mini exam card on the Home screen opens a
-    // single exam directly instead of the full "Upcoming Exams" list. The
-    // handler below ALWAYS opens the full UpcomingExamsScreen (View All),
-    // never a specific exam detail. Using Material+InkWell so the tap has a
-    // visible ripple — the user can SEE the tap registered before the
-    // navigation transition fires.
+    // Tapping a mini exam card now opens that specific exam's detail page
+    // (UpcomingExamDetailScreen) instead of the full "Upcoming Exams" list —
+    // so each card is independently clickable. The "View All" header button
+    // still opens the full list. Using Material+InkWell so the tap has a
+    // visible ripple. The inner "Apply" chip keeps its own GestureDetector so
+    // it can launch the URL directly without leaving the home screen.
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -1544,7 +1546,8 @@ class _HomeScreenState extends State<HomeScreen> {
             Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => const UpcomingExamsScreen()));
+                    builder: (_) =>
+                        UpcomingExamDetailScreen(exam: e)));
           },
           child: Container(
             padding: const EdgeInsets.all(12),
@@ -1716,11 +1719,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCurrentAffairCard(CurrentAffairModel affair) {
+    // Tapping a current-affair card now opens that specific affair's detail
+    // page (CurrentAffairDetailScreen) instead of the full list — so each card
+    // is independently clickable. "View All" header button still opens the
+    // full list with filters + bottom-sheet detail.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    CurrentAffairDetailScreen(affair: affair)));
       },
       child: Container(
       margin: const EdgeInsets.only(bottom: 12),
