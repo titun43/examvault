@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../services/firebase_service.dart';
+import '../services/premium_cache_service.dart';
+import '../services/access_service.dart';
 
 /// Converts raw Firebase auth exceptions into user-friendly messages.
 String _friendlyAuthError(Object e) {
@@ -71,6 +73,10 @@ class AuthProvider extends ChangeNotifier {
   // a logged-in user gets kicked to login on every cold start because the
   // restore happens asynchronously and can take longer than a fixed delay).
   bool _authInitialized = false;
+  // True after dispose() is called. Guards fire-and-forget async methods
+  // (_syncPremiumFromBackend) from calling notifyListeners() after the
+  // provider is no longer in the widget tree.
+  bool _disposed = false;
 
   UserModel? get user => _user;
   bool get isLoading => _isLoading;
@@ -172,6 +178,12 @@ class AuthProvider extends ChangeNotifier {
           }
         }
       }
+      // USER-SPECIFIC LOCAL CACHE: apply the persisted premium flag (if any)
+      // to the in-memory _user model BEFORE the finally block notifies the
+      // UI. This gives an instant premium state on app launch / login —
+      // preventing the "Locked" flash that occurs while the real-time Neon
+      // DB sync runs in the background. See _applyCachedPremium() for details.
+      await _applyCachedPremium();
     } catch (e) {
       // Don't fail login if Firestore read fails — keep user authenticated.
       _errorMessage = null;
@@ -190,6 +202,111 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+    // REAL-TIME SYNC: fetch the authoritative premium status from the Neon
+    // PostgreSQL database (via the backend API) and overwrite both the
+    // in-memory _user model and the SharedPreferences cache. This is
+    // fire-and-forget so the UI is NOT blocked — the cached value applied
+    // above bridges the gap until this completes. See _syncPremiumFromBackend.
+    _syncPremiumFromBackend();
+  }
+
+  // ==================== USER-SPECIFIC PREMIUM CACHE ====================
+  // These two methods implement the "User-Specific Local Cache" strategy:
+  //
+  //   1. _applyCachedPremium()    — reads isPremium_${userId} from
+  //                                 SharedPreferences and applies it to the
+  //                                 in-memory _user (instant UI, no flash).
+  //   2. _syncPremiumFromBackend() — fetches the REAL-TIME status from Neon
+  //                                  DB via the backend API and OVERWRITES
+  //                                  the cache (source of truth).
+  //
+  // SECURITY: the cache is NEVER the source of truth. On every launch / login
+  // the backend overwrites it. If the backend says NOT premium, the cache is
+  // CLEARED so a stale "true" can't give a lapsed/refunded user free access.
+  //
+  // ACCOUNT MIXING PREVENTION: all cache keys are scoped by userId
+  // (isPremium_${userId}). A different user logging into the same device
+  // checks their OWN key and never inherits the previous user's premium.
+
+  /// Reads the user-specific SharedPreferences cache and, if it says the user
+  /// is premium, optimistically applies that to the in-memory _user model.
+  /// This gives the UI an instant premium state on app launch / login —
+  /// preventing the "Locked" flash that occurs while the backend sync runs.
+  ///
+  /// This is NOT the source of truth — it's a bridge. The real-time Neon DB
+  /// fetch in [_syncPremiumFromBackend] will overwrite this shortly.
+  Future<void> _applyCachedPremium() async {
+    if (_user == null) return;
+    // If the user is already marked premium from Firestore, no need to check
+    // the cache — Firestore already has the truth for this session.
+    if (_user!.isPremium) return;
+    final cachedPremium = await PremiumCacheService.isPremiumCached(_user!.id);
+    if (!cachedPremium) return;
+    // Apply the cached premium status + expiry + planId to the local model.
+    final cachedExpiry = await PremiumCacheService.getCachedExpiry(_user!.id);
+    final cachedPlanId = await PremiumCacheService.getCachedPlanId(_user!.id);
+    _user = _user!.copyWith(
+      subscriptionStatus: SubscriptionStatus.premium,
+      subscriptionExpiry: cachedExpiry,
+      subscriptionPlanId: cachedPlanId,
+      updatedAt: DateTime.now(),
+    );
+    // Don't notify here — the caller (loadUserData) will notify in finally.
+  }
+
+  /// Fetches the REAL-TIME premium status from the Neon PostgreSQL database
+  /// (via the backend API → AccessService.checkPremiumOnly) and overwrites
+  /// both the in-memory _user model and the user-specific SharedPreferences
+  /// cache. Called after [loadUserData] completes (fire-and-forget) so the UI
+  /// isn't blocked.
+  ///
+  /// SECURITY: This is the source of truth. If the backend says the user is
+  /// NOT premium (subscription expired / cancelled / refunded / never paid),
+  /// we CLEAR the local cache so a stale "true" can't give free access.
+  Future<void> _syncPremiumFromBackend() async {
+    if (_user == null || _disposed) return;
+    try {
+      final decision = await AccessService.checkPremiumOnly();
+      if (_user == null || _disposed) return;
+      if (decision.allowed) {
+        // Backend confirms premium — ensure the cache agrees (in case the
+        // cache was cleared but the backend still has the subscription).
+        final alreadyCached =
+            await PremiumCacheService.isPremiumCached(_user!.id);
+        if (!alreadyCached) {
+          await PremiumCacheService.setPremium(userId: _user!.id);
+        }
+        // If the local model doesn't yet reflect premium, update it.
+        if (!_user!.isPremium) {
+          _user = _user!.copyWith(
+            subscriptionStatus: SubscriptionStatus.premium,
+            updatedAt: DateTime.now(),
+          );
+          if (!_disposed) notifyListeners();
+        }
+      } else {
+        // Backend says NOT premium — clear the cache to prevent a stale
+        // "true" from giving a lapsed/refunded user free access.
+        await PremiumCacheService.clearPremium(_user!.id);
+        if (_user!.isPremium) {
+          _user = _user!.copyWith(
+            subscriptionStatus: SubscriptionStatus.free,
+            subscriptionExpiry: null,
+            subscriptionPlanId: null,
+            updatedAt: DateTime.now(),
+          );
+          if (!_disposed) notifyListeners();
+        }
+      }
+    } catch (e) {
+      // Backend unreachable — leave the cache as-is. The cached value is our
+      // best guess until the next launch. This is acceptable because:
+      //   1. If cached=true and the user is actually premium, no harm.
+      //   2. If cached=true but the user is actually lapsed, they get temporary
+      //      access until the next successful sync — a minor, bounded risk.
+      //   3. If cached=false, the user sees the paywall as expected.
+      print('[AuthProvider] _syncPremiumFromBackend: sync failed (non-fatal): $e');
     }
   }
 
@@ -370,6 +487,13 @@ class AuthProvider extends ChangeNotifier {
     await AuthService.logout();
     _user = null;
     _resendToken = null;
+    // NOTE: we intentionally do NOT clear the SharedPreferences premium cache
+    // (isPremium_${userId}) on logout. The cache is USER-SPECIFIC — when a
+    // DIFFERENT user logs into this device next, loadUserData() checks their
+    // OWN key (isPremium_${newUserId}) and never reads the previous user's
+    // key. This prevents account mixing. Clearing the old user's cache here
+    // would be harmless but unnecessary — it'll be re-synced from the backend
+    // if that user ever logs in again.
     notifyListeners();
   }
 
@@ -440,8 +564,19 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Optimistically mark the user as premium locally AND persist to Firestore.
+  /// Optimistically mark the user as premium locally, persist to Firestore,
+  /// AND write to the user-specific SharedPreferences cache.
   /// Call this in the Razorpay onSuccess callback for premium subscriptions.
+  ///
+  /// USER-SPECIFIC LOCAL CACHE (v1.44.5):
+  /// In addition to the existing in-memory + Firestore updates, we now write
+  /// `isPremium_${userId} = true` to SharedPreferences. This survives app
+  /// restarts and closes the "Locked" flash gap that occurs while the backend
+  /// webhook grants the entitlement in Neon PostgreSQL. The cache is
+  /// user-specific — a different user logging in checks their own key and
+  /// never inherits this premium. On the next app launch / login,
+  /// loadUserData() fetches the real-time status from Neon DB and overwrites
+  /// this cache (see _syncPremiumFromBackend).
   void markPremium({
     DateTime? expiry,
     String? planId,
@@ -454,6 +589,15 @@ class AuthProvider extends ChangeNotifier {
       updatedAt: DateTime.now(),
     );
     notifyListeners();
+    // Persist to the USER-SPECIFIC SharedPreferences cache (survives restart).
+    // This is the key fix for the post-payment "Locked" flash — the cache is
+    // read instantly on the next app launch / screen open, before the backend
+    // sync completes.
+    PremiumCacheService.setPremium(
+      userId: _user!.id,
+      expiry: expiry,
+      planId: planId,
+    );
     // Persist to Firestore (fire-and-forget).
     try {
       final data = <String, dynamic>{
@@ -479,5 +623,11 @@ class AuthProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

@@ -470,12 +470,22 @@ class _PremiumScreenState extends State<PremiumScreen> {
         // the dialog, the payment went through and premium must be activated.
         progress.dismiss();
 
-        // Write a positive "premium granted" decision to the cache so the
-        // next access check is instant — no network round-trip. This is the
-        // key fix for the post-payment loading delay.
+        // Write a positive "premium granted" decision to the IN-MEMORY access
+        // cache so the next access check is instant — no network round-trip.
         AccessService.markPremiumGranted();
         final months = selectedPlan['months'] as int;
         final expiry = DateTime.now().add(Duration(days: 30 * months));
+        // markPremium() does THREE things (the "User-Specific Local Cache"
+        // strategy):
+        //   1. Updates the in-memory _user model → UI flips instantly.
+        //   2. Writes isPremium_${userId}=true to SharedPreferences → survives
+        //      app restart, prevents the "Locked" flash on next launch while
+        //      the backend webhook grants the entitlement in Neon DB.
+        //   3. Persists to Firestore (fire-and-forget) → backup mirror.
+        // The cache key is USER-SPECIFIC, so a different user logging into
+        // this device never inherits this premium. On the next app launch,
+        // loadUserData() fetches the real-time status from Neon DB and
+        // overwrites the cache (source of truth).
         auth.markPremium(
           expiry: expiry,
           planId: selectedPlan['planId'] as String,
