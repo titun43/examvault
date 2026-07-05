@@ -13,6 +13,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/current_affair_model.dart';
+import '../../utils/share_helper.dart';
 
 class CurrentAffairDetailScreen extends StatelessWidget {
   final CurrentAffairModel affair;
@@ -114,6 +115,24 @@ class CurrentAffairDetailScreen extends StatelessWidget {
               ),
               onPressed: () => Navigator.of(context).maybePop(),
             ),
+            actions: [
+              // Share button — shares this affair's title, date, summary,
+              // PDF link + the ExamVault Play Store URL. Always visible in
+              // the pinned app bar.
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton(
+                  icon: const CircleAvatar(
+                    backgroundColor: Colors.black38,
+                    child: Icon(Icons.share, color: Colors.white),
+                  ),
+                  tooltip: 'Share this affair',
+                  onPressed: () {
+                    ShareHelper.shareCurrentAffair(affair);
+                  },
+                ),
+              ),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(

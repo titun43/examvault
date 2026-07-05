@@ -4,9 +4,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/current_affair_model.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/share_helper.dart';
 
 class CurrentAffairsScreen extends StatefulWidget {
   const CurrentAffairsScreen({super.key});
@@ -193,16 +195,29 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                     children: [
                       if (affair.pdfUrl != null)
                         TextButton.icon(
-                          onPressed: () {
-                            // Open PDF
+                          onPressed: () async {
+                            // Open PDF in the external browser.
+                            final uri = Uri.tryParse(affair.pdfUrl!);
+                            if (uri == null) return;
+                            try {
+                              final ok = await launchUrl(uri,
+                                  mode: LaunchMode.externalApplication);
+                              if (!ok) {
+                                await launchUrl(uri,
+                                    mode: LaunchMode.inAppBrowserView);
+                              }
+                            } catch (_) {}
                           },
                           icon: const Icon(Icons.picture_as_pdf, size: 16),
                           label: const Text('PDF'),
                         ),
                       const Spacer(),
                       TextButton.icon(
+                        // Shares this affair via the platform share sheet.
+                        // The shared text always includes the ExamVault Play
+                        // Store link so recipients can download the app.
                         onPressed: () {
-                          // Share
+                          ShareHelper.shareCurrentAffair(affair);
                         },
                         icon: const Icon(Icons.share, size: 16),
                         label: const Text('Share'),

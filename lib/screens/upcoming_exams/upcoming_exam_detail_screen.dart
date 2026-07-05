@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/upcoming_exam_model.dart';
+import '../../utils/share_helper.dart';
 
 class UpcomingExamDetailScreen extends StatelessWidget {
   final UpcomingExamModel exam;
@@ -103,6 +104,24 @@ class UpcomingExamDetailScreen extends StatelessWidget {
               ),
               onPressed: () => Navigator.of(context).maybePop(),
             ),
+            actions: [
+              // Share button — shares this exam's name, date, description,
+              // apply link + the ExamVault Play Store URL. Always visible in
+              // the pinned app bar.
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: IconButton(
+                  icon: const CircleAvatar(
+                    backgroundColor: Colors.black38,
+                    child: Icon(Icons.share, color: Colors.white),
+                  ),
+                  tooltip: 'Share exam',
+                  onPressed: () {
+                    ShareHelper.shareExam(exam);
+                  },
+                ),
+              ),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(
