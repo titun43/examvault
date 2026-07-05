@@ -83,7 +83,28 @@ class AppConfig {
   // entirely (owner request — no banner ads). Only the interstitial ad
   // (shown after a test is submitted) remains, which is lower-risk since it
   // is not created on the screen that loads immediately after login.
-  static const bool admobEnabled = true;
+  //
+  // DISABLED AGAIN (v1.43.4, Jul 4 2026): Three consecutive rounds of native
+  // crashes on the user's device proved that the AdMob native SDK is
+  // fundamentally unstable in the current setup — every call path crashes:
+  //   1. loadInterstitialAd() in initState → tap test → crash (fixed 645a626)
+  //   2. showInterstitialAd() in submit path → submit test → crash (fixed 0d585d0)
+  //   3. loadInterstitialAd() in _loadQuestions postFrameCallback → test
+  //      opens, questions render, then crash at the START of the attempt
+  // Each fix only moved the crash to the next native call site. The root
+  // cause is the native SDK itself, NOT the timing of our calls.
+  //
+  // Until the AdMob account is approved AND the SDK is verified stable on
+  // a real test device (via adb logcat), AdMob must stay OFF. Flip back to
+  // true only after:
+  //   1. AdMob account (pub-1742730064755213) passes Google review
+  //   2. admobTestMode is flipped to false (and build.gradle manifest
+  //      placeholder updated to the real App ID to match — see the sync
+  //      rule comment above admobTestMode)
+  //   3. A test build is run on a real device with adb logcat attached to
+  //      confirm MobileAds.instance.initialize() + InterstitialAd.load() +
+  //      .show() all complete without any native SIGSEGV
+  static const bool admobEnabled = false;
 
   // Test AdMob IDs (Google sample — for development only)
   static const String testAdmobAppId = 'ca-app-pub-3940256099942544~3347511713';
