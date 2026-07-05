@@ -1512,6 +1512,52 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+                // Apply quick-action chip — only when the exam has an apply
+                // URL. Tapping it launches the URL directly (NOT navigation to
+                // the full list). Hit-testing gives the tap to the innermost
+                // gesture handler, so the chip's GestureDetector wins over the
+                // outer InkWell; tapping anywhere else still opens the list.
+                if (e.applyUrl != null && e.applyUrl!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () async {
+                      final uri = Uri.tryParse(e.applyUrl!);
+                      if (uri == null) return;
+                      try {
+                        final ok = await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                        if (!ok) {
+                          await launchUrl(uri,
+                              mode: LaunchMode.inAppBrowserView);
+                        }
+                      } catch (_) {}
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.open_in_new, size: 12, color: Colors.white),
+                          SizedBox(width: 3),
+                          Text(
+                            'Apply',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(

@@ -243,24 +243,162 @@ class _UpcomingExamCard extends StatelessWidget {
                 }).toList(),
               ),
             ],
-            if (exam.notificationUrl != null && exam.notificationUrl!.isNotEmpty) ...[
+            // Action area: Apply (primary) + secondary links (Official /
+            // Notification / Syllabus). Each shown only when its URL is present.
+            // Renders only if at least one of the four URLs is set.
+            if ((exam.applyUrl != null && exam.applyUrl!.isNotEmpty) ||
+                (exam.officialUrl != null && exam.officialUrl!.isNotEmpty) ||
+                (exam.notificationUrl != null && exam.notificationUrl!.isNotEmpty) ||
+                (exam.syllabusUrl != null && exam.syllabusUrl!.isNotEmpty)) ...[
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
+              if (exam.applyUrl != null && exam.applyUrl!.isNotEmpty)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
                     onPressed: () async {
-                      final uri = Uri.tryParse(exam.notificationUrl!);
-                      if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      final uri = Uri.tryParse(exam.applyUrl!);
+                      if (uri == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Invalid link')));
+                        return;
+                      }
+                      try {
+                        final ok = await launchUrl(uri,
+                            mode: LaunchMode.externalApplication);
+                        if (!ok) {
+                          final ok2 = await launchUrl(uri,
+                              mode: LaunchMode.inAppBrowserView);
+                          if (!ok2 && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Could not open link')));
+                          }
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Could not open link')));
+                        }
+                      }
                     },
-                    icon: const Icon(Icons.picture_as_pdf, size: 16),
-                    label: const Text('Notification'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.how_to_reg, size: 18),
+                    label: const Text(
+                      'Apply Now',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
                   ),
+                ),
+              if (exam.applyUrl != null && exam.applyUrl!.isNotEmpty)
+                const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                runSpacing: 0,
+                children: [
+                  if (exam.officialUrl != null && exam.officialUrl!.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () async {
+                        final uri = Uri.tryParse(exam.officialUrl!);
+                        if (uri == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Invalid link')));
+                          return;
+                        }
+                        try {
+                          final ok = await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
+                          if (!ok) {
+                            final ok2 = await launchUrl(uri,
+                                mode: LaunchMode.inAppBrowserView);
+                            if (!ok2 && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Could not open link')));
+                            }
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Could not open link')));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.language, size: 16),
+                      label: const Text('Official'),
+                    ),
+                  if (exam.notificationUrl != null &&
+                      exam.notificationUrl!.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () async {
+                        final uri = Uri.tryParse(exam.notificationUrl!);
+                        if (uri == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Invalid link')));
+                          return;
+                        }
+                        try {
+                          final ok = await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
+                          if (!ok) {
+                            final ok2 = await launchUrl(uri,
+                                mode: LaunchMode.inAppBrowserView);
+                            if (!ok2 && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Could not open link')));
+                            }
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Could not open link')));
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.picture_as_pdf, size: 16),
+                      label: const Text('Notification'),
+                    ),
                   if (exam.syllabusUrl != null && exam.syllabusUrl!.isNotEmpty)
                     TextButton.icon(
                       onPressed: () async {
                         final uri = Uri.tryParse(exam.syllabusUrl!);
-                        if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        if (uri == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Invalid link')));
+                          return;
+                        }
+                        try {
+                          final ok = await launchUrl(uri,
+                              mode: LaunchMode.externalApplication);
+                          if (!ok) {
+                            final ok2 = await launchUrl(uri,
+                                mode: LaunchMode.inAppBrowserView);
+                            if (!ok2 && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Could not open link')));
+                            }
+                          }
+                        } catch (_) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Could not open link')));
+                          }
+                        }
                       },
                       icon: const Icon(Icons.menu_book, size: 16),
                       label: const Text('Syllabus'),

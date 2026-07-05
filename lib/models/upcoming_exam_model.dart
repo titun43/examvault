@@ -1,6 +1,8 @@
 // =============================================================================
 // ExamVault - Upcoming Exam Model
 // Admin-curated list of upcoming government / competitive exams shown to users.
+// Optional URL fields: notificationUrl (PDF), syllabusUrl, officialUrl (the
+// exam's official website/page), applyUrl (direct application/registration URL).
 // =============================================================================
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,6 +18,8 @@ class UpcomingExamModel {
   final DateTime? applicationEndDate;
   final String? notificationUrl;    // link to official notification PDF
   final String? syllabusUrl;
+  final String? officialUrl;        // link to the exam's official website/page
+  final String? applyUrl;           // direct application / registration URL
   final String? imageUrl;
   final String description;
   final List<String> tags;
@@ -34,6 +38,8 @@ class UpcomingExamModel {
     this.applicationEndDate,
     this.notificationUrl,
     this.syllabusUrl,
+    this.officialUrl,
+    this.applyUrl,
     this.imageUrl,
     this.description = '',
     this.tags = const [],
@@ -67,6 +73,8 @@ class UpcomingExamModel {
       applicationEndDate: parseTimestampNullable(data['applicationEndDate']),
       notificationUrl: data['notificationUrl']?.toString(),
       syllabusUrl: data['syllabusUrl']?.toString(),
+      officialUrl: data['officialUrl']?.toString(),
+      applyUrl: data['applyUrl']?.toString(),
       imageUrl: data['imageUrl']?.toString(),
       description: (data['description'] ?? '').toString(),
       tags: data['tags'] is List
@@ -103,6 +111,8 @@ class UpcomingExamModel {
           : null,
       'notificationUrl': notificationUrl,
       'syllabusUrl': syllabusUrl,
+      'officialUrl': officialUrl,
+      'applyUrl': applyUrl,
       'imageUrl': imageUrl,
       'description': description,
       'tags': tags,
