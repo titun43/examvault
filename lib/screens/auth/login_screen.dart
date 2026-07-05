@@ -21,7 +21,6 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final PageController _pageController = PageController();
   int _currentMethod = 0; // 0=Mobile, 1=Email
   int _logoTapCount = 0;
 
@@ -30,6 +29,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final _otpController = TextEditingController();
   String? _verificationId;
   bool _otpSent = false;
+  // True when the LAST OTP attempt failed with a Firebase CONFIG error
+  // (operation-not-allowed / app-not-authorized / missing-client-identifier).
+  // When true, we show a persistent banner on the Mobile tab telling the
+  // user to use Email sign-in — instead of silently auto-switching tabs
+  // (which previously crashed the rebuild because _pageController was never
+  // attached to a PageView, leaving the user with NO visible feedback).
+  bool _phoneAuthUnavailable = false;
 
   // Email auth
   final _emailController = TextEditingController();
@@ -39,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _pageController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
     _emailController.dispose();
@@ -146,6 +151,11 @@ class _LoginScreenState extends State<LoginScreen> {
       onTap: () {
         setState(() {
           _currentMethod = index;
+          // Clear any stale OTP-unavailable banner + provider error when the
+          // user moves away from / back to the Mobile tab, so a fresh attempt
+          // starts clean.
+          _phoneAuthUnavailable = false;
+          Provider.of<AuthProvider>(context, listen: false).clearError();
         });
       },
       child: Container(
@@ -180,6 +190,55 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildMobileAuth() {
     return Column(
       children: [
+        // Persistent "OTP unavailable" banner — shown when the last attempt
+        // failed with a Firebase config error (Phone Auth not enabled in the
+        // Firebase Console, or the app's SHA-1/SHA-256 not registered).
+        // This replaces the old behavior of silently auto-switching to the
+        // Email tab (which crashed the rebuild and left the user with zero
+        // visible feedback — "kichui hoi na").
+        if (_phoneAuthUnavailable) ...[
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.errorColor.withOpacity(0.4)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.sms_failed, size: 20, color: AppTheme.errorColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mobile OTP is currently unavailable',
+                        style: TextStyle(
+                          color: AppTheme.errorColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Please use Email sign-in instead — tap the "Email" tab above. '
+                        'Our team has been notified.',
+                        style: TextStyle(
+                          color: AppTheme.errorColor,
+                          fontSize: 12,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         TextField(
           controller: _phoneController,
           keyboardType: TextInputType.phone,
@@ -401,6 +460,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // ==================== OTP METHODS ====================
   void _sendOtp() async {
+    // Reset the "OTP unavailable" banner for this fresh attempt — it will be
+    // re-set if THIS attempt fails with a config error.
+    _phoneAuthUnavailable = false;
     final rawPhone = _phoneController.text.trim();
     if (rawPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -444,24 +506,25 @@ class _LoginScreenState extends State<LoginScreen> {
       },
       onError: (error) {
         // If the error is a Firebase configuration issue (Phone Auth not
-        // enabled, SHA-1 not registered, etc.), auto-switch to the Email
-        // tab so the user can still log in. The error message already tells
-        // them to use Email sign-in.
+        // enabled in the Firebase Console, SHA-1/SHA-256 not registered,
+        // reCAPTCHA unresolvable, etc.), flag it so a persistent banner is
+        // shown on the Mobile tab. We NO LONGER auto-switch to the Email
+        // tab — the old code called _pageController.animateToPage(), but
+        // _pageController was never attached to a PageView (the tabs use
+        // conditional rendering, not a PageView). That call threw inside
+        // setState, which prevented markNeedsBuild() from running, so the
+        // UI never rebuilt AND the SnackBar below was never reached — the
+        // user saw nothing ("kichui hoi na"). Now we set a flag + show the
+        // SnackBar reliably, and let the user tap the Email tab themselves.
         final isConfigError = error.contains('temporarily unavailable') ||
             error.contains('operation-not-allowed') ||
             error.contains('app-not-authorized') ||
             error.contains('missing-client-identifier');
         if (isConfigError) {
-          // Auto-switch to Email tab.
-          setState(() {
-            _currentMethod = 1;
-            _pageController.animateToPage(
-              1,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          });
+          _phoneAuthUnavailable = true;
         }
+        if (!mounted) return;
+        setState(() {}); // rebuild to show the banner
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error),
