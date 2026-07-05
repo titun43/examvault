@@ -256,8 +256,6 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildBannerCarousel(),
               const SizedBox(height: 16),
               _buildGuestBanner(),
-              const SizedBox(height: 16),
-              _buildWelcomeCard(),
               const SizedBox(height: 24),
               _buildQuickActions(),
               const SizedBox(height: 24),
@@ -644,61 +642,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Sign In',
                 style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWelcomeCard() {
-    final auth = Provider.of<AuthProvider>(context);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back,',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  auth.user?.name ?? 'Student',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    auth.isPremium ? 'Premium Member' : 'Free Member',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.waving_hand, color: Colors.yellow, size: 40),
         ],
       ),
     );
