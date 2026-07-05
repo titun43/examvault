@@ -970,6 +970,20 @@ class FirestoreService {
     }
   }
 
+  /// Streams a single category document by id. Used by CategoryDetailScreen
+  /// so the screen receives LIVE updates when the admin toggles premium,
+  /// changes the price, uploads an image, etc. Without this, the screen
+  /// used a stale snapshot from the constructor and premium changes made in
+  /// the admin panel didn't reflect until the user navigated away and back.
+  static Stream<CategoryModel?> getCategoryStream(String id) {
+    if (id.isEmpty) {
+      return Stream.value(null);
+    }
+    return _db.collection('categories').doc(id).snapshots().map(
+      (doc) => doc.exists ? CategoryModel.fromFirestore(doc) : null,
+    );
+  }
+
   static Future<void> addBookmark(
     String uid,
     String testId,

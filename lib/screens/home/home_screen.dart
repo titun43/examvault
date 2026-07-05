@@ -111,12 +111,39 @@ class _HomeScreenState extends State<HomeScreen> {
     // refresh the UI but identical payloads are skipped.
     _categoriesSub = FirestoreService.getCategoriesStream().listen((cats) {
       if (!mounted) return;
+      // GUARD: only call setState when something the UI actually renders
+      // changed. The signature must include EVERY field the category card
+      // displays or reacts to — otherwise admin edits (premium toggle,
+      // image upload, reorder, description edit) won't propagate to the
+      // user app. Previously the signature only had id|name|subjectCount|icon
+      // which meant toggling premium on/off in the admin had NO effect here
+      // until the app restarted. Now it includes isPremium, premiumPrice,
+      // premiumDurationMonths, image, color, order, and description.
       final newSig = cats
-          .map((c) => '${c.id}|${c.name}|${c.subjectCount}|${c.icon ?? ""}')
+          .map((c) =>
+              '${c.id}|${c.name}|${c.subjectCount}|${c.icon ?? ""}|${c.isPremium}|${c.premiumPrice}|${c.premiumDurationMonths}|${c.image ?? ""}|${c.color ?? ""}|${c.order}|${c.description ?? ""}')
           .join('§');
       if (newSig == _lastCategoriesSig && _categoriesLoaded) {
         // identical payload — skip rebuild to avoid scroll-position jump / flash
         return;
+      }
+      // Detect which categories had their premium status change so we can
+      // clear the AccessService cache for JUST those (not all). Without this,
+      // a stale `allowed=true` decision from when the category was free could
+      // persist for 120s and let the user bypass the new paywall.
+      if (_categoriesLoaded) {
+        for (final newCat in cats) {
+          // Find the old version of this category to compare premium status.
+          CategoryModel? oldCat;
+          for (final c in _categories) {
+            if (c.id == newCat.id) { oldCat = c; break; }
+          }
+          if (oldCat != null &&
+              (oldCat.isPremium != newCat.isPremium ||
+               oldCat.premiumPrice != newCat.premiumPrice)) {
+            AccessService.clearCacheForCategory(newCat.id);
+          }
+        }
       }
       _lastCategoriesSig = newSig;
       setState(() {

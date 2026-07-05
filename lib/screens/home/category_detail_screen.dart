@@ -10,6 +10,7 @@
 // the legacy local check (auth.isPremium) so the app keeps working.
 // =============================================================================
 
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -44,15 +45,73 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   /// Server-side access state for this category.
   _AccessState _accessState = _AccessState.loading;
 
+  /// LIVE category data — kept fresh by [_categorySub]. The constructor's
+  /// [widget.category] is only a snapshot from navigation time. Without this
+  /// live subscription, if the admin toggled premium on/off (or changed the
+  /// price) while the user was inside this screen, the change wouldn't
+  /// reflect until the user navigated away and back. Now the screen
+  /// re-checks access the moment [isPremium] or [premiumPrice] changes.
+  CategoryModel _liveCategory;
+  StreamSubscription<CategoryModel?>? _categorySub;
+
+  _CategoryDetailScreenState()
+      : _liveCategory = CategoryModel(
+          id: '',
+          name: '',
+          slug: '',
+          createdAt: DateTime(0),
+          updatedAt: DateTime(0),
+        );
+
   @override
   void initState() {
     super.initState();
+    _liveCategory = widget.category;
+    // Subscribe to the category doc so premium/price changes made in the
+    // admin panel reflect IMMEDIATELY — no need to navigate away and back.
+    _categorySub = FirestoreService.getCategoryStream(_liveCategory.id).listen((cat) {
+      if (!mounted || cat == null) return;
+      final oldCat = _liveCategory;
+      // Only re-check access + rebuild if something that affects the lock
+      // or paywall actually changed (isPremium, premiumPrice,
+      // premiumDurationMonths, image, name). Avoids needless rebuilds when
+      // updatedAt ticks but nothing else moved.
+      final premiumChanged =
+          oldCat.isPremium != cat.isPremium ||
+          oldCat.premiumPrice != cat.premiumPrice ||
+          oldCat.premiumDurationMonths != cat.premiumDurationMonths;
+      final displayChanged =
+          oldCat.name != cat.name ||
+          oldCat.icon != cat.icon ||
+          oldCat.image != cat.image ||
+          oldCat.description != cat.description ||
+          oldCat.color != cat.color;
+      if (!premiumChanged && !displayChanged) return;
+      _liveCategory = cat;
+      if (premiumChanged) {
+        // Premium status flipped — clear any stale AccessService cache for
+        // this category + its tests so the next access check hits the backend
+        // with the new premium status. Then re-run the access check so the
+        // paywall appears/disappears in real time.
+        AccessService.clearCacheForCategory(cat.id);
+        _checkAccess();
+      } else {
+        // Only display fields changed — just rebuild.
+        setState(() {});
+      }
+    });
     _checkAccess();
+  }
+
+  @override
+  void dispose() {
+    _categorySub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkAccess() async {
     // Fast path: non-premium categories are always open.
-    if (!widget.category.isPremium) {
+    if (!_liveCategory.isPremium) {
       if (!mounted) return;
       setState(() => _accessState = _AccessState.allowed);
       return;
@@ -69,14 +128,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     // (premium subscription or exam-pack purchased), grant immediately without
     // a network round-trip. This eliminates the loading spinner for premium
     // users and exam-pack buyers when re-opening a category they already own.
-    if (auth.isPremium || auth.hasCategoryAccess(widget.category.id)) {
+    if (auth.isPremium || auth.hasCategoryAccess(_liveCategory.id)) {
       if (!mounted) return;
       setState(() => _accessState = _AccessState.allowed);
       return;
     }
     try {
       final decision =
-          await AccessService.checkCategoryAccess(widget.category.id);
+          await AccessService.checkCategoryAccess(_liveCategory.id);
       if (!mounted) return;
       setState(() {
         _accessState =
@@ -121,7 +180,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       );
       return;
     }
-    if (widget.category.premiumPrice <= 0) {
+    if (_liveCategory.premiumPrice <= 0) {
       // No exam-pack price configured → fall back to Premium.
       // FIXED: await push so _checkAccess() runs after returning from premium.
       Navigator.pushNamed(context, '/premium').then((_) {
@@ -163,9 +222,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       userName: user.name,
       userEmail: user.email ?? 'user@examvault.com',
       userPhone: user.phoneNumber ?? '9999999999',
-      categoryId: widget.category.id,
-      categoryName: widget.category.name,
-      amount: widget.category.premiumPrice,
+      categoryId: _liveCategory.id,
+      categoryName: _liveCategory.name,
+      amount: _liveCategory.premiumPrice,
       // createOrder is about to start — show "Preparing payment..." with a
       // Cancel button so the user can abort if the network is too slow.
       onPreparing: () {
@@ -209,10 +268,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         // the background /verify might not have completed yet. This matches
         // the pattern used by test_list_screen (markTestPurchased) and
         // premium_screen (markPremiumGranted).
-        AccessService.markExamPackPurchased(widget.category.id);
+        AccessService.markExamPackPurchased(_liveCategory.id);
         // FIXED: update local user model immediately so home/all-categories
         // screens unlock this category without waiting for loadUserData().
-        auth.addPurchasedCategory(widget.category.id);
+        auth.addPurchasedCategory(_liveCategory.id);
         auth.loadUserData();
         if (!mounted) return;
         // Show a PROMINENT success dialog (not a subtle snackbar). The user
@@ -220,8 +279,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: widget.category.name,
-          amount: widget.category.premiumPrice,
+          itemName: _liveCategory.name,
+          amount: _liveCategory.premiumPrice,
           actionLabel: 'Open Exam',
           paymentId: response.paymentId,
         ).then((_) {
@@ -251,27 +310,27 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.category.name),
+        title: Text(_liveCategory.name),
       ),
       body: Column(
         children: [
           // Category image banner (admin-uploaded). Shown only when an image
           // URL is set; otherwise the gradient header below stands on its own.
-          if (widget.category.image != null &&
-              widget.category.image!.isNotEmpty)
+          if (_liveCategory.image != null &&
+              _liveCategory.image!.isNotEmpty)
             SizedBox(
               width: double.infinity,
               height: 180,
               child: CachedNetworkImage(
-                imageUrl: widget.category.image!,
+                imageUrl: _liveCategory.image!,
                 fit: BoxFit.cover,
                 placeholder: (_, __) => Container(
-                  color: (AppTheme.categoryColors[widget.category.name] ??
+                  color: (AppTheme.categoryColors[_liveCategory.name] ??
                           AppTheme.primaryColor)
                       .withOpacity(0.3),
                 ),
                 errorWidget: (_, __, ___) => Container(
-                  color: (AppTheme.categoryColors[widget.category.name] ??
+                  color: (AppTheme.categoryColors[_liveCategory.name] ??
                           AppTheme.primaryColor)
                       .withOpacity(0.3),
                   child: const Center(
@@ -288,8 +347,8 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  AppTheme.categoryColors[widget.category.name] ?? AppTheme.primaryColor,
-                  (AppTheme.categoryColors[widget.category.name] ?? AppTheme.primaryColor)
+                  AppTheme.categoryColors[_liveCategory.name] ?? AppTheme.primaryColor,
+                  (AppTheme.categoryColors[_liveCategory.name] ?? AppTheme.primaryColor)
                       .withOpacity(0.7),
                 ],
               ),
@@ -300,7 +359,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 Row(
                   children: [
                     Text(
-                      widget.category.icon ?? '📚',
+                      _liveCategory.icon ?? '📚',
                       style: const TextStyle(fontSize: 40),
                     ),
                     const SizedBox(width: 16),
@@ -309,7 +368,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.category.name,
+                            _liveCategory.name,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
@@ -318,7 +377,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${widget.category.subjectCount} Subjects Available',
+                            '${_liveCategory.subjectCount} Subjects Available',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 14,
@@ -329,10 +388,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     ),
                   ],
                 ),
-                if (widget.category.description != null) ...[
+                if (_liveCategory.description != null) ...[
                   const SizedBox(height: 12),
                   Text(
-                    widget.category.description!,
+                    _liveCategory.description!,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 13,
@@ -377,9 +436,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       child: StreamBuilder<List<SubjectModel>>(
         key: ValueKey('subjects-${_reloadKey}'),
         stream: FirestoreService.getSubjectsStream(
-          categoryId: widget.category.id,
-          categoryName: widget.category.name,
-          categorySlug: widget.category.slug,
+          categoryId: _liveCategory.id,
+          categoryName: _liveCategory.name,
+          categorySlug: _liveCategory.slug,
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -411,7 +470,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   Widget _buildPaywall() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final isGuest = auth.isGuest;
-    final canBuyExamPack = widget.category.premiumPrice > 0;
+    final canBuyExamPack = _liveCategory.premiumPrice > 0;
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -434,10 +493,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         const SizedBox(height: 8),
         Text(
           isGuest
-              ? 'Sign in to unlock "${widget.category.name}" and all its tests.'
+              ? 'Sign in to unlock "${_liveCategory.name}" and all its tests.'
               : canBuyExamPack
-                  ? 'Unlock "${widget.category.name}" and all its tests for ₹${widget.category.premiumPrice}, or upgrade to Premium for unlimited access.'
-                  : 'Subscribe to Premium to unlock "${widget.category.name}" and all its tests.',
+                  ? 'Unlock "${_liveCategory.name}" and all its tests for ₹${_liveCategory.premiumPrice}, or upgrade to Premium for unlimited access.'
+                  : 'Subscribe to Premium to unlock "${_liveCategory.name}" and all its tests.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -483,7 +542,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.lock_open),
-              label: Text('Unlock this exam (₹${widget.category.premiumPrice})'),
+              label: Text('Unlock this exam (₹${_liveCategory.premiumPrice})'),
             ),
           ),
           const SizedBox(height: 12),
@@ -531,7 +590,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Please update the app soon to access premium content in ${widget.category.name}.',
+          'Please update the app soon to access premium content in ${_liveCategory.name}.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -589,7 +648,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Subjects for ${widget.category.name} will appear here. Pull down to refresh.',
+          'Subjects for ${_liveCategory.name} will appear here. Pull down to refresh.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -676,7 +735,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               // already paid would see a premium lock on every test.
               builder: (_) => TestListScreen(
                 subject: subject,
-                categoryId: widget.category.id,
+                categoryId: _liveCategory.id,
               ),
             ),
           );

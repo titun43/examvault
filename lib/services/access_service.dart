@@ -110,6 +110,26 @@ class AccessService {
     _cache.removeWhere((k, _) => k.startsWith('$uid:'));
   }
 
+  /// Clears the cached access decision for a specific test. Call this when
+  /// the test's premium/price status changes in the Firestore stream — e.g.
+  /// the admin toggled premium on/off on a test. Without this, a stale
+  /// `allowed=true` decision (from when the test was free) could persist for
+  /// up to 120s and let the user bypass the new paywall.
+  static void clearCacheForTest(String testId) {
+    _cache.remove(_key('test:$testId'));
+  }
+
+  /// Clears the cached access decision for a specific category (exam pack).
+  /// Call this when the category's premium status changes in the Firestore
+  /// stream — e.g. the admin toggled premium on/off on a category.
+  static void clearCacheForCategory(String categoryId) {
+    _cache.remove(_key('exam:$categoryId'));
+    // Also clear all test:* entries for this user — tests in this category
+    // may have had their isPremium propagated, so their access decisions
+    // are now stale too.
+    _clearPrefix('test:');
+  }
+
   // ==================== OPTIMISTIC CACHE WRITES ====================
   // After a server-verified successful payment, the backend grants the
   // entitlement in Prisma. Instead of clearing the cache (which forces the
