@@ -296,13 +296,64 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Change Photo',
-                        style: TextStyle(
-                          color: AppTheme.primaryColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          GestureDetector(
+                            onTap: _isUploadingPhoto
+                                ? null
+                                : _pickAndUploadPhoto,
+                            child: Text(
+                              'Change Photo',
+                              style: TextStyle(
+                                color: AppTheme.primaryColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          // Show Remove button only when a photo is set.
+                          // Tap → clear local _photoUrl; on save the null
+                          // value is written back to Firestore so the avatar
+                          // reverts to the default person icon.
+                          if (_photoUrl != null &&
+                              _photoUrl!.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text(
+                                '·',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _isUploadingPhoto
+                                  ? null
+                                  : () {
+                                      setState(() => _photoUrl = null);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                              'Photo removed. Tap Save to confirm.'),
+                                          duration: Duration(seconds: 2),
+                                        ),
+                                      );
+                                    },
+                              child: Text(
+                                'Remove',
+                                style: TextStyle(
+                                  color: AppTheme.errorColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),

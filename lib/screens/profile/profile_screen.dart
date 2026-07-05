@@ -22,6 +22,7 @@ import '../home/main_navigation.dart';
 import '../premium/premium_screen.dart';
 import '../search/search_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
+import '../support/help_support_screen.dart';
 import 'settings_screen.dart';
 import 'test_history_screen.dart';
 import 'bookmarks_screen.dart';
@@ -65,21 +66,13 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Future<void> _openHelpSupport(BuildContext context) async {
-    // Launch email client with a pre-filled support email.
-    try {
-      final uri = Uri(
-        scheme: 'mailto',
-        path: AppConfig.supportEmail,
-        query: 'subject=ExamVault Support Request&body=Hello ExamVault team,\n\nI need help with...',
-      );
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-      } else {
-        _showToast(context, 'Email app not available. Contact: ${AppConfig.supportEmail}');
-      }
-    } catch (e) {
-      _showToast(context, 'Unable to open email. Contact: ${AppConfig.supportEmail}');
-    }
+    // Open the in-app support chat screen instead of an external mailto: link.
+    // Users can start a new conversation or continue an existing one; replies
+    // from the admin panel appear in real-time. See help_support_screen.dart.
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+    );
   }
 
   Future<void> _openPrivacyPolicy(BuildContext context) async {
@@ -239,11 +232,27 @@ class ProfileScreen extends StatelessWidget {
                       CircleAvatar(
                         radius: 50,
                         backgroundColor: Colors.white,
-                        child: auth.user?.photoUrl != null
+                        child: auth.user?.photoUrl != null &&
+                                auth.user!.photoUrl!.isNotEmpty
                             ? ClipOval(
                                 child: CachedNetworkImage(
                                   imageUrl: auth.user!.photoUrl!,
                                   fit: BoxFit.cover,
+                                  // Explicit size required so the image fills
+                                  // the 100x100 circle (radius 50). Without
+                                  // width/height, BoxFit.cover has no box to
+                                  // fill and the photo renders distorted or
+                                  // partial after save.
+                                  width: 100,
+                                  height: 100,
+                                  placeholder: (_, __) => const Icon(
+                                      Icons.person,
+                                      size: 50,
+                                      color: AppTheme.primaryColor),
+                                  errorWidget: (_, __, ___) => const Icon(
+                                      Icons.person,
+                                      size: 50,
+                                      color: AppTheme.primaryColor),
                                 ),
                               )
                             : const Icon(Icons.person, size: 50, color: AppTheme.primaryColor),

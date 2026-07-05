@@ -151,5 +151,45 @@ service cloud.firestore {
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys.only(['isRead']));
     }
+
+    // ==================== SUPPORT TICKETS ====================
+    // In-app help & support chat. A user can create/read/update ONLY their
+    // own tickets. Admins can read/update ALL tickets (e.g. reply, mark
+    // resolved). The messages subcollection follows the same ownership rule
+    // (the ticket's userId must match the caller).
+    match /support_tickets/{ticketId} {
+      allow read: if isSignedIn()
+        && (isAdmin()
+            || (exists(/databases/$(database)/documents/support_tickets/$(ticketId))
+                && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid));
+      // Any signed-in user can create a ticket on their own behalf.
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      // Owner can update (e.g. send follow-up, reopen). Admin can update
+      // (reply preview, mark resolved). We don't allow the owner to change
+      // userId — only the admin or owner-settable denormalized fields.
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && exists(/databases/$(database)/documents/support_tickets/$(ticketId))
+            && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid
+            // Owner cannot reassign the ticket to another user.
+            && request.resource.data.userId == resource.data.userId);
+      allow delete: if isAdmin();
+
+      // Messages subcollection — same ownership rule via parent ticket.
+      match /messages/{messageId} {
+        allow read: if isSignedIn()
+          && (isAdmin()
+              || (exists(/databases/$(database)/documents/support_tickets/$(ticketId))
+                  && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid));
+        // User can create messages on their own ticket; admin can create
+        // messages on any ticket (admin replies).
+        allow create: if isAdmin()
+          || (isSignedIn()
+              && exists(/databases/$(database)/documents/support_tickets/$(ticketId))
+              && get(/databases/$(database)/documents/support_tickets/$(ticketId)).data.userId == request.auth.uid);
+        allow update, delete: if isAdmin();
+      }
+    }
   }
 }
