@@ -36,6 +36,13 @@ class _LoginScreenState extends State<LoginScreen> {
   // (which previously crashed the rebuild because _pageController was never
   // attached to a PageView, leaving the user with NO visible feedback).
   bool _phoneAuthUnavailable = false;
+  // The full error message from the last OTP attempt — shown inside the
+  // persistent banner so the user / admin can see the EXACT Firebase error
+  // code (operation-not-allowed, app-not-authorized, missing-client-identifier,
+  // quota-exceeded, client-timeout, etc.) without needing adb logcat.
+  // This is critical for remote diagnosis: different codes point to very
+  // different fixes (Blaze plan, SHA-1, Play Integrity, SMS quota, etc.).
+  String? _phoneAuthError;
 
   // Email auth
   final _emailController = TextEditingController();
@@ -155,6 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
           // user moves away from / back to the Mobile tab, so a fresh attempt
           // starts clean.
           _phoneAuthUnavailable = false;
+          _phoneAuthError = null;
           Provider.of<AuthProvider>(context, listen: false).clearError();
         });
       },
@@ -223,14 +231,41 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Please use Email sign-in instead — tap the "Email" tab above. '
-                        'Our team has been notified.',
+                        'Please use Email sign-in — tap the "Email" tab above.',
                         style: TextStyle(
                           color: AppTheme.errorColor,
                           fontSize: 12,
                           height: 1.4,
                         ),
                       ),
+                      // Show the EXACT Firebase error code/message so the
+                      // admin can diagnose remotely. Different codes need
+                      // different fixes:
+                      //   operation-not-allowed  → Firebase Spark plan (upgrade to Blaze) OR Phone Auth not enabled
+                      //   app-not-authorized      → SHA-1 fingerprint not registered in Firebase Console
+                      //   missing-client-identifier → reCAPTCHA / Play Integrity / SHA issue
+                      //   quota-exceeded          → daily SMS limit hit
+                      //   client-timeout          → 20s safety-net fired (network / Play Integrity hung)
+                      if (_phoneAuthError != null) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.errorColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _phoneAuthError!,
+                            style: TextStyle(
+                              color: AppTheme.errorColor,
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -463,6 +498,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // Reset the "OTP unavailable" banner for this fresh attempt — it will be
     // re-set if THIS attempt fails with a config error.
     _phoneAuthUnavailable = false;
+    _phoneAuthError = null;
     final rawPhone = _phoneController.text.trim();
     if (rawPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -505,24 +541,25 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       },
       onError: (error) {
-        // If the error is a Firebase configuration issue (Phone Auth not
-        // enabled in the Firebase Console, SHA-1/SHA-256 not registered,
-        // reCAPTCHA unresolvable, etc.), flag it so a persistent banner is
-        // shown on the Mobile tab. We NO LONGER auto-switch to the Email
-        // tab — the old code called _pageController.animateToPage(), but
-        // _pageController was never attached to a PageView (the tabs use
-        // conditional rendering, not a PageView). That call threw inside
-        // setState, which prevented markNeedsBuild() from running, so the
-        // UI never rebuilt AND the SnackBar below was never reached — the
-        // user saw nothing ("kichui hoi na"). Now we set a flag + show the
-        // SnackBar reliably, and let the user tap the Email tab themselves.
-        final isConfigError = error.contains('temporarily unavailable') ||
-            error.contains('operation-not-allowed') ||
-            error.contains('app-not-authorized') ||
-            error.contains('missing-client-identifier');
-        if (isConfigError) {
-          _phoneAuthUnavailable = true;
-        }
+        // Show a persistent banner with the EXACT error message on the Mobile
+        // tab. We NO LONGER auto-switch to the Email tab — the old code called
+        // _pageController.animateToPage(), but _pageController was never
+        // attached to a PageView (the tabs use conditional rendering, not a
+        // PageView). That call threw inside setState, which prevented
+        // markNeedsBuild() from running, so the UI never rebuilt AND the
+        // SnackBar below was never reached — the user saw nothing
+        // ("kichui hoi na"). Now we set a flag + show the SnackBar reliably.
+        //
+        // We show the banner for ALL errors (not just config errors) so the
+        // admin can see timeout / quota errors too — they all need different
+        // fixes:
+        //   operation-not-allowed     → Firebase Spark plan OR Phone Auth not enabled
+        //   app-not-authorized        → SHA-1 fingerprint not in Firebase Console
+        //   missing-client-identifier → reCAPTCHA / Play Integrity / SHA issue
+        //   quota-exceeded            → daily SMS limit hit
+        //   client-timeout            → 20s safety-net fired (network/Integrity hung)
+        _phoneAuthUnavailable = true;
+        _phoneAuthError = error;
         if (!mounted) return;
         setState(() {}); // rebuild to show the banner
         ScaffoldMessenger.of(context).showSnackBar(
