@@ -84,6 +84,12 @@ class _TestListScreenState extends State<TestListScreen> {
   // exam-pack buyers see a "Buy" button on every test even after paying.
   bool _serverHasExamPackAccess = false;
 
+  // Server-side subject-pack access for this subject. If the user bought the
+  // subject pack, ALL tests inside this subject are unlocked. Resolved once on
+  // screen load (cached 60s by AccessService). Also drives the visibility of
+  // the "Unlock this subject for ₹X" banner — hidden when true.
+  bool _serverHasSubjectPackAccess = false;
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +107,12 @@ class _TestListScreenState extends State<TestListScreen> {
     // previous session. Fire-and-forget; setState when it returns.
     _seedCachedExamPackAccess();
     _refreshAccessStatus();
+    // Fetch server-side subject-pack access for this subject (if the admin
+    // set a premiumPrice > 0). The result hides the "Unlock this subject"
+    // banner and grants access to all tests in this subject.
+    if (widget.subject != null && widget.subject!.premiumPrice > 0) {
+      _fetchSubjectPackStatus(widget.subject!.id);
+    }
   }
 
   /// Synchronous local pre-seed for exam-pack access. Reads the
@@ -270,6 +282,20 @@ class _TestListScreenState extends State<TestListScreen> {
     }
   }
 
+  /// Fetches server-side subject-pack access. If the user already bought this
+  /// subject pack, `_serverHasSubjectPackAccess` flips to true → all tests in
+  /// this subject show "Start" and the "Unlock this subject" banner hides.
+  Future<void> _fetchSubjectPackStatus(String subjectId) async {
+    try {
+      final decision = await AccessService.checkSubjectAccess(subjectId);
+      if (!mounted) return;
+      setState(() => _serverHasSubjectPackAccess = decision.allowed);
+    } catch (_) {
+      // Silently ignore — the per-test access check in TakeTestScreen is the
+      // final gatekeeper.
+    }
+  }
+
   /// Effective premium status: server-side if available, else local fallback.
   bool _effectiveIsPremium(UserModel? user) {
     if (_serverIsPremium != null) return _serverIsPremium!;
@@ -306,13 +332,32 @@ class _TestListScreenState extends State<TestListScreen> {
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No tests available'));
           }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.length,
-            itemBuilder: (context, index) {
-              final test = snapshot.data![index];
-              return _buildTestCard(context, test);
-            },
+          // "Unlock this subject" banner — shown only when the admin has set a
+          // premiumPrice > 0 on this subject AND the user doesn't already have
+          // subject-pack access. Tapping it starts a Razorpay subject-pack
+          // purchase (startSubjectPackPurchase) which unlocks ALL tests in this
+          // subject.
+          final showSubjectPackBanner =
+              widget.subject != null &&
+              widget.subject!.premiumPrice > 0 &&
+              !_serverHasSubjectPackAccess &&
+              !_effectiveIsPremium(
+                  Provider.of<AuthProvider>(context, listen: false).user);
+          return Column(
+            children: [
+              if (showSubjectPackBanner)
+                _buildSubjectPackBanner(context, widget.subject!),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: snapshot.data!.length,
+                  itemBuilder: (context, index) {
+                    final test = snapshot.data![index];
+                    return _buildTestCard(context, test);
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -349,7 +394,7 @@ class _TestListScreenState extends State<TestListScreen> {
     // (local OR server-confirmed). Without this check, exam-pack buyers see
     // a "Buy" button on every test inside the category they already paid for.
     final hasAccess =
-        isPremium || hasPurchasedTest || localHasExamPack || _serverHasExamPackAccess;
+        isPremium || hasPurchasedTest || localHasExamPack || _serverHasExamPackAccess || _serverHasSubjectPackAccess;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
@@ -576,7 +621,8 @@ class _TestListScreenState extends State<TestListScreen> {
     final localHasAccess = _effectiveIsPremium(user) ||
         (user?.purchasedTests.contains(test.id) ?? false) ||
         localExamPack ||
-        _serverHasExamPackAccess;
+        _serverHasExamPackAccess ||
+        _serverHasSubjectPackAccess;
     if (localHasAccess) {
       if (!context.mounted) return;
       Navigator.push(
@@ -917,6 +963,190 @@ class _TestListScreenState extends State<TestListScreen> {
         progress.dismiss();
         // If the user explicitly cancelled, don't show a scary "Payment
         // failed" message — they already know.
+        if (cancelled) return;
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Payment failed: ${response.message ?? 'Please try again.'}'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      },
+    );
+  }
+
+  // ==================== SUBJECT PACK PURCHASE ====================
+
+  /// Banner shown at the top of the test list when the admin has set a
+  /// premiumPrice > 0 on this subject and the user hasn't bought it yet.
+  /// Tapping it starts a Razorpay subject-pack purchase.
+  Widget _buildSubjectPackBanner(BuildContext context, SubjectModel subject) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_open, color: Colors.white, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Unlock all tests in ${subject.name}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Get access to every test in this subject',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => _purchaseSubjectPack(context, subject),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppTheme.primaryColor,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text(
+              '₹${subject.premiumPrice}',
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Initiates a Razorpay payment for a subject pack (unlocks ALL tests in
+  /// this subject). Mirrors the _purchaseTest flow: progress dialogs during
+  /// createOrder + verify, success dialog on success, error snackbar on fail.
+  /// On success, writes a positive AccessDecision to the cache
+  /// (markSubjectPackPurchased) so all tests in this subject flip to "Start"
+  /// instantly — no per-test server round-trip.
+  void _purchaseSubjectPack(
+    BuildContext context,
+    SubjectModel subject,
+  ) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to make a purchase.')),
+      );
+      return;
+    }
+
+    final progress = PaymentProgressDialog();
+    bool cancelled = false;
+
+    void showCheckPurchasesMessage() {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: const Text(
+            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
+          ),
+          backgroundColor: AppTheme.warningColor,
+          action: SnackBarAction(
+            label: 'My Purchases',
+            textColor: Colors.white,
+            onPressed: () {
+              if (context.mounted) {
+                Navigator.pushNamed(context, '/my-purchases');
+              }
+            },
+          ),
+        ),
+      );
+    }
+
+    final effectiveCategoryId =
+        (widget.categoryId != null && widget.categoryId!.isNotEmpty)
+            ? widget.categoryId
+            : subject.categoryId;
+
+    RazorpayService.startSubjectPackPurchase(
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email ?? 'user@examvault.com',
+      userPhone: user.phoneNumber ?? '9999999999',
+      subjectId: subject.id,
+      subjectName: subject.name,
+      amount: subject.premiumPrice,
+      categoryId: effectiveCategoryId,
+      onPreparing: () {
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Preparing payment...',
+          cancellable: true,
+          onCancel: () => cancelled = true,
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
+      },
+      onCheckoutOpened: () {
+        progress.dismiss();
+      },
+      onVerifying: () {
+        if (cancelled) return;
+        progress.show(
+          context,
+          message: 'Verifying payment...',
+          cancellable: true,
+          cancelLabel: 'Check My Purchases',
+          safetyTimeout: const Duration(seconds: 60),
+          onCancel: () {
+            cancelled = true;
+            showCheckPurchasesMessage();
+          },
+          onSafetyTimeout: showCheckPurchasesMessage,
+        );
+      },
+      onSuccess: (response) {
+        progress.dismiss();
+        // Write a positive AccessDecision to the cache so all tests in this
+        // subject flip to "Start" instantly.
+        AccessService.markSubjectPackPurchased(subject.id);
+        // Flip the local flag so the banner hides + all test cards rebuild
+        // with "Start" instead of "Buy".
+        if (!mounted) return;
+        setState(() => _serverHasSubjectPackAccess = true);
+        if (!context.mounted) return;
+        PaymentSuccessDialog.show(
+          context,
+          itemName: 'Subject Pack: ${subject.name}',
+          amount: subject.premiumPrice,
+          actionLabel: 'Done',
+          paymentId: response.paymentId,
+        );
+      },
+      onError: (response) {
+        progress.dismiss();
         if (cancelled) return;
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
