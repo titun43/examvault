@@ -3,6 +3,11 @@
 // Premium plans are admin-controllable: this screen fetches them from the
 // `premium_plans` Firestore collection. If there are no plans in Firestore,
 // the screen shows an empty state — it NEVER shows fake/hardcoded plans.
+//
+// Guest handling: a guest (browsing without signing in) can reach this screen
+// from several entry points. The Subscribe button is replaced with a
+// "Sign In to Continue" prompt for guests — silently returning from
+// _startPayment (the old behaviour) made the button feel dead.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -16,6 +21,7 @@ import '../../services/firestore_service.dart';
 import '../../models/premium_plan_model.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../auth/login_screen.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -84,6 +90,9 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch auth so the UI rebuilds when the user signs in/out. Guests see
+    // a "Sign In to Continue" prompt instead of the Subscribe button.
+    final auth = context.watch<AuthProvider>();
     return Scaffold(
       appBar: AppBar(
         title: const Text('ExamVault Premium'),
@@ -201,17 +210,64 @@ class _PremiumScreenState extends State<PremiumScreen> {
                 return _buildPlanCard(plan, index);
               }),
               const SizedBox(height: 24),
-              // Subscribe Button
-              ElevatedButton(
-                onPressed: _startPayment,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+              // Subscribe / Sign-in CTA. Guests get a sign-in prompt because
+              // a purchase requires a Firebase UID. The old code silently
+              // returned from _startPayment when auth.user was null, which
+              // made the button feel completely dead.
+              if (auth.isGuest) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.warningColor.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: AppTheme.warningColor.withOpacity(0.45)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline,
+                          color: AppTheme.warningColor, size: 20),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Sign in to subscribe to Premium and unlock all features.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Text(
-                  'Subscribe for ₹${_plans[_selectedPlanIndex]['price']}',
-                  style: const TextStyle(fontSize: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const LoginScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.login),
+                    label: const Text('Sign In to Continue'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: BorderSide(color: AppTheme.primaryColor),
+                    ),
+                  ),
                 ),
-              ),
+              ] else
+                ElevatedButton(
+                  onPressed: _startPayment,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: Text(
+                    'Subscribe to ${_plans[_selectedPlanIndex]['name']} • ₹${_plans[_selectedPlanIndex]['price']}',
+                    style: const TextStyle(fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
             ],
             const SizedBox(height: 16),
             // Payment info
@@ -392,7 +448,30 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   void _startPayment() {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    if (auth.user == null) return;
+    // Guest guard. The old code silently `return`ed here, which made the
+    // Subscribe button feel dead — the user tapped it and literally
+    // nothing happened. Now the build method replaces the button with a
+    // Sign-In prompt for guests, so this branch is only hit if the user
+    // somehow taps before a rebuild. Belt-and-braces: show a snackbar too.
+    if (auth.user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please sign in to subscribe to Premium.'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Sign In',
+            textColor: Colors.white,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+              );
+            },
+          ),
+        ),
+      );
+      return;
+    }
     if (_plans.isEmpty) return;
 
     final selectedPlan = _plans[_selectedPlanIndex];
