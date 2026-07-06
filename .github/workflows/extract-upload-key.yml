@@ -32,7 +32,13 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Decode Keystore from Secret
+      - name: Setup Java 17 (provides keytool)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Decode Keystore + Extract .pem
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -42,42 +48,50 @@ jobs:
             echo "::error::KEYSTORE_BASE64 secret is MISSING."
             exit 1
           fi
+          if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::KEYSTORE_PASSWORD / KEY_ALIAS secrets are required."
+            exit 1
+          fi
+
+          # Write keystore to home dir (no need for repo checkout)
+          KS_FILE="$HOME/release.keystore"
           CLEAN_B64=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n')
           echo "Decoding keystore..."
-          echo "$CLEAN_B64" | base64 -d > android/app/examvault-release.keystore
-          echo "Keystore decoded. Size: $(wc -c < android/app/examvault-release.keystore) bytes"
+          echo "$CLEAN_B64" | base64 -d > "$KS_FILE"
+          KS_SIZE=$(wc -c < "$KS_FILE")
+          echo "Keystore decoded. Size: $KS_SIZE bytes"
+
+          if [ "$KS_SIZE" -lt 100 ]; then
+            echo "::error::Decoded keystore is too small ($KS_SIZE bytes). KEYSTORE_BASE64 secret may be invalid."
+            exit 1
+          fi
 
           echo ""
           echo "=== Keystore info ==="
-          keytool -list -v -keystore android/app/examvault-release.keystore \
+          keytool -list -v -keystore "$KS_FILE" \
             -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS" 2>/dev/null \
-            | grep -iE 'SHA1:|SHA-256:|Owner:|Valid from'
+            -alias "$KEY_ALIAS" 2>&1 \
+            | grep -iE 'SHA1:|SHA-256:|Owner:|Valid from|Entry type'
 
-      - name: Extract Public Certificate as .pem
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
+          echo ""
+          echo "=== Extracting public certificate as .pem ==="
           mkdir -p output
           keytool -exportcert \
-            -keystore android/app/examvault-release.keystore \
+            -keystore "$KS_FILE" \
             -storepass "$KEYSTORE_PASSWORD" \
             -alias "$KEY_ALIAS" \
             -rfc \
             -file output/upload_key.pem
 
+          echo "✅ upload_key.pem created."
           echo ""
           echo "=== .pem file contents (first 5 lines) ==="
           head -5 output/upload_key.pem
           echo "..."
           echo ""
-          echo "=== Verify SHA-1 of the certificate matches Play Console error ==="
+          echo "=== Certificate details (verify SHA-1 matches BA:56:A6:05:...) ==="
           keytool -printcert -file output/upload_key.pem 2>/dev/null \
             | grep -iE 'SHA1:|SHA-256:|Owner:'
-
-          echo ""
-          echo "✅ upload_key.pem is ready. Download it from the workflow artifact."
 
       - name: Upload .pem as artifact
         uses: actions/upload-artifact@v4
@@ -86,8 +100,8 @@ jobs:
           path: output/upload_key.pem
           retention-days: 7
 
-      - name: Cleanup keystore
+      - name: Cleanup
         if: always()
         run: |
-          rm -f android/app/examvault-release.keystore
-          echo "Keystore cleaned up from runner."
+          rm -f "$HOME/release.keystore"
+          echo "Keystore cleaned up."
