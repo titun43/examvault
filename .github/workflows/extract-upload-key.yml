@@ -1,0 +1,93 @@
+# =============================================================================
+# ExamVault - ONE-TIME: Extract Upload Key Public Certificate (.pem)
+# =============================================================================
+# This workflow decodes the stable release keystore (from GitHub Secret
+# KEYSTORE_BASE64) and extracts its PUBLIC certificate as a .pem file.
+#
+# WHY: Play Console's "Request upload key reset" requires the .pem public
+# certificate of the NEW upload key. Once Google approves the reset, the
+# Play Console will accept AABs signed by this keystore.
+#
+# HOW TO USE:
+#   1. GitHub → Actions tab → "Extract Upload Key (.pem)" → Run workflow
+#   2. Wait for it to finish (~30 seconds)
+#   3. Download the "upload-key-pem" artifact
+#   4. Unzip it → you get `upload_key.pem`
+#   5. Play Console → Setup → App integrity → Request upload key reset
+#      → upload `upload_key.pem`
+#   6. After Google approves, re-upload your AAB to Closed Testing
+#
+# After the reset is approved, you can delete this workflow file.
+# =============================================================================
+
+name: Extract Upload Key (.pem)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    name: Extract .pem from stable keystore
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Decode Keystore from Secret
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 secret is MISSING."
+            exit 1
+          fi
+          CLEAN_B64=$(printf '%s' "$KEYSTORE_BASE64" | tr -d ' \t\r\n')
+          echo "Decoding keystore..."
+          echo "$CLEAN_B64" | base64 -d > android/app/examvault-release.keystore
+          echo "Keystore decoded. Size: $(wc -c < android/app/examvault-release.keystore) bytes"
+
+          echo ""
+          echo "=== Keystore info ==="
+          keytool -list -v -keystore android/app/examvault-release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" 2>/dev/null \
+            | grep -iE 'SHA1:|SHA-256:|Owner:|Valid from'
+
+      - name: Extract Public Certificate as .pem
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          mkdir -p output
+          keytool -exportcert \
+            -keystore android/app/examvault-release.keystore \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -rfc \
+            -file output/upload_key.pem
+
+          echo ""
+          echo "=== .pem file contents (first 5 lines) ==="
+          head -5 output/upload_key.pem
+          echo "..."
+          echo ""
+          echo "=== Verify SHA-1 of the certificate matches Play Console error ==="
+          keytool -printcert -file output/upload_key.pem 2>/dev/null \
+            | grep -iE 'SHA1:|SHA-256:|Owner:'
+
+          echo ""
+          echo "✅ upload_key.pem is ready. Download it from the workflow artifact."
+
+      - name: Upload .pem as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: upload-key-pem
+          path: output/upload_key.pem
+          retention-days: 7
+
+      - name: Cleanup keystore
+        if: always()
+        run: |
+          rm -f android/app/examvault-release.keystore
+          echo "Keystore cleaned up from runner."
