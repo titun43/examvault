@@ -28,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
+import '../models/app_open_banner_model.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../utils/app_open_banner_frequency.dart';
