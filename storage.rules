@@ -38,6 +38,16 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // ==================== APP OPEN BANNER IMAGES ====================
+    // Full-screen launch banner images (shown between splash and home).
+    // Public read so the Flutter app's CachedNetworkImage always loads even
+    // for guests (targetAudience can be 'all'/'guest'). Admin-only write
+    // — uploaded via the admin panel's app-open-banners management page.
+    match /app_open_banners/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /announcement_images/{fileName} {
       allow read: if true;
       allow write: if isAdmin();
