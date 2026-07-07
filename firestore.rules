@@ -97,6 +97,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ==================== APP OPEN BANNERS ====================
+    // Full-screen promotional banner shown once per app launch (between splash
+    // and home). Public-read so the Flutter app (guests included) can fetch
+    // the active banner without auth errors. Only admins can create/edit/
+    // delete. The Flutter app increments impressionCount & clickCount via
+    // FieldValue.increment(1) from NON-admin users — so we split the update
+    // permission: admins can update any field; any client may update ONLY
+    // the two counter fields (nothing else). This matches the pattern used
+    // by /notifications above (allow toggle isRead by any signed-in user).
+    match /app_open_banners/{bannerId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || request.resource.data.diff(resource.data).affectedKeys.hasOnly(['impressionCount', 'clickCount']);
+    }
+
     match /premium_plans/{planId} {
       allow read: if true;
       allow write: if isAdmin();
