@@ -324,7 +324,7 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () => _close(tapped: false),
+                    onTap: () => _close(tappedAction: null),
                     customBorder: const CircleBorder(),
                     child: Container(
                       width: 48,
