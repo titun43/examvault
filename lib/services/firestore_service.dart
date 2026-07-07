@@ -15,6 +15,7 @@ import '../models/leaderboard_model.dart';
 import '../models/announcement_model.dart';
 import '../models/upcoming_exam_model.dart';
 import '../models/banner_model.dart';
+import '../models/app_open_banner_model.dart';
 import '../models/premium_plan_model.dart';
 import 'firebase_service.dart';
 
@@ -946,6 +947,105 @@ class FirestoreService {
 
   static Future<void> deleteBanner(String id) async {
     await _db.collection('banners').doc(id).delete();
+  }
+
+  // ==================== APP OPEN BANNERS ====================
+  // Full-screen promotional banner shown once per app launch (splash → home
+  // transition). Admin-set frequency cap + urgent override + audience targeting.
+  // Collection name: app_open_banners (kept separate from `banners` so the
+  // home-screen carousel is unaffected).
+
+  /// Streams ALL app-open banners (admin view — includes inactive/scheduled).
+  static Stream<List<AppOpenBannerModel>> getAllAppOpenBannersStream() {
+    return _db.collection('app_open_banners')
+        .snapshots()
+        .map((snapshot) {
+          final docs = snapshot.docs
+              .map((doc) => AppOpenBannerModel.fromFirestore(doc))
+              .toList();
+          // Higher priority first, then by createdAt desc (newest first).
+          docs.sort((a, b) {
+            final byPriority = b.priority.compareTo(a.priority);
+            if (byPriority != 0) return byPriority;
+            return b.createdAt.compareTo(a.createdAt);
+          });
+          return docs;
+        })
+        .handleError((e) {
+          print('getAllAppOpenBannersStream error: $e');
+        });
+  }
+
+  /// Fetches the SINGLE active app-open banner to show right now.
+  /// Filters: isActive=true, imageUrl not empty, within scheduled window,
+  /// matches target audience, and priority-sorted (highest wins).
+  /// Returns null on error or when no banner qualifies.
+  static Future<AppOpenBannerModel?> fetchActiveAppOpenBanner({
+    required bool isGuest,
+    required bool isPremium,
+  }) async {
+    try {
+      final snapshot = await _db
+          .collection('app_open_banners')
+          .where('isActive', isEqualTo: true)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      final all = snapshot.docs
+          .map((doc) => AppOpenBannerModel.fromFirestore(doc))
+          .where((b) =>
+              b.isVisibleNow &&
+              b.matchesAudience(isGuest: isGuest, isPremium: isPremium))
+          .toList();
+      if (all.isEmpty) return null;
+      // Highest priority first; tiebreak by newest createdAt.
+      all.sort((a, b) {
+        final byPriority = b.priority.compareTo(a.priority);
+        if (byPriority != 0) return byPriority;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+      return all.first;
+    } catch (e) {
+      print('fetchActiveAppOpenBanner error: $e');
+      return null;
+    }
+  }
+
+  static Future<String?> addAppOpenBanner(AppOpenBannerModel b) async {
+    final docRef = await _db.collection('app_open_banners').add(b.toFirestore());
+    return docRef.id;
+  }
+
+  static Future<void> updateAppOpenBanner(AppOpenBannerModel b) async {
+    await _db
+        .collection('app_open_banners')
+        .doc(b.id)
+        .update(b.toFirestore());
+  }
+
+  static Future<void> deleteAppOpenBanner(String id) async {
+    await _db.collection('app_open_banners').doc(id).delete();
+  }
+
+  /// Increments the banner's impression counter (best-effort, non-blocking).
+  static Future<void> incrementAppOpenBannerImpression(String bannerId) async {
+    try {
+      await _db.collection('app_open_banners').doc(bannerId).update({
+        'impressionCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('incrementAppOpenBannerImpression error: $e');
+    }
+  }
+
+  /// Increments the banner's click counter (best-effort, non-blocking).
+  static Future<void> incrementAppOpenBannerClick(String bannerId) async {
+    try {
+      await _db.collection('app_open_banners').doc(bannerId).update({
+        'clickCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('incrementAppOpenBannerClick error: $e');
+    }
   }
 
   // ==================== PREMIUM PLANS ====================

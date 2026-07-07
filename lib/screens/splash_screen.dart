@@ -29,6 +29,9 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
 import '../providers/auth_provider.dart';
+import '../services/firestore_service.dart';
+import '../utils/app_open_banner_frequency.dart';
+import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../admin/admin_dashboard.dart';
 
@@ -91,25 +94,63 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // Resolve destination FIRST so we can show the app-open banner (if any)
+    // before pushing the main screen.
+    final Widget dest;
     if (authProvider.isAuthenticated) {
-      // Route admins to the admin dashboard, students to the main app
-      final dest = authProvider.isAdmin
+      dest = authProvider.isAdmin
           ? const AdminDashboard()
           : const MainNavigation();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => dest),
-      );
     } else {
-      // GUEST MODE — let the user browse the app and take free tests without
-      // forcing them to sign in first. Premium / paid content will prompt a
-      // login when they try to access it. They can sign in anytime from the
-      // Profile tab.
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-      );
+      dest = const MainNavigation();
     }
+
+    // Try to show an app-open banner between splash and the destination.
+    // Failures (network error, no banner, frequency cap hit, audience
+    // mismatch) are silent — we always push the destination so the user is
+    // never stuck on the splash.
+    _maybeShowAppOpenBannerThenNavigate(dest);
+  }
+
+  Future<void> _maybeShowAppOpenBannerThenNavigate(Widget dest) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final isGuest = !authProvider.isAuthenticated;
+    final isPremium = authProvider.user?.isPremium ?? false;
+
+    AppOpenBannerModel? banner;
+    try {
+      banner = await FirestoreService.fetchActiveAppOpenBanner(
+        isGuest: isGuest,
+        isPremium: isPremium,
+      );
+    } catch (_) {
+      banner = null;
+    }
+
+    // Frequency cap check (urgent banners bypass this).
+    bool shouldShow = false;
+    if (banner != null) {
+      try {
+        shouldShow =
+            await AppOpenBannerFrequencyController.shouldShow(banner);
+      } catch (_) {
+        shouldShow = false;
+      }
+    }
+
+    if (banner != null && shouldShow && mounted) {
+      // Mark as shown BEFORE the dialog appears so a quick double-trigger
+      // doesn't show it twice.
+      await AppOpenBannerFrequencyController.markShown(banner);
+      if (!mounted) return;
+      await AppOpenBannerDialog.show(context, banner);
+    }
+
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => dest),
+    );
   }
 
   @override
