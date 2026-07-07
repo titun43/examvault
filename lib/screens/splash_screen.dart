@@ -28,10 +28,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix4;
+import '../models/action_button.dart';
 import '../models/app_open_banner_model.dart';
 import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../utils/app_open_banner_frequency.dart';
+import '../utils/in_app_navigator.dart' show runActionButton;
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../admin/admin_dashboard.dart';
@@ -139,18 +141,27 @@ class _SplashScreenState extends State<SplashScreen> {
       }
     }
 
+    // Show the dialog (if applicable) and capture the tapped action — but do
+    // NOT run it here. Running it before pushReplacement would cause the
+    // splash's pushReplacement to replace the in-app screen the action just
+    // pushed. Instead we hand the action to _BannerActionRunner below, which
+    // runs it AFTER the destination is mounted.
+    ActionButton? tappedAction;
     if (banner != null && shouldShow && mounted) {
       // Mark as shown BEFORE the dialog appears so a quick double-trigger
       // doesn't show it twice.
       await AppOpenBannerFrequencyController.markShown(banner);
       if (!mounted) return;
-      await AppOpenBannerDialog.show(context, banner);
+      tappedAction = await AppOpenBannerDialog.show(context, banner);
     }
 
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => dest),
+      MaterialPageRoute(
+        builder: (_) =>
+            _BannerActionRunner(child: dest, action: tappedAction),
+      ),
     );
   }
 
@@ -453,4 +464,53 @@ class _BookLogoState extends State<_BookLogo>
   }
 
   double _toRadians(double deg) => deg * (math.pi / 180.0);
+}
+
+// =============================================================================
+// _BannerActionRunner — runs a banner CTA action AFTER the splash
+// destination (home / admin dashboard) is mounted.
+//
+// WHY: The app-open banner dialog returns the tapped ActionButton to the
+// splash screen. If the splash ran the action directly (before
+// pushReplacement), the subsequent pushReplacement would REPLACE the
+// in-app screen the action just pushed — so the user would end up on Home
+// instead of the CTA destination. By wrapping the destination in this
+// widget, the action is scheduled via addPostFrameCallback once the
+// destination is in the tree, so it pushes ON TOP of Home.
+//
+// For external-URL actions this is a harmless no-op difference (the URL
+// opens in the browser either way). For in-app actions it is the fix that
+// makes navigation actually reach the configured screen.
+// =============================================================================
+class _BannerActionRunner extends StatefulWidget {
+  final Widget child;
+  final ActionButton? action;
+
+  const _BannerActionRunner({required this.child, this.action});
+
+  @override
+  State<_BannerActionRunner> createState() => _BannerActionRunnerState();
+}
+
+class _BannerActionRunnerState extends State<_BannerActionRunner> {
+  bool _ran = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _maybeRun();
+  }
+
+  void _maybeRun() {
+    if (_ran || widget.action == null) return;
+    _ran = true;
+    final action = widget.action!;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      runActionButton(context, action);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

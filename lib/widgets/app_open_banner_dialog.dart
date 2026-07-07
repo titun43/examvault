@@ -6,10 +6,12 @@
 // and (optionally) a CTA button.
 //
 // UX:
-//   - Tapping the image / CTA button → runActionButton (external URL or
-//     in-app navigation), then closes the dialog.
+//   - Tapping the image / CTA button → logs the click, then closes the dialog
+//     and returns the tapped ActionButton to the caller (splash screen), which
+//     runs the action (external URL or in-app navigation) AFTER navigating to
+//     the home screen (see _BannerActionRunner in splash_screen.dart).
 //   - Tapping the ❌ close button (top-right, 48×48 touch target) closes
-//     the dialog WITHOUT triggering the action.
+//     the dialog WITHOUT triggering the action (returns null).
 //   - Android back button also closes the dialog (no action triggered).
 //   - Fade-in (200ms) on show, fade-out (200ms) on dismiss.
 //
@@ -21,14 +23,16 @@
 // This widget is a self-contained StatefulWidget shown via showDialog().
 // The splash screen decides WHETHER to show it (frequency cap + audience
 // targeting), so this widget just renders + reports back via the dialog
-// result (true = user tapped action, false/null = user dismissed).
+// result (the tapped ActionButton, or null if the user dismissed). The
+// CALLER runs the returned action — this widget never navigates itself,
+// which avoids a race with the splash screen's pushReplacement.
 // =============================================================================
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import '../models/action_button.dart';
 import '../models/app_open_banner_model.dart';
 import '../services/firestore_service.dart';
-import '../utils/in_app_navigator.dart';
 
 class AppOpenBannerDialog extends StatefulWidget {
   final AppOpenBannerModel banner;
@@ -36,15 +40,22 @@ class AppOpenBannerDialog extends StatefulWidget {
   const AppOpenBannerDialog({super.key, required this.banner});
 
   /// Convenience method: shows the dialog and waits for dismissal.
-  /// Returns true if the user tapped the banner/CTA, false otherwise.
-  static Future<bool> show(BuildContext context, AppOpenBannerModel banner) {
-    return showDialog<bool>(
+  /// Returns the tapped [ActionButton] if the user tapped the banner/CTA,
+  /// or `null` if the user dismissed it (close button / back button).
+  ///
+  /// The CALLER is responsible for running the returned action — this widget
+  /// only reports what was tapped. This avoids a bug where the splash screen's
+  /// `pushReplacement` would replace the in-app screen the dialog had just
+  /// pushed (see _BannerActionRunner in splash_screen.dart).
+  static Future<ActionButton?> show(
+      BuildContext context, AppOpenBannerModel banner) {
+    return showDialog<ActionButton>(
       context: context,
       barrierDismissible: false,
       barrierColor: Colors.black,
       useRootNavigator: true,
       builder: (_) => AppOpenBannerDialog(banner: banner),
-    ).then((v) => v ?? false);
+    );
   }
 
   @override
@@ -83,28 +94,27 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
     super.dispose();
   }
 
-  Future<void> _close({bool tapped = false}) async {
+  Future<void> _close({ActionButton? tappedAction}) async {
     if (_actionTriggered) return;
     _actionTriggered = true;
     await _fadeController.reverse();
     if (!mounted) return;
-    Navigator.of(context).pop(tapped);
+    Navigator.of(context).pop(tappedAction);
   }
 
   Future<void> _onBannerTapped() async {
     final btn = widget.banner.primaryButton;
     if (btn == null || !btn.isSet) {
       // No CTA configured — close the dialog (treat tap as dismiss).
-      await _close(tapped: false);
+      await _close(tappedAction: null);
       return;
     }
     // Log click (best-effort, non-blocking).
     FirestoreService.incrementAppOpenBannerClick(widget.banner.id);
-    // Close the dialog FIRST so the action opens on a clean nav stack.
-    await _close(tapped: true);
-    if (!mounted) return;
-    // Then run the action (may open URL or push a screen).
-    await runActionButton(context, btn);
+    // Close the dialog, returning the tapped action to the caller. The caller
+    // (splash screen) runs the action AFTER navigating to home so the in-app
+    // screen isn't replaced by pushReplacement.
+    await _close(tappedAction: btn);
   }
 
   @override
@@ -168,6 +178,9 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                           ),
                         ),
                       // Optional overlay title/subtitle/CTA at the bottom.
+                      // Wrapped in a translucent "frosted glass" card with an
+                      // amber border for legibility over arbitrary banner
+                      // images + a colorful, premium look.
                       if (banner.title != null ||
                           banner.subtitle != null ||
                           hasCta)
@@ -175,58 +188,126 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                           alignment: Alignment.bottomCenter,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(
-                                24, 0, 24, 32),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                if (banner.title != null)
-                                  Text(
-                                    banner.title!,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700,
-                                      height: 1.2,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                if (banner.subtitle != null) ...[
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    banner.subtitle!,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.9),
-                                      fontSize: 14,
-                                      height: 1.3,
-                                    ),
-                                    textAlign: TextAlign.center,
+                                20, 0, 20, 32),
+                            child: Container(
+                              padding: const EdgeInsets.fromLTRB(
+                                  20, 18, 20, 20),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.55),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.amber.withOpacity(0.35),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.35),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
-                                if (hasCta) ...[
-                                  const SizedBox(height: 16),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.white,
-                                      foregroundColor: Colors.black,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.stretch,
+                                children: [
+                                  if (banner.title != null)
+                                    ShaderMask(
+                                      shaderCallback: (bounds) =>
+                                          const LinearGradient(
+                                        colors: [
+                                          Color(0xFFFFD54F), // amber 200
+                                          Color(0xFFFF6F00), // deep orange 900
+                                        ],
+                                      ).createShader(bounds),
+                                      child: Text(
+                                        banner.title!,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.2,
+                                          letterSpacing: 0.2,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black54,
+                                              offset: Offset(1, 1),
+                                              blurRadius: 4,
+                                            ),
+                                          ],
+                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
                                     ),
-                                    onPressed: _onBannerTapped,
-                                    child: Text(
-                                      banner.primaryButton!.label,
-                                      style: const TextStyle(
+                                  if (banner.subtitle != null) ...[
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      banner.subtitle!,
+                                      style: TextStyle(
+                                        color:
+                                            Colors.white.withOpacity(0.95),
                                         fontSize: 15,
-                                        fontWeight: FontWeight.w600,
+                                        height: 1.35,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black54,
+                                            offset: const Offset(1, 1),
+                                            blurRadius: 3,
+                                          ),
+                                        ],
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
+                                  if (hasCta) ...[
+                                    const SizedBox(height: 18),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFFFF6F00), // deep orange 900
+                                            Color(0xFFFFAB00), // amber accent 400
+                                          ],
+                                        ),
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.orange
+                                                .withOpacity(0.45),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(14),
+                                          onTap: _onBannerTapped,
+                                          child: Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    vertical: 16),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              banner.primaryButton!.label,
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 0.3,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
