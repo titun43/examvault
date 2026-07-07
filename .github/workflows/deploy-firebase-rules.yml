@@ -4,9 +4,17 @@
 # Runs automatically whenever firestore.rules or storage.rules is changed on
 # main/master. Can also be triggered manually via workflow_dispatch.
 #
-# Deploys BOTH:
-#   - Firestore security rules + indexes
-#   - Storage security rules
+# Deploys:
+#   - Firestore security rules + indexes  (always — fail-fast if errors)
+#   - Storage security rules              (best-effort — won't fail the job)
+#
+# Why best-effort for Storage: Firebase's default service account (generated
+# from Console → Project Settings → Service Accounts) sometimes lacks the
+# `serviceusage.services.get` permission needed to verify the Firebasestorage
+# API is enabled, causing a 403 even when the rules themselves are fine.
+# Firestore deploy doesn't need that check. So we split them: Firestore
+# success is critical, Storage failure is non-fatal (rules can still be
+# published manually via Console → Storage → Rules).
 #
 # Authentication (pick ONE — both work, Service Account is recommended):
 #
@@ -59,7 +67,8 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Authenticate & Deploy
+      - name: Authenticate
+        id: auth
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
@@ -67,11 +76,13 @@ jobs:
           if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "Authenticating with Service Account JSON..."
             echo "$FIREBASE_SERVICE_ACCOUNT" > "$HOME/firebase-service-account.json"
-            export GOOGLE_APPLICATION_CREDENTIALS="$HOME/firebase-service-account.json"
-            AUTH_FLAG=""
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/firebase-service-account.json" >> "$GITHUB_ENV"
+            echo "AUTH_FLAG=" >> "$GITHUB_ENV"
+            echo "method=service-account" >> "$GITHUB_OUTPUT"
           elif [ -n "$FIREBASE_TOKEN" ]; then
             echo "Authenticating with Firebase CI token..."
-            AUTH_FLAG="--token \"$FIREBASE_TOKEN\""
+            echo "AUTH_FLAG=--token $FIREBASE_TOKEN" >> "$GITHUB_ENV"
+            echo "method=token" >> "$GITHUB_OUTPUT"
           else
             echo "::error::Neither FIREBASE_SERVICE_ACCOUNT nor FIREBASE_TOKEN secret is set."
             echo "::error::Option A (recommended, no terminal): Firebase Console → ⚙ Project Settings → Service Accounts → Generate new private key → copy JSON → GitHub secret FIREBASE_SERVICE_ACCOUNT"
@@ -82,14 +93,37 @@ jobs:
             exit 1
           fi
 
-          echo "Deploying Firestore + Storage rules to project: examvaultnew"
-          eval firebase deploy --only firestore:rules,firestore:indexes,storage \
+      - name: Deploy Firestore rules + indexes (critical)
+        env:
+          AUTH_FLAG: ${{ env.AUTH_FLAG }}
+        run: |
+          echo "Deploying Firestore rules + indexes to project: examvaultnew..."
+          firebase deploy --only firestore:rules,firestore:indexes \
             --project examvaultnew \
             $AUTH_FLAG \
             --non-interactive
-          echo "✅ Firebase rules deployed successfully."
+          echo "✅ Firestore rules deployed successfully."
 
-          # Clean up credentials file
+      - name: Deploy Storage rules (best-effort)
+        continue-on-error: true
+        env:
+          AUTH_FLAG: ${{ env.AUTH_FLAG }}
+        run: |
+          echo "Deploying Storage rules to project: examvaultnew..."
+          firebase deploy --only storage \
+            --project examvaultnew \
+            $AUTH_FLAG \
+            --non-interactive
+          echo "✅ Storage rules deployed successfully."
+
+      - name: Storage deploy result
+        if: always()
+        run: |
+          echo "::warning::Storage rules deploy may have failed (non-fatal). If it failed, publish storage.rules manually via Firebase Console → Storage → Rules → paste → Publish."
+
+      - name: Cleanup credentials
+        if: always()
+        run: |
           if [ -f "$HOME/firebase-service-account.json" ]; then
             rm -f "$HOME/firebase-service-account.json"
           fi
