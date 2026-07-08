@@ -289,6 +289,53 @@ jobs:
           echo "✅ APK is correctly signed by the official ExamVault key."
 
       # -------------------------------------------------------------------------
+      # STEP 6b: Verify the BUILT AAB signature too.
+      # Play Console rejects AABs signed with the wrong key. The build.gradle
+      # signingConfig applies to both APK and AAB, so they SHOULD match — but
+      # we verify explicitly so a wrong-key AAB never reaches the user.
+      # Uses keytool -printcert -jarfile (AAB is JAR-format, not APK, so
+      # apksigner does not work on it).
+      # -------------------------------------------------------------------------
+      - name: Verify AAB signature
+        env:
+          EXPECTED_SHA1: ${{ secrets.EXPECTED_SHA1 }}
+        run: |
+          echo "=== Verifying the built AAB signature ==="
+          AAB_PATH="build/app/outputs/bundle/release/app-release.aab"
+          if [ ! -f "$AAB_PATH" ]; then
+            echo "::error::AAB file not found at $AAB_PATH. The Build AAB step may have failed."
+            exit 1
+          fi
+          ls -la "$AAB_PATH"
+
+          echo "=== keytool -printcert -jarfile output ==="
+          CERTS_OUT=$(keytool -printcert -jarfile "$AAB_PATH" 2>&1 || true)
+          echo "$CERTS_OUT" | head -30
+
+          # keytool prints "SHA1: BA:56:A6:05:..." (with colons, uppercase).
+          ACTUAL_SHA1=$(echo "$CERTS_OUT" \
+            | grep -i 'SHA1:' | head -1 | awk '{print $NF}' \
+            | tr -d '[:punct:]' | tr '[:lower:]' '[:upper:]')
+          EXPECTED_SHA1_NORM=$(echo "$EXPECTED_SHA1" \
+            | tr -d '[:punct:]' | tr '[:lower:]' '[:upper:]')
+          echo "AAB cert SHA-1 (normalized): $ACTUAL_SHA1"
+          echo "Expected SHA-1 (normalized): $EXPECTED_SHA1_NORM"
+          if [ -z "$ACTUAL_SHA1" ]; then
+            echo "::error::Could not parse SHA-1 from keytool output (see above)."
+            echo "::error::The AAB may be unsigned or the jarsigner output format changed."
+            exit 1
+          fi
+          if [ "$ACTUAL_SHA1" != "$EXPECTED_SHA1_NORM" ]; then
+            echo "::error::Built AAB is NOT signed by the official key!"
+            echo "::error::Play Console will reject this AAB with 'signed with the wrong key'."
+            echo "::error::This should never happen since build.gradle uses the same signingConfig"
+            echo "::error::for APK and AAB — if it does, check the Build AAB step for errors."
+            exit 1
+          fi
+          echo "✅ AAB is correctly signed by the official ExamVault key."
+          echo "✅ This AAB can be uploaded to Play Console (upload key matches)."
+
+      # -------------------------------------------------------------------------
       # STEP 7: Generate checksum + rename APK with version for easy tracking.
       # -------------------------------------------------------------------------
       - name: Generate checksums
