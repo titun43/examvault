@@ -5,7 +5,13 @@
 // =============================================================================
 
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
+// NOTE: `hide AuthProvider` is REQUIRED — package:firebase_auth transitively
+// re-exports `AuthProvider` from firebase_auth_platform_interface, which
+// collides with our own AuthProvider (../../providers/auth_provider.dart).
+// Without the hide, every `Consumer<AuthProvider>` in this file fails to
+// resolve the type → `auth` becomes `Object?` → compile errors on every
+// auth.isLoading / auth.errorMessage / auth.clearError access.
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';

@@ -42,7 +42,11 @@ class ConnectivityBanner extends StatefulWidget {
 
 class _ConnectivityBannerState extends State<ConnectivityBanner> {
   late final Connectivity _connectivity;
-  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  // NOTE: connectivity_plus 5.0.2 emits a SINGULAR ConnectivityResult (not a
+  // List). The List-based API only exists in later 5.x / 6.x versions. Using
+  // the wrong stream type here causes a compile error (StreamSubscription<
+  // ConnectivityResult> can't be assigned to StreamSubscription<List<...>>?).
+  StreamSubscription<ConnectivityResult>? _subscription;
   bool _isOffline = false;
 
   @override
@@ -50,43 +54,47 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
     super.initState();
     _connectivity = Connectivity();
     // Check the CURRENT state immediately (the stream only emits CHANGES).
-    _connectivity.checkConnectivity().then((results) {
+    _connectivity.checkConnectivity().then((result) {
       if (!mounted) return;
       setState(() {
-        _isOffline = _resultsIndicateOffline(results);
+        _isOffline = _resultIndicatesOffline(result);
       });
     });
     // Listen for changes.
-    _subscription = _connectivity.onConnectivityChanged.listen((results) {
+    _subscription = _connectivity.onConnectivityChanged.listen((result) {
       if (!mounted) return;
-      final offline = _resultsIndicateOffline(results);
+      final offline = _resultIndicatesOffline(result);
       if (offline != _isOffline) {
         setState(() => _isOffline = offline);
       }
     });
   }
 
-  /// Returns true if NONE of the results indicate an active connection.
-  /// connectivity_plus 5.x emits a LIST of ConnectivityResult (the device
-  /// may have multiple connections). We're "offline" only if ALL of them
-  /// are none/mobile-data-unavailable.
+  /// Returns true if the given ConnectivityResult indicates NO active
+  /// connection.
+  ///
+  /// connectivity_plus 5.0.2 emits a SINGULAR ConnectivityResult (not a
+  /// List — that came in later versions). So we just check the one value.
+  ///
+  /// We treat anything that is NOT one of the known "connected" types as
+  /// offline. This is intentionally written WITHOUT referencing
+  /// ConnectivityResult.other (which does not exist in 5.0.2 — it was added
+  /// in a later version). This way the code compiles on 5.0.2 AND on newer
+  /// versions that add more enum values.
   ///
   /// NOTE: ConnectivityResult.mobile means cellular data is CONNECTED, not
   /// just that a SIM is present. ConnectivityResult.none means no connection
   /// at all (airplane mode, no signal, etc.).
-  bool _resultsIndicateOffline(List<ConnectivityResult> results) {
-    if (results.isEmpty) return true;
-    // If ANY result is a connected type, we're online.
-    for (final r in results) {
-      if (r == ConnectivityResult.wifi ||
-          r == ConnectivityResult.mobile ||
-          r == ConnectivityResult.ethernet ||
-          r == ConnectivityResult.bluetooth ||
-          r == ConnectivityResult.vpn) {
-        return false;
-      }
+  bool _resultIndicatesOffline(ConnectivityResult result) {
+    // If the result is any of the connected types, we're online.
+    if (result == ConnectivityResult.wifi ||
+        result == ConnectivityResult.mobile ||
+        result == ConnectivityResult.ethernet ||
+        result == ConnectivityResult.bluetooth ||
+        result == ConnectivityResult.vpn) {
+      return false;
     }
-    // All results are none/unknown → offline.
+    // none / unknown / any future enum value → offline.
     return true;
   }
 
