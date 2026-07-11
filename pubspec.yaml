@@ -88,10 +88,12 @@ dependencies:
 
   # ==================== PDF ====================
   # NOTE: the old `pdf` + `printing` packages (PDF GENERATION) were removed
-  # because they caused an AndroidX lStar conflict. flutter_pdfview is a PDF
-  # VIEWER — it uses Android's native PdfRenderer / iOS PDFKit, so it has NO
-  # AndroidX conflict. It does NOT generate PDFs, only displays them.
-  flutter_pdfview: ^1.3.2
+  # because they caused an AndroidX lStar conflict. We also tried
+  # flutter_pdfview (PDF VIEWER) but it has a Gradle compatibility issue
+  # ("Could not get unknown property 'android' for project ':flutter_pdfview'")
+  # with Flutter 3.24.5 + recent AGP. Instead, PDFs are opened via
+  # url_launcher (already in pubspec) in the system's native PDF viewer
+  # (Chrome / Adobe / etc.) — zero dependency risk, works on all devices.
 
   # ==================== CALENDAR / DATE ====================
   table_calendar: ^3.0.9

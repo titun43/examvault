@@ -1,24 +1,20 @@
 // =============================================================================
 // ExamVault - PDF Viewer Screen
 // =============================================================================
-// Displays a study material PDF in-app using flutter_pdfview (Android's native
-// PdfRenderer / iOS PDFKit — no AndroidX conflict, unlike the old pdf/printing
-// generation packages).
+// Opens a study material PDF using the system's native PDF viewer (Chrome,
+// Adobe Reader, etc.) via url_launcher. This approach was chosen after
+// flutter_pdfview failed with a Gradle compatibility issue ("Could not get
+// unknown property 'android' for project ':flutter_pdfview'") on Flutter
+// 3.24.5 + recent AGP. Using url_launcher (already in pubspec) avoids all
+// dependency/Gradle risk and works on every device — the system always has
+// at least one app that can render a PDF (browser fallback).
 //
-// The PDF is downloaded to the app's temporary directory on first open, then
-// displayed. On subsequent opens of the SAME material, the cached file is
-// reused (instant open, works offline). The download progress is shown as a
-// linear progress indicator.
-//
-// flutter_pdfview requires a LOCAL FILE PATH (not a URL), so we must download
-// first. We use dio (already in pubspec) + path_provider for this.
+// This screen shows a brief "Opening PDF..." loading state while the URL
+// launcher resolves, then auto-pops back to the material list. If the launch
+// fails (no PDF viewer installed), an error with a retry button is shown.
 // =============================================================================
 
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class PdfViewerScreen extends StatefulWidget {
@@ -38,70 +34,65 @@ class PdfViewerScreen extends StatefulWidget {
 }
 
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
-  String? _localPath;
-  bool _downloading = true;
-  double _progress = 0;
+  bool _launching = true;
   String? _error;
-  int _totalPages = 0;
-  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
-    _downloadAndPrepare();
+    _launchPdf();
   }
 
-  /// Downloads the PDF to a temp file (or reuses the cached copy if it
-  /// already exists for this material). The file is keyed by materialId so
-  /// re-opening the same material is instant and works offline.
-  Future<void> _downloadAndPrepare() async {
+  /// Launches the PDF URL in the system's default PDF viewer. Tries
+  /// externalApplication mode first (opens in a dedicated PDF app), then
+  /// falls back to inAppBrowserView (opens in an in-app browser tab).
+  Future<void> _launchPdf() async {
     try {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/study_material_${widget.materialId}.pdf');
+      final uri = Uri.parse(widget.pdfUrl);
+      bool success = false;
 
-      // If the file already exists (cached), use it directly.
-      if (await file.exists()) {
+      // Try external app first (dedicated PDF viewer — best experience).
+      if (await canLaunchUrl(uri)) {
+        success = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+      }
+
+      // Fallback: in-app browser view.
+      if (!success) {
+        success = await launchUrl(
+          uri,
+          mode: LaunchMode.inAppBrowserView,
+        );
+      }
+
+      // Fallback: default platform behavior.
+      if (!success) {
+        success = await launchUrl(uri);
+      }
+
+      if (!success) {
         setState(() {
-          _localPath = file.path;
-          _downloading = false;
+          _error = 'No PDF viewer app found on this device.';
+          _launching = false;
         });
         return;
       }
 
-      // Download with progress tracking.
-      await Dio().download(
-        widget.pdfUrl,
-        file.path,
-        onReceiveProgress: (received, total) {
-          if (total <= 0) return;
-          setState(() {
-            _progress = received / total;
-          });
-        },
-      );
-
-      setState(() {
-        _localPath = file.path;
-        _downloading = false;
-      });
+      // Success — pop back to the material list after a brief delay so the
+      // user sees the "Opening..." feedback before returning.
+      if (mounted) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        Navigator.of(context).maybePop();
+      }
     } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _downloading = false;
-      });
-    }
-  }
-
-  /// Opens the PDF in the system's default PDF viewer (external app) as a
-  /// fallback when the in-app viewer fails or the user prefers external.
-  Future<void> _openExternally() async {
-    final uri = Uri.parse(widget.pdfUrl);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open PDF')),
-      );
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _launching = false;
+        });
+      }
     }
   }
 
@@ -114,54 +105,40 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        actions: [
-          if (_totalPages > 0)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Text(
-                  '${_currentPage + 1} / $_totalPages',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.open_in_new),
-            tooltip: 'Open externally',
-            onPressed: _openExternally,
-          ),
-        ],
       ),
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
-    if (_downloading) {
+    if (_launching) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(),
+              const SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(),
+              ),
               const SizedBox(height: 24),
-              Text(
-                _progress > 0
-                    ? 'Loading PDF... ${(_progress * 100).toInt()}%'
-                    : 'Loading PDF...',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
+              const Text(
+                'Opening PDF...',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              if (_progress > 0) ...[
-                const SizedBox(height: 12),
-                LinearProgressIndicator(value: _progress),
-              ],
+              const SizedBox(height: 8),
+              Text(
+                widget.title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -176,39 +153,32 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
-                Icons.error_outline,
+                Icons.picture_as_pdf,
                 size: 64,
                 color: Colors.red,
               ),
               const SizedBox(height: 16),
               const Text(
-                'Failed to load PDF',
+                'Could not open PDF',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
                   setState(() {
-                    _downloading = true;
+                    _launching = true;
                     _error = null;
-                    _progress = 0;
                   });
-                  _downloadAndPrepare();
+                  _launchPdf();
                 },
                 icon: const Icon(Icons.refresh),
                 label: const Text('Retry'),
-              ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: _openExternally,
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Open in browser instead'),
               ),
             ],
           ),
@@ -216,41 +186,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
     }
 
-    if (_localPath == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return PDFView(
-      filePath: _localPath!,
-      enableSwipe: true,
-      swipeHorizontal: false,
-      autoSpacing: true,
-      pageFling: true,
-      pageSnap: true,
-      defaultPage: 0,
-      fitPolicy: FitPolicy.BOTH,
-      onRender: (pages, width, height) {
-        setState(() {
-          _totalPages = pages ?? 0;
-        });
-      },
-      onError: (error) {
-        setState(() {
-          _error = error.toString();
-        });
-      },
-      onPageError: (page, error) {
-        // Non-fatal — a single page failing to render shouldn't crash.
-      },
-      onViewCreated: (controller) {
-        // Controller is available for programmatic page navigation if needed.
-      },
-      onPageChanged: (page, total) {
-        setState(() {
-          _currentPage = page ?? 0;
-          _totalPages = total ?? _totalPages;
-        });
-      },
-    );
+    return const Center(child: CircularProgressIndicator());
   }
 }
