@@ -467,6 +467,24 @@ class AuthService {
     if (photoUrl != null) {
       if (photoUrl.isEmpty) {
         data['photoUrl'] = FieldValue.delete();
+        // ─── STORAGE CLEANUP (bugfix: orphaned avatar files) ───
+        // When the user taps "Remove" on their profile photo, we must also
+        // delete the actual image file from Firebase Storage. Previously
+        // only the Firestore `photoUrl` field was removed, leaving the
+        // file at user_avatars/{userId}/photo.jpg orphaned and still
+        // publicly readable. Best-effort — swallow errors because the
+        // file may not exist (e.g. user never uploaded one) or the path
+        // may have changed.
+        try {
+          await FirebaseService.storage
+              .ref()
+              .child('user_avatars')
+              .child(userId)
+              .child('photo.jpg')
+              .delete();
+        } catch (e) {
+          devlog.log('Failed to delete avatar from Storage (non-fatal): $e');
+        }
       } else {
         data['photoUrl'] = photoUrl;
       }
@@ -522,6 +540,21 @@ class AuthService {
   // ==================== DELETE ACCOUNT ====================
   static Future<void> deleteAccount() async {
     if (currentUser != null) {
+      // ─── STORAGE CLEANUP (bugfix: orphaned avatar files) ───
+      // Delete the user's avatar from Firebase Storage BEFORE deleting
+      // the Firestore doc + Auth user. If we delete Auth first, we lose
+      // the uid and can't construct the Storage path. Best-effort —
+      // swallow errors because the user may not have a photo.
+      try {
+        await FirebaseService.storage
+            .ref()
+            .child('user_avatars')
+            .child(currentUser!.uid)
+            .child('photo.jpg')
+            .delete();
+      } catch (e) {
+        devlog.log('Failed to delete avatar from Storage (non-fatal): $e');
+      }
       await FirebaseService.usersRef.doc(currentUser!.uid).delete();
       await currentUser!.delete();
     }

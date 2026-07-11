@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'dart:async';
+import 'dart:developer' as devlog;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/category_model.dart';
 import '../models/subject_model.dart';
@@ -22,6 +23,69 @@ import 'firebase_service.dart';
 
 class FirestoreService {
   static final FirebaseFirestore _db = FirebaseService.firestore;
+
+  // ==================== STORAGE CLEANUP HELPERS ====================
+  // These prevent orphaned files in Firebase Storage when a Firestore doc
+  // with an associated image/PDF is deleted. The pattern is:
+  //   1. Read the doc FIRST (to get the file URL before it's gone)
+  //   2. Delete the Storage file(s) — best-effort, swallow errors
+  //   3. Delete the Firestore document
+  //
+  // Without this, every admin delete (category image, question image,
+  // announcement image, banner image, etc.) leaves the actual file in
+  // Storage forever — wasting space and remaining publicly accessible.
+
+  /// Deletes a single file from Firebase Storage by its download URL.
+  /// Best-effort — swallows errors (file may not exist, URL may be external).
+  static Future<void> _deleteStorageFile(String? url) async {
+    if (url == null || url.isEmpty || !url.startsWith('http')) return;
+    try {
+      final ref = FirebaseService.storage.refFromURL(url);
+      await ref.delete();
+    } catch (e) {
+      devlog.log('Failed to delete Storage file (non-fatal): $url -> $e');
+    }
+  }
+
+  /// Reads a Firestore doc, extracts file URLs from [fileFields], deletes
+  /// those files from Storage (best-effort, parallel), then deletes the
+  /// Firestore document.
+  static Future<void> _deleteDocWithFiles(
+    String collectionName,
+    String id,
+    List<String> fileFields,
+  ) async {
+    final docRef = _db.collection(collectionName).doc(id);
+
+    // 1. Read the doc to extract file URLs before it's gone.
+    final fileUrls = <String>[];
+    try {
+      final snapshot = await docRef.get();
+      if (snapshot.exists) {
+        final data = snapshot.data() as Map<String, dynamic>?;
+        if (data != null) {
+          for (final field in fileFields) {
+            final url = data[field];
+            if (url is String && url.startsWith('http')) {
+              fileUrls.add(url);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      devlog.log(
+        'Failed to read $collectionName/$id for cleanup (non-fatal): $e',
+      );
+    }
+
+    // 2. Delete Storage files in parallel (best-effort).
+    if (fileUrls.isNotEmpty) {
+      await Future.wait(fileUrls.map((url) => _deleteStorageFile(url)));
+    }
+
+    // 3. Delete the Firestore document.
+    await docRef.delete();
+  }
 
   // ==================== CATEGORIES ====================
   // IMPORTANT: We do NOT use .orderBy('order') server-side because Firestore's
@@ -64,7 +128,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteCategory(String id) async {
-    await _db.collection('categories').doc(id).delete();
+    // Also deletes the category image from Storage (field: 'image').
+    await _deleteDocWithFiles('categories', id, ['image']);
   }
 
   // ==================== SUBJECTS ====================
@@ -319,7 +384,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteSubject(String id) async {
-    await _db.collection('subjects').doc(id).delete();
+    // Also deletes the subject icon from Storage (field: 'icon').
+    await _deleteDocWithFiles('subjects', id, ['icon']);
   }
 
   // ==================== TESTS ====================
@@ -471,7 +537,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteQuestion(String id) async {
-    await _db.collection('questions').doc(id).delete();
+    // Also deletes the question image from Storage (field: 'imageUrl').
+    await _deleteDocWithFiles('questions', id, ['imageUrl']);
   }
 
   // ==================== TEST RESULTS ====================
@@ -852,7 +919,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteAnnouncement(String id) async {
-    await _db.collection('announcements').doc(id).delete();
+    // Also deletes the announcement image from Storage (field: 'image').
+    await _deleteDocWithFiles('announcements', id, ['image']);
   }
 
   // ==================== UPCOMING EXAMS ====================
@@ -906,7 +974,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteUpcomingExam(String id) async {
-    await _db.collection('upcoming_exams').doc(id).delete();
+    // Also deletes the exam image from Storage (field: 'image').
+    await _deleteDocWithFiles('upcoming_exams', id, ['image']);
   }
 
   // ==================== BANNERS ====================
@@ -947,7 +1016,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteBanner(String id) async {
-    await _db.collection('banners').doc(id).delete();
+    // Also deletes the banner image from Storage (field: 'image').
+    await _deleteDocWithFiles('banners', id, ['image']);
   }
 
   // ==================== APP OPEN BANNERS ====================
@@ -1024,7 +1094,8 @@ class FirestoreService {
   }
 
   static Future<void> deleteAppOpenBanner(String id) async {
-    await _db.collection('app_open_banners').doc(id).delete();
+    // Also deletes the app-open banner image from Storage (field: 'image').
+    await _deleteDocWithFiles('app_open_banners', id, ['image']);
   }
 
   /// Increments the banner's impression counter (best-effort, non-blocking).
