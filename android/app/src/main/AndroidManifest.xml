@@ -105,14 +105,17 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- ==================== DISABLE ADMOB AUTO-INIT ==================== -->
-        <!-- We initialise AdMob manually from Dart (AdMobService.initialize)
-             inside a try/catch. Disabling auto-init here prevents the AdMob
-             native SDK from initialising before our Dart code is ready, which
-             can cause a native crash if the App ID isn't yet resolvable. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.flag.AUTO_INIT_IMPLICIT"
-            android:value="false" />
+        <!-- ==================== ADMOB AUTO-INIT ENABLED ==================== -->
+        <!-- Previously AUTO_INIT_IMPLICIT was set to false (manual init from
+             Dart). But that was a likely root cause of the native SIGSEGV
+             crashes: MobileAds.instance.initialize() called from Dart can
+             race with the Flutter engine / Activity lifecycle and crash below
+             Dart's runZonedGuarded. Letting the SDK auto-init natively (the
+             Google-recommended path) is more stable — the SDK initialises at
+             the correct native lifecycle moment. AdMobService.initialize()
+             is still called from Dart (idempotent — safe to call after
+             auto-init) so _initialized is tracked correctly. -->
+        <!-- AUTO_INIT_IMPLICIT block removed to enable native auto-init -->
 
         <!-- ==================== DISABLE FCM AUTO-INIT ==================== -->
         <!-- Firebase Messaging auto-initialises at app start and can crash
