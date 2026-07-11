@@ -36,11 +36,24 @@ class AuthService {
   /// handled here — when the OS auto-detects the SMS, we sign in *and* create
   /// the user's Firestore doc, otherwise `loadUserData()` would return null
   /// and the user would appear "not logged in".
+  ///
+  /// BUGFIX (auto-verify navigation): Added `onAutoVerified` callback so the
+  /// UI is notified when auto-retrieval succeeds. Previously, when Android
+  /// silently auto-read the SMS, the user was signed in via Firebase Auth
+  /// but the LoginScreen had no way to know — it stayed stuck on the OTP
+  /// entry / loading screen, and the user only discovered they were logged
+  /// in after pressing Back. The UI must explicitly navigate to the home
+  /// screen when this callback fires.
   static Future<void> verifyPhoneNumber({
     required String phoneNumber,
     required void Function(String verificationId, int? resendToken) onCodeSent,
     required void Function(AppAuthException e) onVerificationFailed,
     required void Function(String verificationId) onCodeAutoRetrievalTimeout,
+    // Called when Android auto-retrieves the SMS and the user has been
+    // signed in. The UI should use this to navigate away from the OTP entry
+    // screen (e.g. call _routeAfterLogin()). May be null for callers that
+    // don't need to react to auto-verification.
+    void Function(User? user)? onAutoVerified,
     Duration timeout = const Duration(seconds: 60),
     int? forceResendingToken,
   }) async {
@@ -68,6 +81,13 @@ class AuthService {
         try {
           final result = await _auth.signInWithCredential(credential);
           await _createOrUpdateUser(result.user, authMethod: 'phone');
+          // BUGFIX: notify the UI that auto-retrieval signed the user in.
+          // Without this, the LoginScreen never navigates and the user
+          // appears stuck on the OTP entry screen even though they are
+          // actually logged in.
+          if (onAutoVerified != null) {
+            onAutoVerified(result.user);
+          }
         } catch (e, st) {
           devlog.log('Auto-retrieval sign-in failed: $e\n$st');
         }

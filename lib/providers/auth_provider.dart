@@ -428,6 +428,12 @@ class AuthProvider extends ChangeNotifier {
     required String phoneNumber,
     required void Function(String verificationId, int? resendToken) onCodeSent,
     required void Function(String error) onError,
+    // BUGFIX (auto-verify navigation): forwarded to AuthService so the UI
+    // can navigate when Android auto-retrieves the SMS. Previously this
+    // callback did not exist, so when auto-retrieval signed the user in
+    // silently, the LoginScreen stayed stuck on the OTP entry screen and
+    // the user only saw they were logged in after pressing Back.
+    void Function(User? user)? onAutoVerified,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -459,6 +465,15 @@ class AuthProvider extends ChangeNotifier {
             });
           },
           onCodeAutoRetrievalTimeout: (_) {},
+          // BUGFIX: pass the auto-verified callback through so the UI can
+          // navigate to home when Android auto-retrieves the SMS. This is
+          // intentionally NOT wrapped in settleOnce because auto-verification
+          // typically happens AFTER onCodeSent (codeSent fires first, then
+          // verificationCompleted fires when the SMS is auto-read). If we
+          // wrapped it in settleOnce, it would be suppressed whenever
+          // onCodeSent already fired — which is exactly the scenario we
+          // need to handle.
+          onAutoVerified: onAutoVerified,
         ),
         Future.delayed(const Duration(seconds: 20), () {
           settleOnce(() {

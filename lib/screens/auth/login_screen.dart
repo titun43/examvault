@@ -5,6 +5,7 @@
 // =============================================================================
 
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';
@@ -715,6 +716,45 @@ class _LoginScreenState extends State<LoginScreen> {
             backgroundColor: AppTheme.errorColor,
           ),
         );
+      },
+      // BUGFIX (auto-verify navigation): When Android auto-retrieves the SMS,
+      // Firebase calls verificationCompleted → the user is silently signed
+      // in. Previously, this callback did not exist, so the LoginScreen
+      // stayed on the OTP entry / loading screen even though the user was
+      // already logged in. The user had to press Back to discover they were
+      // logged in. Now we stop the loading timer and navigate to home /
+      // admin dashboard — exactly the same path as manual OTP verification.
+      onAutoVerified: (User? user) async {
+        if (!mounted) return;
+        // Capture context-dependent refs BEFORE any await — using
+        // BuildContext across an async gap is a Flutter antipattern and
+        // triggers use_build_context_synchronously warnings.
+        final messenger = ScaffoldMessenger.of(context);
+        final auth = Provider.of<AuthProvider>(context, listen: false);
+        _stopOtpWait();
+        // Clear OTP entry state so a stale OTP UI doesn't flash on screen
+        // during the navigation transition.
+        setState(() {
+          _otpSent = false;
+          _verificationId = null;
+          _otpController.clear();
+        });
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('OTP auto-verified! Logging you in...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Ensure AuthProvider has loaded the user's Firestore doc before
+        // navigating. Without this, _routeAfterLogin() might read
+        // auth.isAdmin == false (because _user is still null) and route an
+        // admin to MainNavigation instead of AdminDashboard. The
+        // authStateChanges listener ALSO calls loadUserData(), but it races
+        // with this callback — awaiting here is idempotent and guarantees
+        // _user is populated before we decide the destination.
+        await auth.loadUserData();
+        if (!mounted) return;
+        _routeAfterLogin();
       },
     );
   }

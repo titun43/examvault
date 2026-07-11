@@ -1,6 +1,22 @@
 // =============================================================================
 // ExamVault - Leaderboard Screen
 // =============================================================================
+// BUGFIX (offline + post-logout): Previously used a raw StreamBuilder that
+// showed an infinite CircularProgressIndicator when the stream was in the
+// "waiting" state — which happened every time the user logged out (the app
+// navigates to a fresh MainNavigation, re-creating this screen and its
+// stream) OR when the device was offline. The user saw a spinner that never
+// resolved, making it look like the Ranks tab "went away" after logout or
+// that the app "doesn't work offline".
+//
+// Now uses OfflineAwareStreamBuilder which:
+//   1. Shows cached data IMMEDIATELY if available (even while the stream is
+//      re-validating against the server) — so the Ranks tab shows the
+//      leaderboard instantly after logout instead of a spinner.
+//   2. Shows a friendly "You appear to be offline" message with a Retry
+//      button when there is no cached data AND the stream can't reach the
+//      server — instead of an infinite spinner.
+// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +25,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/leaderboard_model.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/offline_aware_stream_builder.dart';
 import '../search/search_screen.dart';
 
 class LeaderboardScreen extends StatelessWidget {
@@ -56,19 +73,22 @@ class LeaderboardScreen extends StatelessWidget {
   Widget _buildLeaderboard(BuildContext context, LeaderboardType type) {
     final currentUserId = Provider.of<AuthProvider>(context).user?.id;
 
-    return StreamBuilder<List<LeaderboardModel>>(
+    // BUGFIX: use OfflineAwareStreamBuilder instead of raw StreamBuilder.
+    // This shows cached data immediately (fixing the post-logout spinner)
+    // and shows a friendly offline message instead of an infinite spinner
+    // when the device has no connectivity and no cached data.
+    return OfflineAwareStreamBuilder<List<LeaderboardModel>>(
       stream: FirestoreService.getLeaderboardStream(type: type),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+      dataBuilder: (context, leaderboard, isStale) {
+        if (leaderboard.isEmpty) {
           return const Center(child: Text('No leaderboard data available'));
         }
-        final leaderboard = snapshot.data!;
-
         return Column(
           children: [
+            // Stale-data badge — shown when the data is from cache (stream
+            // is waiting/errored). Lets the user know they might be seeing
+            // slightly outdated rankings (e.g. offline or reconnecting).
+            if (isStale) _buildStaleBanner(context),
             // Top 3
             if (leaderboard.length >= 3) _buildTopThree(context, leaderboard),
             // List
@@ -86,6 +106,33 @@ class LeaderboardScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  /// Slim banner shown above the leaderboard when the displayed data is from
+  /// cache (stream is waiting/errored). Reassures the user that the rankings
+  /// they see might be slightly stale.
+  Widget _buildStaleBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.amber.shade100,
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off, size: 16, color: Colors.amber.shade800),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Showing cached rankings — reconnect to refresh.',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.amber.shade900,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

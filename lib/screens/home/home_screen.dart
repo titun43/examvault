@@ -1335,6 +1335,30 @@ class _HomeScreenState extends State<HomeScreen> {
         StreamBuilder<List<SubjectModel>>(
           stream: _subjectsStream,
           builder: (context, snapshot) {
+            // BUGFIX (offline): Show cached data IMMEDIATELY if available,
+            // even if the stream is still "waiting" to re-validate against
+            // the server. Previously the check order was
+            //   if (waiting) shimmer; if (error) error; if (!hasData) empty;
+            // which meant that on every stream re-subscription (e.g. after
+            // the parent rebuilds, or after a brief network hiccup) the
+            // section flashed a shimmer even though cached data was sitting
+            // right there in snapshot.data. Reordering to check hasData
+            // first means the user sees content instantly from the Firestore
+            // offline cache, and only sees shimmer/error on the VERY FIRST
+            // load when no cache exists yet.
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final subjects = snapshot.data!;
+              return SizedBox(
+                height: 160,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: subjects.length,
+                  itemBuilder: (context, index) {
+                    return _buildSubjectCard(subjects[index]);
+                  },
+                ),
+              );
+            }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
@@ -1343,22 +1367,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // screen — if the subjects stream errors out, the user sees an
             // empty section and thinks "Start Now is not clickable".
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load subjects');
+              return _buildSectionError('Couldn\'t load subjects. Check your connection.');
             }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildSectionEmpty('No subjects available yet');
-            }
-            return SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final subject = snapshot.data![index];
-                  return _buildSubjectCard(subject);
-                },
-              ),
-            );
+            return _buildSectionEmpty('No subjects available yet');
           },
         ),
       ],
@@ -1509,25 +1520,28 @@ class _HomeScreenState extends State<HomeScreen> {
         StreamBuilder<List<UpcomingExamModel>>(
           stream: _upcomingExamsStream,
           builder: (context, snapshot) {
+            // BUGFIX (offline): check hasData FIRST so cached data shows
+            // instantly from the Firestore offline cache instead of
+            // flashing a shimmer on every stream re-validation.
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Column(
+                children: snapshot.data!.map((e) => _buildUpcomingExamMiniCard(e)).toList(),
+              );
+            }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load upcoming exams');
+              return _buildSectionError('Couldn\'t load upcoming exams. Check your connection.');
             }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildSectionEmpty(
-                'No upcoming exams scheduled',
-                onTap: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const UpcomingExamsScreen()));
-                },
-              );
-            }
-            return Column(
-              children: snapshot.data!.map((e) => _buildUpcomingExamMiniCard(e)).toList(),
+            return _buildSectionEmpty(
+              'No upcoming exams scheduled',
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const UpcomingExamsScreen()));
+              },
             );
           },
         ),
@@ -1699,27 +1713,30 @@ class _HomeScreenState extends State<HomeScreen> {
         StreamBuilder<List<CurrentAffairModel>>(
           stream: _currentAffairsStream,
           builder: (context, snapshot) {
+            // BUGFIX (offline): check hasData FIRST so cached data shows
+            // instantly from the Firestore offline cache instead of
+            // flashing a shimmer on every stream re-validation.
+            if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              return Column(
+                children: snapshot.data!.map((affair) {
+                  return _buildCurrentAffairCard(affair);
+                }).toList(),
+              );
+            }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load current affairs');
+              return _buildSectionError('Couldn\'t load current affairs. Check your connection.');
             }
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return _buildSectionEmpty(
-                'No current affairs available',
-                onTap: () {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const CurrentAffairsScreen()));
-                },
-              );
-            }
-            return Column(
-              children: snapshot.data!.map((affair) {
-                return _buildCurrentAffairCard(affair);
-              }).toList(),
+            return _buildSectionEmpty(
+              'No current affairs available',
+              onTap: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CurrentAffairsScreen()));
+              },
             );
           },
         ),

@@ -1,6 +1,13 @@
 // =============================================================================
 // ExamVault - Main Navigation (Bottom Nav with Home, Tests, Leaderboard, Profile)
 // =============================================================================
+// BUGFIX (offline indicator): Added ConnectivityBanner at the top of every
+// screen so the user always knows when they're offline. Previously the app
+// had no offline indicator at all — the connectivity_plus package was in
+// pubspec.yaml but NEVER used. When offline, every StreamBuilder just showed
+// an infinite spinner with no explanation, which the user reported as
+// "app offline kaj kore na".
+// =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +15,7 @@ import 'package:examvault/screens/home/home_screen.dart';
 import 'package:examvault/screens/tests/test_series_screen.dart';
 import 'package:examvault/screens/leaderboard/leaderboard_screen.dart';
 import 'package:examvault/screens/profile/profile_screen.dart';
+import 'package:examvault/widgets/connectivity_banner.dart';
 import 'package:examvault/theme/app_theme.dart';
 
 class MainNavigation extends StatefulWidget {
@@ -78,9 +86,20 @@ class _MainNavigationState extends State<MainNavigation> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
+        body: Column(
+          children: [
+            // BUGFIX: Global offline indicator. Shows a slim orange banner at
+            // the top of every tab when the device has no internet. Uses
+            // connectivity_plus (was installed but unused before this fix).
+            const ConnectivityBanner(),
+            // The actual screen content fills the remaining space.
+            Expanded(
+              child: IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
+            ),
+          ],
         ),
         bottomNavigationBar: Container(
           decoration: BoxDecoration(

@@ -44,6 +44,34 @@ class FirebaseService {
       await Firebase.initializeApp();
     }
 
+    // ─── OFFLINE PERSISTENCE (BUGFIX: app not working offline) ───
+    // Firestore offline persistence is ON by default on mobile, but the
+    // default cache size is only 40 MB — enough for small collections but
+    // too small for a content-heavy app like this (categories, tests,
+    // leaderboard, current affairs, etc. get evicted quickly, so when the
+    // user goes offline the cache is often empty and every StreamBuilder
+    // shows an infinite spinner).
+    //
+    // We explicitly enable persistence and set the cache to UNLIMITED so
+    // all previously-fetched content stays available offline. This fixes
+    // BOTH reported issues:
+    //   1. "App offline kaj kore na" — cached content now shows offline
+    //   2. "Ranks logout korar por chole jay" — the leaderboard cache
+    //      survives the logout navigation, so the Ranks tab shows cached
+    //      data immediately instead of an infinite spinner.
+    //
+    // NOTE: setPersistenceEnabled + settings.cacheSizeBytes must be set
+    // BEFORE any Firestore operation. Doing it right after initializeApp
+    // guarantees that.
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (e) {
+      print('Firestore offline persistence config failed (non-fatal): $e');
+    }
+
     // Crashlytics auto-collection is DISABLED in AndroidManifest (v1.13+)
     // because the native Crashlytics pipeline was the most likely cause of
     // the "ExamVault keeps stopping" native crash on login. We do NOT touch
