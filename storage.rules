@@ -63,6 +63,16 @@ service firebase.storage {
       allow write: if isAdmin();
     }
 
+    // ==================== STUDY MATERIAL PDFs ====================
+    // PDF files for Previous Year Papers, Study Notes, Syllabus.
+    // Uploaded by admin via the Study Materials admin page. Public read so
+    // the Flutter app's in-app PDF viewer can download & display them.
+    // Path: study_materials/{materialId}/{filename}
+    match /study_materials/{materialId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ==================== USER AVATARS ====================
     // Each user can read/write their own avatar. Public read so avatars show
     // in leaderboards and admin views.

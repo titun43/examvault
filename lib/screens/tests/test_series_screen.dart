@@ -9,7 +9,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../search/search_screen.dart';
 import 'take_test_screen.dart';
-import 'test_list_screen.dart';
+import '../home/subject_detail_screen.dart';
 
 class TestSeriesScreen extends StatelessWidget {
   const TestSeriesScreen({super.key});
@@ -325,7 +325,16 @@ class TestSeriesScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TestListScreen(subject: subject),
+                      // Navigate to SubjectDetailScreen (content hub) so
+                      // the user can choose between Tests, Papers, Notes,
+                      // Syllabus. The subject's categoryId is used as the
+                      // authoritative category id (may be name/slug in edge
+                      // cases — acceptable here since this tab is not the
+                      // primary exam-pack purchase entry point).
+                      builder: (_) => SubjectDetailScreen(
+                        subject: subject,
+                        categoryId: subject.categoryId,
+                      ),
                     ),
                   );
                 },

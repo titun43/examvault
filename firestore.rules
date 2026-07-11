@@ -97,6 +97,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ==================== STUDY MATERIALS (PDF content) ====================
+    // Admin-managed PDF content (Previous Year Papers, Study Notes, Syllabus).
+    // Public-read so the Flutter app shows content without auth errors.
+    // Only admins can create/edit/delete. isPublished filter is enforced
+    // client-side (the Flutter app queries with where('isPublished','==',true)).
+    match /study_materials/{materialId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ==================== APP OPEN BANNERS ====================
     // Full-screen promotional banner shown once per app launch (between splash
     // and home). Public-read so the Flutter app (guests included) can fetch

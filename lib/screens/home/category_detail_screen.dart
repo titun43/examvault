@@ -25,7 +25,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
-import '../tests/test_list_screen.dart';
+import 'subject_detail_screen.dart';
 
 enum _AccessState { loading, allowed, denied, rollingOut }
 
@@ -725,17 +725,23 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              // Pass the authoritative category.id so TestListScreen (and
-              // downstream TakeTestScreen + /access-check) uses the SAME id
-              // that was stored in ExamPackPurchase when the exam pack was
-              // bought. Without this, a subject whose Firestore `categoryId`
-              // field holds the category NAME/SLUG (allowed by
+              // Navigate to the SubjectDetailScreen (content hub) instead of
+              // going straight to TestListScreen. The hub shows a grid of
+              // content-type cards: Tests (always), Previous Papers, Study
+              // Notes, Syllabus (each shown only if the admin has added ≥1
+              // item of that type — real-time via Firestore stream).
+              //
+              // We pass the authoritative category.id so the downstream
+              // TestListScreen (and TakeTestScreen + /access-check) uses the
+              // SAME id that was stored in ExamPackPurchase when the exam
+              // pack was bought. Without this, a subject whose Firestore
+              // `categoryId` field holds the category NAME/SLUG (allowed by
               // getSubjectsStream's fallback matching) would cause the
-              // exam-pack access tier to silently no-match — the user who
-              // already paid would see a premium lock on every test.
-              builder: (_) => TestListScreen(
+              // exam-pack access tier to silently no-match.
+              builder: (_) => SubjectDetailScreen(
                 subject: subject,
                 categoryId: _liveCategory.id,
+                categoryName: _liveCategory.name,
               ),
             ),
           );

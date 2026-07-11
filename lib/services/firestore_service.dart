@@ -17,6 +17,7 @@ import '../models/upcoming_exam_model.dart';
 import '../models/banner_model.dart';
 import '../models/app_open_banner_model.dart';
 import '../models/premium_plan_model.dart';
+import '../models/study_material_model.dart';
 import 'firebase_service.dart';
 
 class FirestoreService {
@@ -1285,5 +1286,95 @@ class FirestoreService {
       'totalPayments': paymentsCount.count,
       'premiumUsers': premiumUsersCount.count,
     };
+  }
+
+  // ==================== STUDY MATERIALS ====================
+  // Real-time PDF content (Previous Year Papers, Study Notes, Syllabus).
+  //
+  // IMPORTANT: We use ONLY single-field .where('subjectId') to avoid needing
+  // a composite Firestore index. The type filter and isPublished filter are
+  // applied CLIENT-SIDE in the .map() below. This mirrors the pattern used
+  // for tests/questions/announcements (see the comment at the SUBJECTS
+  // section above).
+  //
+  // The user app subscribes to this stream on the Subject Detail screen.
+  // For each material type, it counts how many published materials exist
+  // and shows a content-type card ONLY if count > 0. When the admin adds
+  // or deletes a material, the stream emits → the card appears/disappears
+  // in real time (1-2 second latency).
+
+  /// Stream of ALL published study materials for a subject (all types).
+  /// The Subject Detail screen uses this to compute per-type counts and
+  /// show/hide content-type cards in real time.
+  static Stream<List<StudyMaterialModel>> getStudyMaterialsStream(
+    String subjectId,
+  ) {
+    // Single-field where clause — no composite index needed.
+    return _db
+        .collection('study_materials')
+        .where('subjectId', isEqualTo: subjectId)
+        .snapshots()
+        .map((snapshot) {
+          final docs = snapshot.docs
+              .map((doc) => StudyMaterialModel.fromFirestore(doc))
+              .where((m) => m.isPublished) // client-side published filter
+              .toList();
+          // Sort client-side by order, then by year desc (for papers), then title.
+          docs.sort((a, b) {
+            final orderCmp = a.order.compareTo(b.order);
+            if (orderCmp != 0) return orderCmp;
+            // Previous papers: most recent year first.
+            final yearA = a.year ?? 0;
+            final yearB = b.year ?? 0;
+            if (yearB != yearA) return yearB.compareTo(yearA);
+            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          });
+          return docs;
+        });
+  }
+
+  /// Stream of published study materials for a subject FILTERED BY TYPE.
+  /// Used by the Material List screen (e.g. "Previous Papers in History").
+  /// We filter by type client-side (not in the where clause) to avoid
+  /// needing a composite index on (subjectId, type).
+  static Stream<List<StudyMaterialModel>> getStudyMaterialsByTypeStream(
+    String subjectId,
+    StudyMaterialType type,
+  ) {
+    return getStudyMaterialsStream(subjectId).map(
+      (all) => all.where((m) => m.type == type).toList(),
+    );
+  }
+
+  /// One-shot fetch (not a stream) of study material counts per type for a
+  /// subject. Used by the Subject Detail screen as a lightweight alternative
+  /// to subscribing to the full materials stream when only counts are needed.
+  /// Returns a map: { StudyMaterialType: count }.
+  static Future<Map<StudyMaterialType, int>> getMaterialCounts(
+    String subjectId,
+  ) {
+    return getStudyMaterialsStream(subjectId).first.then((all) {
+      final counts = <StudyMaterialType, int>{
+        StudyMaterialType.previousPaper: 0,
+        StudyMaterialType.notes: 0,
+        StudyMaterialType.syllabus: 0,
+      };
+      for (final m in all) {
+        counts[m.type] = (counts[m.type] ?? 0) + 1;
+      }
+      return counts;
+    });
+  }
+
+  /// Increments the download count for a study material (fire-and-forget,
+  /// non-fatal on failure). Called when the user opens the PDF viewer.
+  static Future<void> incrementMaterialDownloadCount(String materialId) async {
+    try {
+      await _db.collection('study_materials').doc(materialId).update({
+        'downloadCount': FieldValue.increment(1),
+      });
+    } catch (_) {
+      // Non-fatal — analytics only.
+    }
   }
 }
