@@ -79,16 +79,12 @@ android {
     }
 
     // =========================================================================
-    // Native debug symbols (required by Google Play for crash analysis)
-    // Bundles a symbol table into the AAB so Play Console can de-obfuscate
-    // native stack traces. Without this, Play shows the warning:
-    //   "This App Bundle contains native code, and you've not uploaded debug symbols"
+    // Native debug symbols (Google Play warning fix)
+    // NOTE: bundle.ndk.debugSymbolLevel requires AGP 8.5+. We're on AGP 8.2.2,
+    // so we can't enable it in build.gradle. Instead, the workflow uploads
+    // the unstripped .so files from build/app/intermediates/merged_native_libs
+    // as a separate artifact that can be manually uploaded to Play Console.
     // =========================================================================
-    bundle {
-        ndk {
-            debugSymbolLevel = 'SYMBOL_TABLE'
-        }
-    }
 
     signingConfigs {
         release {
