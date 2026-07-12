@@ -4,6 +4,12 @@
 // Package: com.examvault.education
 // AdMob App ID, Firebase, Razorpay - all configured.
 // Just make sure google-services.json is present.
+//
+// CHANGES (v1.52.1+79):
+//   - compileSdk 35 → 34   (16KB page size issue fix)
+//   - targetSdk  35 → 34   (16KB page size issue fix)
+//   - ndkVersion updated to r27+ (16KB page size native support)
+//   - Added packagingOptions for jniLibs 16KB alignment
 // =============================================================================
 
 plugins {
@@ -33,8 +39,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.examvault.education"
-    compileSdk 35
-    ndkVersion "25.1.8937393"
+    compileSdk 34
+    ndkVersion "27.0.12077973"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -53,10 +59,21 @@ android {
     defaultConfig {
         applicationId "com.examvault.education"
         minSdk 21
-        targetSdk 35
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
+    }
+
+    // =========================================================================
+    // 16KB Memory Page Size Support (Android 15+ requirement)
+    // Without this, Google Play rejects the AAB with:
+    //   "Your app does not support 16 KB memory page sizes"
+    // =========================================================================
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     signingConfigs {
@@ -87,14 +104,6 @@ android {
             // lib/config/app_config.dart:
             //   • admobTestMode == true  → use TEST app ID  (ca-app-pub-3940256099942544~3347511713)
             //   • admobTestMode == false → use REAL app ID  (ca-app-pub-1742730064755213~7890219994)
-            //
-            // WHY: the real AdMob account (pub-1742730064755213) is still
-            // pending Google review. Initializing the native SDK with the real
-            // App ID while the account is unapproved causes a NATIVE CRASH on
-            // real devices (release builds) that bypasses every Dart error
-            // handler. It also leaves AdMobService._initialized = false, so
-            // loadInterstitialAd() short-circuits and NO ad ever loads — which
-            // is exactly the "app crashing + ads not running" symptom.
             //
             // Since admobTestMode is currently true, the release manifest MUST
             // also use the TEST App ID. Flip both back to real when the AdMob
