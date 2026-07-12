@@ -32,6 +32,14 @@
 -keep class com.google.android.gms.auth.** { *; }
 -keep class com.google.android.gms.auth.api.signin.** { *; }
 
+# --------- smart_auth plugin references (resolved at runtime via play-services-auth) ---------
+-dontwarn com.google.android.gms.auth.api.credentials.**
+-keep class com.google.android.gms.auth.api.credentials.** { *; }
+
+# --------- Play Core (SplitCompatApplication — referenced by Flutter) ---------
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }
+
 # --------- App's own Java/Kotlin classes (if any) ---------
 -keep class com.examvault.education.** { *; }
 -keepclassmembers class com.examvault.education.** {
