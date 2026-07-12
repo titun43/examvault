@@ -369,6 +369,35 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
 
+      # -------------------------------------------------------------------------
+      # STEP 8b: Upload R8/ProGuard mapping file.
+      # Required by Google Play Console for crash/ANR deobfuscation.
+      # Path: Play Console → Production → App Bundle Explorer → Downloads → Deobfuscation
+      # -------------------------------------------------------------------------
+      - name: Upload R8 mapping file
+        uses: actions/upload-artifact@v4
+        with:
+          name: examvault-mapping-${{ steps.version.outputs.version }}
+          path: build/app/outputs/mapping/release/mapping.txt
+          retention-days: 90
+          if-no-files-found: warn
+
+      # -------------------------------------------------------------------------
+      # STEP 8c: Upload native debug symbols (if generated separately).
+      # With android.bundle.ndk.debugSymbolLevel = SYMBOL_TABLE, these are
+      # embedded in the AAB automatically, but we also upload them as a
+      # separate artifact for manual Play Console upload if needed.
+      # -------------------------------------------------------------------------
+      - name: Upload native debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: examvault-native-symbols-${{ steps.version.outputs.version }}
+          path: |
+            build/app/intermediates/merged_native_libs/release/out/lib
+            android/app/build/intermediates/merged_native_libs/release/out/lib
+          retention-days: 90
+          if-no-files-found: ignore
+
       - name: Build Summary
         run: |
           echo "============================================"

@@ -5,11 +5,13 @@
 // AdMob App ID, Firebase, Razorpay - all configured.
 // Just make sure google-services.json is present.
 //
-// CHANGES (v1.52.1+79):
-//   - compileSdk 35 → 34   (16KB page size issue fix)
-//   - targetSdk  35 → 34   (16KB page size issue fix)
-//   - ndkVersion updated to r27+ (16KB page size native support)
-//   - Added packagingOptions for jniLibs 16KB alignment
+// CHANGES (v1.53.0+81):
+//   - compileSdk 34 → 35   (Google Play requirement: target API 35)
+//   - targetSdk  34 → 35   (Google Play requirement: target API 35)
+//   - minifyEnabled true + shrinkResources true (R8 code shrinking → deobfuscation file generated)
+//   - android.bundle.ndk.debugSymbolLevel = SYMBOL_TABLE (native debug symbols in AAB)
+//   - ndkVersion r27+ retained (16KB page size native support)
+//   - packagingOptions for jniLibs 16KB alignment retained
 // =============================================================================
 
 plugins {
@@ -39,7 +41,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace "com.examvault.education"
-    compileSdk 34
+    compileSdk 35
     ndkVersion "27.0.12077973"
 
     compileOptions {
@@ -59,7 +61,7 @@ android {
     defaultConfig {
         applicationId "com.examvault.education"
         minSdk 21
-        targetSdk 34
+        targetSdk 35
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -76,6 +78,18 @@ android {
         }
     }
 
+    // =========================================================================
+    // Native debug symbols (required by Google Play for crash analysis)
+    // Bundles a symbol table into the AAB so Play Console can de-obfuscate
+    // native stack traces. Without this, Play shows the warning:
+    //   "This App Bundle contains native code, and you've not uploaded debug symbols"
+    // =========================================================================
+    bundle {
+        ndk {
+            debugSymbolLevel = 'SYMBOL_TABLE'
+        }
+    }
+
     signingConfigs {
         release {
             keyAlias keystoreProperties['keyAlias']
@@ -88,8 +102,13 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
-            shrinkResources false
+            // =====================================================================
+            // R8 / ProGuard — REQUIRED by Google Play for deobfuscation file.
+            // Generates mapping.txt at build/app/outputs/mapping/release/mapping.txt
+            // which you upload to Play Console for crash/ANR analysis.
+            // =====================================================================
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
             // =====================================================================
