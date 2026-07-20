@@ -226,24 +226,40 @@ class _SplashScreenState extends State<SplashScreen> {
 }
 
 // =============================================================================
-// _BookLogo — the ExamVault book logo that opens like a real book.
+// _BookLogo — REAL book opening animation.
 // =============================================================================
-// A 120×120 panel. The "cover" is a white rounded panel carrying the
-// menu_book icon; it rotates open around its LEFT edge (the spine) using a 3D
-// rotateY transform with perspective. Underneath the cover sit two "pages"
-// (white panels with faint text lines) that become visible as the cover
-// swings away.
+// A book viewed from the front that opens like a real book:
 //
-// Animation timeline (one-shot intro, ~1.6s total):
-//   t=0.0–0.15 : hold closed (let the panel zoom/scale in via parent).
-//   t=0.15–0.75: cover swings open (rotateY 0 → -118°) with easeOutCubic.
-//   t=0.75–1.0 : settle — cover nudges slightly back to -110° for a natural
-//                "lie flat" look.
-//   t>1.0      : a gentle breathing scale (1.0 ↔ 1.03) loops forever so the
-//                open book feels alive while auth resolves.
+//   ┌─────────────┐         ┌─────────┐│┌─────────┐
+//   │  ╔═══════╗  │         │ inside  │││  page 1  │
+//   │  ║ 📖    ║  │  ──►    │ cover   │││  text    │
+//   │  ║       ║  │         │         │││  lines   │
+//   │  ╚═══════╝  │         └─────────┘│└─────────┘
+//   └─────────────┘              spine
+//     CLOSED                      OPEN
 //
-// Built with a single AnimationController + TweenSequence so the whole intro
-// is one smooth, uninterrupted motion.
+// Structure (back to front in the Stack):
+//   1. Spine — thin dark-emerald strip on the left (always visible)
+//   2. Pages — white two-page spread (title page + content page), fades in
+//   3. Shadow — gradient cast by the cover onto the pages (peaks at 90°)
+//   4. Front cover — emerald gradient + gold border + icon + title,
+//      rotates open around the left spine via 3D rotateY
+//
+// Animation timeline (one-shot intro, ~1.8s total):
+//   t=0.00–0.15 : entrance scale (0.85 → 1.0) with easeOutBack
+//   t=0.15–0.25 : hold closed (let the cover design register)
+//   t=0.25–0.80 : cover swings open (rotateY 0 → -165°) with easeOutCubic
+//   t=0.80–1.00 : settle with slight elastic bounce to -170°
+//   t>1.00      : gentle breathing scale (1.0 ↔ 1.02) loops forever
+//
+// Realistic touches:
+//   - Cover has a designed look: emerald gradient, gold inner border,
+//     menu_book icon in a circle, "ExamVault" wordmark
+//   - Pages show a title page (left) with icon + decorative line + text
+//     lines, and a content page (right) with varied text lines
+//   - Shadow gradient simulates the cover casting a shadow on pages as it
+//     passes overhead (peaks at 90°, fades as cover lies flat)
+//   - Spine is always visible as the book's left edge
 // =============================================================================
 class _BookLogo extends StatefulWidget {
   const _BookLogo();
@@ -254,28 +270,31 @@ class _BookLogo extends StatefulWidget {
 
 class _BookLogoState extends State<_BookLogo>
     with TickerProviderStateMixin {
-  // Two controllers so the cover opens ONCE and only the gentle breathing
-  // loops forever. A single repeating controller would re-close the cover
-  // on each cycle, which is not what we want.
   late final AnimationController _introController;
   late final AnimationController _breatheController;
-  late final Animation<double> _coverAngle; // degrees, 0 = closed
+
+  late final Animation<double> _coverAngle;
   late final Animation<double> _pagesOpacity;
+  late final Animation<double> _shadowOpacity;
+  late final Animation<double> _entranceScale;
   late final Animation<double> _breathe;
+
+  // Book dimensions — wider than tall, like a real book.
+  static const double _bookW = 130.0;
+  static const double _bookH = 100.0;
+  static const double _spineW = 5.0;
 
   @override
   void initState() {
     super.initState();
-    // Intro controller — one-shot, ~1.6s. Drives the cover swing + page fade.
+
     _introController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 1800),
     );
-    // Breathing controller — slow loop that starts AFTER the intro so the
-    // open book keeps feeling alive while Firebase Auth resolves.
     _breatheController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 2400),
     );
     _introController.addStatusListener((status) {
       if (status == AnimationStatus.completed && mounted) {
@@ -284,28 +303,38 @@ class _BookLogoState extends State<_BookLogo>
     });
     _introController.forward();
 
-    // Cover angle (degrees). 0 = closed, negative = opening to the left.
-    // Sequence: hold closed briefly → swing open → settle.
+    // Entrance scale: 0.85 → 1.0 in first 15%, then hold.
+    _entranceScale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.85, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 15,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1.0),
+        weight: 85,
+      ),
+    ]).animate(_introController);
+
+    // Cover angle: hold (15%) → swing open (65%) → settle bounce (20%)
     _coverAngle = TweenSequence<double>([
       TweenSequenceItem(
-        // Hold closed for a beat so the zoom-in registers.
         tween: ConstantTween<double>(0.0),
         weight: 15,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0.0, end: -118.0)
+        tween: Tween<double>(begin: 0.0, end: -165.0)
             .chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 60,
+        weight: 65,
       ),
       TweenSequenceItem(
-        // Settle back a touch so the cover looks like it's lying flat.
-        tween: Tween<double>(begin: -118.0, end: -110.0)
-            .chain(CurveTween(curve: Curves.easeInOut)),
-        weight: 25,
+        tween: Tween<double>(begin: -165.0, end: -170.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 20,
       ),
     ]).animate(_introController);
 
-    // Pages fade in as the cover opens (from ~25% open onward).
+    // Pages fade in from 25% onward (as cover passes ~90°)
     _pagesOpacity = TweenSequence<double>([
       TweenSequenceItem(
         tween: ConstantTween<double>(0.0),
@@ -314,17 +343,34 @@ class _BookLogoState extends State<_BookLogo>
       TweenSequenceItem(
         tween: Tween<double>(begin: 0.0, end: 1.0)
             .chain(CurveTween(curve: Curves.easeIn)),
-        weight: 50,
+        weight: 45,
       ),
       TweenSequenceItem(
         tween: ConstantTween<double>(1.0),
-        weight: 25,
+        weight: 30,
       ),
     ]).animate(_introController);
 
-    // Breathing scale: 1.0 ↔ 1.03, ease-in-out, loops via the breathe
-    // controller (which only starts after the intro finishes).
-    _breathe = Tween<double>(begin: 1.0, end: 1.03).animate(
+    // Shadow on pages: peaks at ~50% (cover at 90° overhead), fades as
+    // cover lies flat. Simulates the cover casting a shadow on the pages.
+    _shadowOpacity = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: ConstantTween<double>(0.0),
+        weight: 15,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: 0.4)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.4, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
+    ]).animate(_introController);
+
+    _breathe = Tween<double>(begin: 1.0, end: 1.02).animate(
       CurvedAnimation(
         parent: _breatheController,
         curve: Curves.easeInOut,
@@ -341,34 +387,85 @@ class _BookLogoState extends State<_BookLogo>
 
   @override
   Widget build(BuildContext context) {
-    const double panelW = 120.0;
-    const double panelH = 120.0;
-
     return AnimatedBuilder(
       animation: Listenable.merge([_introController, _breatheController]),
       builder: (context, _) {
         return Transform.scale(
-          scale: _breathe.value,
+          scale: _breathe.value * _entranceScale.value,
           child: SizedBox(
-            width: panelW,
-            height: panelH,
+            width: _bookW + _spineW,
+            height: _bookH,
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                // ---- Pages (visible once the cover starts opening) ----
-                // Slightly smaller than the cover so they read as inner pages.
-                Positioned.fill(
-                  child: Opacity(
-                    opacity: _pagesOpacity.value,
-                    child: _buildPages(panelW - 16, panelH - 16),
+                // ---- Spine (left edge, always visible) ----
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: _spineW,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryDarkColor,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(3),
+                        bottomLeft: Radius.circular(3),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 4,
+                          offset: const Offset(-1, 0),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                // ---- Cover (rotates open around the left spine) ----
+                // ---- Pages (revealed as cover opens) ----
+                Positioned(
+                  left: _spineW,
+                  top: 0,
+                  child: Opacity(
+                    opacity: _pagesOpacity.value,
+                    child: _buildPages(),
+                  ),
+                ),
+                // ---- Shadow cast by cover onto pages ----
+                Positioned(
+                  left: _spineW,
+                  top: 0,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: _shadowOpacity.value,
+                      child: Container(
+                        width: _bookW,
+                        height: _bookH,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Colors.black.withOpacity(0.35),
+                              Colors.transparent,
+                            ],
+                            stops: [0.0, 0.6],
+                          ),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // ---- Front cover (rotates open around left spine) ----
                 Transform(
                   alignment: Alignment.centerLeft,
                   transform: Matrix4.identity()
-                    ..setEntry(3, 2, 0.0018) // perspective
+                    ..setEntry(3, 2, 0.002) // perspective
                     ..rotateY(_toRadians(_coverAngle.value)),
-                  child: _buildCover(panelW, panelH),
+                  child: Container(
+                    margin: const EdgeInsets.only(left: _spineW),
+                    child: _buildCover(),
+                  ),
                 ),
               ],
             ),
@@ -378,93 +475,188 @@ class _BookLogoState extends State<_BookLogo>
     );
   }
 
-  /// The front cover — white rounded panel with the ExamVault book icon.
-  Widget _buildCover(double w, double h) {
+  /// The front cover — emerald gradient with gold border, icon, and title.
+  Widget _buildCover() {
     return Container(
-      width: w,
-      height: h,
+      width: _bookW,
+      height: _bookH,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
+        gradient: const LinearGradient(
+          colors: AppTheme.brandGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: AppTheme.accentColor.withOpacity(0.5),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: const Icon(
-        Icons.menu_book,
-        size: 60,
-        color: AppTheme.primaryColor,
-      ),
-    );
-  }
-
-  /// The open pages — two white panels with faint "text lines", shown once
-  /// the cover has swung open.
-  Widget _buildPages(double w, double h) {
-    return Center(
-      child: Container(
-        width: w,
-        height: h,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppTheme.accentColor.withOpacity(0.3),
+              width: 1,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(child: _buildPageLines()),
-            // Spine line down the middle
-            Container(
-              width: 1.5,
-              margin: const EdgeInsets.symmetric(vertical: 14),
-              color: const Color(0xFFBBBBBB),
-            ),
-            Expanded(child: _buildPageLines()),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPageLines() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+            borderRadius: BorderRadius.circular(3),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _line(w * 0.85),
-              _line(w * 0.65),
-              _line(w * 0.78),
-              _line(w * 0.55),
-              _line(w * 0.72),
+              // Book icon in a translucent circle
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.15),
+                ),
+                child: const Icon(
+                  Icons.menu_book,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'ExamVault',
+                style: AppFonts.style(
+                  size: 9,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 3),
+              // Decorative gold line
+              Container(
+                width: 24,
+                height: 1.5,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentColor,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _line(double width) {
+  /// The open pages — two-page spread with a center spine line.
+  Widget _buildPages() {
+    return Container(
+      width: _bookW,
+      height: _bookH,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Left page — title page (icon + decorative line + text)
+          Expanded(child: _buildTitlePage()),
+          // Center spine shadow
+          Container(
+            width: 1,
+            decoration: BoxDecoration(
+              color: const Color(0xFFD6D3D1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 2,
+                  offset: const Offset(1, 0),
+                ),
+              ],
+            ),
+          ),
+          // Right page — content with text lines
+          Expanded(child: _buildContentPage()),
+        ],
+      ),
+    );
+  }
+
+  /// Left page — a title page with a small icon and decorative elements.
+  Widget _buildTitlePage() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.school,
+            size: 16,
+            color: AppTheme.primaryColor.withOpacity(0.4),
+          ),
+          const SizedBox(height: 3),
+          Container(
+            width: 20,
+            height: 1.5,
+            decoration: BoxDecoration(
+              color: AppTheme.accentColor.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          const SizedBox(height: 4),
+          ...List.generate(3, (i) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: _line(18 + i * 4, opacity: 0.12),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  /// Right page — content page with varied text lines.
+  Widget _buildContentPage() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _line(32, opacity: 0.28),
+          const SizedBox(height: 2),
+          _line(22, opacity: 0.18),
+          _line(28, opacity: 0.18),
+          _line(20, opacity: 0.18),
+          const SizedBox(height: 3),
+          _line(30, opacity: 0.22),
+          const SizedBox(height: 2),
+          _line(18, opacity: 0.14),
+          _line(24, opacity: 0.14),
+        ],
+      ),
+    );
+  }
+
+  Widget _line(double width, {double opacity = 0.22}) {
     return Container(
       width: width,
-      height: 3,
+      height: 2,
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.22),
-        borderRadius: BorderRadius.circular(2),
+        color: AppTheme.primaryColor.withOpacity(opacity),
+        borderRadius: BorderRadius.circular(1),
       ),
     );
   }

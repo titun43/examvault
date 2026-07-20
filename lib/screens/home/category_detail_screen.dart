@@ -13,6 +13,7 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -26,6 +27,7 @@ import '../../services/razorpay_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
@@ -633,58 +635,21 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   }
 
   Widget _buildErrorState(String error) {
-    return ListView(
-      padding: const EdgeInsets.all(32),
-      children: [
-        const SizedBox(height: 40),
-        Icon(Icons.cloud_off, size: 64, color: Colors.grey.shade400),
-        const SizedBox(height: 16),
-        const Text(
-          'Couldn\'t load subjects',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Please check your internet connection and try again.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton.icon(
-          onPressed: () => setState(() => _reloadKey++),
-          icon: const Icon(Icons.refresh),
-          label: const Text('Retry'),
-        ),
-      ],
+    return EmptyState(
+      icon: Icons.cloud_off,
+      l10nTitleKey: 'category_errorTitle',
+      l10nDescKey: 'category_errorDesc',
+      iconColor: AppTheme.errorColor,
+      onRetry: () => setState(() => _reloadKey++),
     );
   }
 
   Widget _buildEmptyState() {
-    return ListView(
-      padding: const EdgeInsets.all(32),
-      children: [
-        const SizedBox(height: 40),
-        Icon(Icons.inbox, size: 64, color: Colors.grey.shade400),
-        const SizedBox(height: 16),
-        const Text(
-          'No subjects available yet',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Subjects for ${_liveCategory.name} will appear here. Pull down to refresh.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 24),
-        OutlinedButton.icon(
-          onPressed: () => setState(() => _reloadKey++),
-          icon: const Icon(Icons.refresh),
-          label: const Text('Refresh'),
-        ),
-      ],
+    return EmptyState(
+      icon: Icons.inbox,
+      l10nTitleKey: 'category_noSubjectsTitle',
+      l10nDescKey: 'category_noSubjectsDesc',
+      onRetry: () => setState(() => _reloadKey++),
     );
   }
 
@@ -761,6 +726,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           onTap: () {
+            HapticFeedback.selectionClick();
             Navigator.push(
               context,
               MaterialPageRoute(

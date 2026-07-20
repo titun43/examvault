@@ -103,6 +103,7 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -1436,6 +1437,7 @@ class _TestListScreenState extends State<TestListScreen> {
   /// a server-side access check; if the backend grants access, navigates.
   /// If denied, shows the purchase sheet.
   Future<void> _startTest(BuildContext context, TestModel test) async {
+    HapticFeedback.selectionClick();
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.user;
 

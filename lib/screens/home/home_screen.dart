@@ -7,6 +7,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -1033,6 +1034,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Affairs (GestureDetector+opaque) cards which DO click reliably.
           behavior: HitTestBehavior.opaque,
           onTap: () {
+            HapticFeedback.selectionClick();
             if (categoryLocked) {
               _showCategoryPaywall(context, category);
               return;
@@ -1571,6 +1573,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
+        HapticFeedback.selectionClick();
         Navigator.push(
           context,
           MaterialPageRoute(

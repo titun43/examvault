@@ -288,6 +288,14 @@ class AppStrings {
     'material_pluralSyllabus': 'Syllabi',
     'material_stale': 'Showing cached content — reconnect to refresh.',
     'material_emptyTitle': 'No {type} available yet',
+    'category_noSubjectsTitle': 'No subjects available yet',
+    'category_noSubjectsDesc': 'Subjects for this category will appear here soon.',
+    'category_errorTitle': "Couldn't load subjects",
+    'category_errorDesc': 'Please check your internet connection and try again.',
+    'dailyQuiz_emptyTitle': 'No daily quizzes available yet',
+    'dailyQuiz_emptyDesc': 'Check back soon for new quizzes!',
+    'dailyQuiz_errorTitle': 'Could not load daily quizzes',
+    'dailyQuiz_errorDesc': 'Please try again later.',
   };
 
   static const Map<String, String> assamese = {
@@ -564,5 +572,13 @@ class AppStrings {
     'material_pluralSyllabus': 'পাঠ্যক্ৰম',
     'material_stale': 'কেশ্বড সামগ্ৰী দেখুওৱা হৈছে — ৰিফ্ৰেশ কৰিবলৈ সংযোগ কৰক।',
     'material_emptyTitle': 'এতিয়াও কোনো {type} উপলব্ধ নহয়',
+    'category_noSubjectsTitle': 'এতিয়াও কোনো বিষয় উপলব্ধ নহয়',
+    'category_noSubjectsDesc': 'এই শ্ৰেণীৰ বিষয়বোৰ শীঘ্ৰে ইয়াত দেখা যাব।',
+    'category_errorTitle': 'বিষয়বোৰ লোড কৰিব পৰা নগ\'ল',
+    'category_errorDesc': 'অনুগ্ৰহ কৰি আপোনাৰ ইন্টাৰনেট সংযোগ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।',
+    'dailyQuiz_emptyTitle': 'এতিয়াও কোনো দৈনিক কুইজ উপলব্ধ নহয়',
+    'dailyQuiz_emptyDesc': 'নতুন কুইজৰ বাবে শীঘ্ৰে আকৌ আহক!',
+    'dailyQuiz_errorTitle': 'দৈনিক কুইজ লোড কৰিব পৰা নগ\'ল',
+    'dailyQuiz_errorDesc': 'অনুগ্ৰহ কৰি পিছত পুনৰ চেষ্টা কৰক।',
   };
 }

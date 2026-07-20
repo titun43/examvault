@@ -12,6 +12,7 @@ import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/weekly_streak_indicator.dart';
 import 'take_test_screen.dart';
 
@@ -175,56 +176,19 @@ class DailyQuizScreen extends StatelessWidget {
   }
 
   Widget _buildEmptyState(BuildContext context, bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 64,
-              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No daily quizzes available yet.\nCheck back soon!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.calendar_today,
+      l10nTitleKey: 'dailyQuiz_emptyTitle',
+      l10nDescKey: 'dailyQuiz_emptyDesc',
     );
   }
 
   Widget _buildErrorState(BuildContext context, bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_off,
-              size: 64,
-              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Could not load daily quizzes.\nPlease try again later.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const EmptyState(
+      icon: Icons.cloud_off,
+      l10nTitleKey: 'dailyQuiz_errorTitle',
+      l10nDescKey: 'dailyQuiz_errorDesc',
+      iconColor: AppTheme.errorColor,
     );
   }
 }
