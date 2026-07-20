@@ -452,6 +452,9 @@ class _TestListScreenState extends State<TestListScreen> {
                 categoryName: categoryName,
                 gradient: heroGradient,
                 testCount: allTests.length,
+                subjectHeroTag: subject != null && subject.id.isNotEmpty
+                    ? 'subject-icon-${subject.id}'
+                    : null,
               ),
 
               // ==================== SUBJECT-PACK BANNER ====================
@@ -512,6 +515,7 @@ class _TestListScreenState extends State<TestListScreen> {
     required String? categoryName,
     required List<Color> gradient,
     required int testCount,
+    String? subjectHeroTag,
   }) {
     // Show the category chip ONLY when categoryId exactly matches a known
     // category key — otherwise we'd be showing a slug or Firestore id.
@@ -583,22 +587,15 @@ class _TestListScreenState extends State<TestListScreen> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.25),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusLg),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.35),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(icon, style: const TextStyle(fontSize: 28)),
-                        ),
-                      ),
+                      // Subject icon — wrapped in Hero (when a subject is
+                      // present) so it receives the flying icon from the
+                      // subject_detail / category_detail screen.
+                      subjectHeroTag != null
+                          ? Hero(
+                              tag: subjectHeroTag,
+                              child: _subjectIconTile(icon),
+                            )
+                          : _subjectIconTile(icon),
                       const SizedBox(width: AppTheme.spaceMd),
                       Expanded(
                         child: Column(
@@ -638,6 +635,26 @@ class _TestListScreenState extends State<TestListScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Builds the subject-icon tile used in the hero header. Extracted so it
+  /// can be shared between the plain (no-Hero) and Hero-wrapped variants.
+  Widget _subjectIconTile(String icon) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.35),
+          width: 1.5,
+        ),
+      ),
+      child: Center(
+        child: Text(icon, style: const TextStyle(fontSize: 28)),
       ),
     );
   }
@@ -1038,16 +1055,24 @@ class _TestListScreenState extends State<TestListScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                test.title,
-                                style: AppFonts.style(
-                                  size: 16,
-                                  weight: FontWeight.w700,
-                                  color: titleColor,
-                                  height: 1.25,
+                              // Test title — wrapped in Hero so it flies to
+                              // TakeTestScreen's AppBar on tap.
+                              Hero(
+                                tag: 'test-title-${test.id}',
+                                child: Material(
+                                  type: MaterialType.transparency,
+                                  child: Text(
+                                    test.title,
+                                    style: AppFonts.style(
+                                      size: 16,
+                                      weight: FontWeight.w700,
+                                      color: titleColor,
+                                      height: 1.25,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 6),
                               Wrap(

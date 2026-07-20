@@ -1059,27 +1059,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Category-tinted icon tile (gradient tint).
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            color.withOpacity(0.18),
-                            color.withOpacity(0.08),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    // Wrapped in Hero so it flies to CategoryDetailScreen's
+                    // header on tap (tag: 'category-icon-<id>').
+                    Hero(
+                      tag: 'category-icon-${category.id}',
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              color.withOpacity(0.18),
+                              color.withOpacity(0.08),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusMd),
+                          border: Border.all(
+                              color: color.withOpacity(0.15), width: 1),
                         ),
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMd),
-                        border: Border.all(
-                            color: color.withOpacity(0.15), width: 1),
-                      ),
-                      child: Center(
-                        child: Text(
-                          category.icon ?? '📚',
-                          style: const TextStyle(fontSize: 24),
+                        child: Center(
+                          child: Text(
+                            category.icon ?? '📚',
+                            style: const TextStyle(fontSize: 24),
+                          ),
                         ),
                       ),
                     ),

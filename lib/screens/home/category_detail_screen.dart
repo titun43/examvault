@@ -360,19 +360,24 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               children: [
                 Row(
                   children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.35), width: 1.5),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _liveCategory.icon ?? '📚',
-                          style: const TextStyle(fontSize: 32),
+                    // Category icon — wrapped in Hero so it receives the
+                    // flying icon from the home screen's category card.
+                    Hero(
+                      tag: 'category-icon-${_liveCategory.id}',
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                          border: Border.all(
+                              color: Colors.white.withOpacity(0.35), width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _liveCategory.icon ?? '📚',
+                            style: const TextStyle(fontSize: 32),
+                          ),
                         ),
                       ),
                     ),
@@ -794,18 +799,23 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               padding: const EdgeInsets.all(AppTheme.spaceLg),
               child: Row(
                 children: [
-                  // Icon tile — category-colored
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: categoryColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                    ),
-                    child: Center(
-                      child: Text(
-                        subject.icon ?? '📚',
-                        style: const TextStyle(fontSize: 28),
+                  // Icon tile — category-colored.
+                  // Wrapped in Hero so it flies to SubjectDetailScreen's
+                  // header on tap (tag: 'subject-icon-<id>').
+                  Hero(
+                    tag: 'subject-icon-${subject.id}',
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: categoryColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                      ),
+                      child: Center(
+                        child: Text(
+                          subject.icon ?? '📚',
+                          style: const TextStyle(fontSize: 28),
+                        ),
                       ),
                     ),
                   ),

@@ -133,19 +133,25 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Container(
-                              width: 64,
-                              height: 64,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.25),
-                                borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                                border: Border.all(
-                                    color: Colors.white.withOpacity(0.35), width: 1.5),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  subject.icon ?? '📚',
-                                  style: const TextStyle(fontSize: 32),
+                            // Subject icon — wrapped in Hero so it receives
+                            // the flying icon from CategoryDetailScreen's
+                            // subject card (tag: 'subject-icon-<id>').
+                            Hero(
+                              tag: 'subject-icon-${subject.id}',
+                              child: Container(
+                                width: 64,
+                                height: 64,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.25),
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                                  border: Border.all(
+                                      color: Colors.white.withOpacity(0.35), width: 1.5),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    subject.icon ?? '📚',
+                                    style: const TextStyle(fontSize: 32),
+                                  ),
                                 ),
                               ),
                             ),

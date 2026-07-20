@@ -1020,12 +1020,18 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           backgroundColor: AppTheme.primaryColor,
           foregroundColor: Colors.white,
           iconTheme: const IconThemeData(color: Colors.white),
-          title: Text(
-            widget.test.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppFonts.style(
-                size: 18, weight: FontWeight.w600, color: Colors.white),
+          title: Hero(
+            tag: 'test-title-${widget.test.id}',
+            child: Material(
+              type: MaterialType.transparency,
+              child: Text(
+                widget.test.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppFonts.style(
+                    size: 18, weight: FontWeight.w600, color: Colors.white),
+              ),
+            ),
           ),
           actions: [
             Center(
