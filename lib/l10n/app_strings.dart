@@ -280,6 +280,14 @@ class AppStrings {
     'material_premiumDesc':
         '"{title}" is a premium study material. Upgrade to ExamVault Premium to access all papers, notes, and syllabi.',
     'material_pagesSuffix': 'pages',
+    'material_typePreviousPaper': 'Previous Papers',
+    'material_typeNotes': 'Study Notes',
+    'material_typeSyllabus': 'Syllabus',
+    'material_pluralPreviousPaper': 'Papers',
+    'material_pluralNotes': 'Notes',
+    'material_pluralSyllabus': 'Syllabi',
+    'material_stale': 'Showing cached content — reconnect to refresh.',
+    'material_emptyTitle': 'No {type} available yet',
   };
 
   static const Map<String, String> assamese = {
@@ -548,5 +556,13 @@ class AppStrings {
     'material_premiumDesc':
         '"{title}" এটা প্ৰিমিয়াম অধ্যয়ন সামগ্ৰী। সকলো প্ৰশ্নপত্ৰ, টোকা আৰু পাঠ্যক্ৰম এক্সেছ কৰিবলৈ ExamVault প্ৰিমিয়ামলৈ আপগ্ৰেড কৰক।',
     'material_pagesSuffix': 'পৃষ্ঠা',
+    'material_typePreviousPaper': 'আগৰ প্ৰশ্নপত্ৰ',
+    'material_typeNotes': 'অধ্যয়ন টোকা',
+    'material_typeSyllabus': 'পাঠ্যক্ৰম',
+    'material_pluralPreviousPaper': 'প্ৰশ্নপত্ৰ',
+    'material_pluralNotes': 'টোকা',
+    'material_pluralSyllabus': 'পাঠ্যক্ৰম',
+    'material_stale': 'কেশ্বড সামগ্ৰী দেখুওৱা হৈছে — ৰিফ্ৰেশ কৰিবলৈ সংযোগ কৰক।',
+    'material_emptyTitle': 'এতিয়াও কোনো {type} উপলব্ধ নহয়',
   };
 }

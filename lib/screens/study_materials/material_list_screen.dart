@@ -53,7 +53,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         title: Text(
-          type.label,
+          _localizedTypeLabel(type),
           style: AppFonts.style(
             size: 18,
             weight: FontWeight.w600,
@@ -150,7 +150,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  '${widget.type.emoji} ${widget.type.label}',
+                  '${widget.type.emoji} ${_localizedTypeLabel(widget.type)}',
                   style: AppFonts.style(
                     size: 13,
                     color: Theme.of(context)
@@ -479,6 +479,30 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     }
   }
 
+  /// Bilingual label for a material type (used in the AppBar + header).
+  String _localizedTypeLabel(StudyMaterialType type) {
+    switch (type) {
+      case StudyMaterialType.previousPaper:
+        return tr(context, 'material_typePreviousPaper');
+      case StudyMaterialType.notes:
+        return tr(context, 'material_typeNotes');
+      case StudyMaterialType.syllabus:
+        return tr(context, 'material_typeSyllabus');
+    }
+  }
+
+  /// Bilingual plural label for a material type (used in the empty state).
+  String _localizedPluralLabel(StudyMaterialType type) {
+    switch (type) {
+      case StudyMaterialType.previousPaper:
+        return tr(context, 'material_pluralPreviousPaper');
+      case StudyMaterialType.notes:
+        return tr(context, 'material_pluralNotes');
+      case StudyMaterialType.syllabus:
+        return tr(context, 'material_pluralSyllabus');
+    }
+  }
+
   Widget _buildShimmerList() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final baseColor = isDark ? Colors.white12 : Colors.grey.shade300;
@@ -559,7 +583,8 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
             ),
             SizedBox(height: AppTheme.spaceLg),
             Text(
-              'No ${widget.type.pluralLabel} available yet',
+              tr(context, 'material_emptyTitle').replaceAll(
+                  '{type}', _localizedPluralLabel(widget.type)),
               style: AppFonts.style(
                 size: 16,
                 weight: FontWeight.w600,
@@ -725,7 +750,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: L10nText(
-                'leaderboard_stale',
+                'material_stale',
                 style: AppFonts.style(
                   color: Colors.white,
                   size: 12,

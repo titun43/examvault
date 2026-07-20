@@ -22,8 +22,8 @@
 //     (exit_title / exit_confirm / cancel / exit_button), error-color FilledButton.
 //   - flutter_animate entrance (fadeIn + slideY) for the bottom nav so it
 //     slides up into place on first paint.
-//   - PopScope / onPopInvoked preserved as-is (deprecation noted in task;
-//     modernizing visuals only, not lifecycle).
+//   - PopScope.onPopInvoked upgraded to onPopInvokedWithResult (newer Flutter
+//     API) to silence the deprecation warning.
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -131,14 +131,11 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     // PopScope intercepts the Android system back button.
-    // canPop:false prevents immediate pop; onPopInvoked fires so we can show
-    // the exit confirmation dialog instead of instantly quitting.
-    //
-    // NOTE: onPopInvoked is deprecated in newer Flutter; the task explicitly
-    // says to leave it as-is for now (modernize visuals only).
+    // canPop:false prevents immediate pop; onPopInvokedWithResult fires so we
+    // can show the exit confirmation dialog instead of instantly quitting.
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           _showExitDialog();
         }
