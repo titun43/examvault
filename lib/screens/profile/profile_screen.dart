@@ -26,6 +26,7 @@ import 'settings_screen.dart';
 import 'test_history_screen.dart';
 import 'bookmarks_screen.dart';
 import 'edit_profile_screen.dart';
+import '../onboarding/category_selection_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -412,6 +413,20 @@ class ProfileScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const BookmarksScreen()),
+                );
+              },
+            ),
+            _buildMenuTile(
+              context,
+              Icons.tune,
+              'My Categories',
+              null,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          const CategorySelectionScreen(isOnboarding: false)),
                 );
               },
             ),

@@ -47,6 +47,8 @@ import '../profile/bookmarks_screen.dart';
 import '../search/search_screen.dart';
 import 'all_subjects_screen.dart';
 import 'all_categories_screen.dart';
+import '../../services/category_preference_service.dart';
+import '../onboarding/category_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -58,6 +60,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   /// Cached category list for resolving authoritative category IDs in subject cards.
   List<CategoryModel> _categories = [];
+  /// Category IDs the user picked in onboarding/Profile > My Categories.
+  /// Empty means "no filter — show everything" (same as before this feature).
+  List<String> _selectedCategoryIds = [];
   /// True once the first batch of categories has arrived from Firestore.
   /// Used to decide whether to show shimmer or the real grid.
   bool _categoriesLoaded = false;
@@ -106,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _subjectsStream = FirestoreService.getSubjectsStream();
     _upcomingExamsStream = FirestoreService.getUpcomingExamsStream(limit: 3);
     _currentAffairsStream = FirestoreService.getCurrentAffairsStream(limit: 3);
+    _loadSelectedCategoryIds();
     // Single subscription for categories. The grid reads _categories directly,
     // so there is no StreamBuilder double-listening.
     //
@@ -946,6 +952,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _loadSelectedCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    setState(() => _selectedCategoryIds = ids);
+  }
+
+  Future<void> _openManageCategories() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategorySelectionScreen(isOnboarding: false),
+      ),
+    );
+    if (changed == true) {
+      _loadSelectedCategoryIds();
+    }
+  }
+
+  /// _categories filtered down to the user's selection. Falls back to the
+  /// full list when nothing is selected (guest/skip) — this feature only
+  /// narrows the view, it never hides categories the user hasn't chosen to
+  /// filter by.
+  List<CategoryModel> get _displayedCategories {
+    if (_selectedCategoryIds.isEmpty) return _categories;
+    final filtered = _categories
+        .where((c) => _selectedCategoryIds.contains(c.id))
+        .toList();
+    // If the saved IDs no longer match any live category (deleted by admin),
+    // don't show an empty grid — fall back to everything.
+    return filtered.isEmpty ? _categories : filtered;
+  }
+
   Widget _buildCategoriesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -961,24 +1000,42 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
-            TextButton(
-              // Navigate to the All Categories screen (full grid of all exam
-              // categories). Previously this opened All Subjects, which was
-              // the wrong destination — users expected more categories.
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const AllCategoriesScreen()),
-                );
-              },
-              child: L10nText(
-                'viewAll',
-                style: AppFonts.style(
-                    size: 13,
-                    weight: FontWeight.w600,
-                    color: AppTheme.primaryColor),
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // "My Categories" — lets the user revisit their onboarding
+                // selection at any time, so the filter below isn't permanent.
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(Icons.tune,
+                      size: 20,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.6)),
+                  tooltip: 'My Categories',
+                  onPressed: _openManageCategories,
+                ),
+                TextButton(
+                  // Navigate to the All Categories screen (full grid of all exam
+                  // categories). Previously this opened All Subjects, which was
+                  // the wrong destination — users expected more categories.
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AllCategoriesScreen()),
+                    );
+                  },
+                  child: L10nText(
+                    'viewAll',
+                    style: AppFonts.style(
+                        size: 13,
+                        weight: FontWeight.w600,
+                        color: AppTheme.primaryColor),
+                  ),
+                ),
+              ],
             ),
           ],
         ).animate().fadeIn(duration: 300.ms),
@@ -1001,9 +1058,9 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisSpacing: AppTheme.spaceMd,
               childAspectRatio: 0.82,
             ),
-            itemCount: _categories.length,
+            itemCount: _displayedCategories.length,
             itemBuilder: (context, index) {
-              return _buildCategoryCard(_categories[index])
+              return _buildCategoryCard(_displayedCategories[index])
                   .animate()
                   .fadeIn(delay: (120 + index * 50).ms, duration: 400.ms)
                   .slideY(begin: 0.08);

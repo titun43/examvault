@@ -39,6 +39,8 @@ import '../l10n/app_localizations.dart';
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../admin/admin_dashboard.dart';
+import '../services/category_preference_service.dart';
+import 'onboarding/category_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -158,11 +160,24 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     if (!mounted) return;
+
+    // First-run category picker: shown once per device (flag lives in
+    // SharedPreferences), before MainNavigation. Applies to guests and
+    // regular users alike; admins go straight to AdminDashboard as before.
+    Widget resolvedDest = dest;
+    if (dest is MainNavigation) {
+      final onboarded = await CategoryPreferenceService.hasCompletedOnboarding();
+      if (!onboarded) {
+        resolvedDest = const CategorySelectionScreen();
+      }
+    }
+    if (!mounted) return;
+
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            _BannerActionRunner(child: dest, action: tappedAction),
+            _BannerActionRunner(child: resolvedDest, action: tappedAction),
       ),
     );
   }
