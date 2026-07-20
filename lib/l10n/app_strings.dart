@@ -55,6 +55,26 @@ class AppStrings {
     'home_streak': 'Day Streak',
     'home_continueLearning': 'Continue Learning',
     'home_exploreExams': 'Explore Exams',
+    // Home Screen — Phase 3.1 modernization additions
+    'home_guestMsg':
+        'Browsing as guest. Sign in to unlock premium tests & save progress.',
+    'home_signIn': 'Sign In',
+    'home_quickMock': 'Mock Tests',
+    'home_quickUpcoming': 'Upcoming',
+    'home_quickBookmarks': 'Bookmarks',
+    'home_apply': 'Apply',
+    'home_important': 'Important',
+    'home_updates': 'Updates',
+    'home_premiumHeadline': 'Unlock ExamVault Premium',
+    'home_premiumCta': 'Upgrade Now',
+    'home_premiumSubtitle2':
+        'Get unlimited tests, detailed solutions & more',
+    'home_noCategories': 'No categories available',
+    'home_noSubjects': 'No subjects available yet',
+    'home_noUpcoming': 'No upcoming exams scheduled',
+    'home_noCurrentAffairs': 'No current affairs available',
+    'home_days': 'days',
+    'home_daysAgo': 'days ago',
 
     // Category / Subjects
     'category_subjects': 'Subjects',
@@ -276,6 +296,26 @@ class AppStrings {
     'home_streak': 'দিনৰ ধাৰাবাহিকতা',
     'home_continueLearning': 'শিক্ষা আগবঢ়াওক',
     'home_exploreExams': 'পৰীক্ষা চাওক',
+    // Home Screen — Phase 3.1 modernization additions
+    'home_guestMsg':
+        'অতিথি হিচাপে ব্ৰাউজ কৰি আছে। প্ৰিমিয়াম পৰীক্ষা আনলক কৰিবলৈ আৰু অগ্ৰগতি সংৰক্ষণ কৰিবলৈ চাইন ইন কৰক।',
+    'home_signIn': 'চাইন ইন কৰক',
+    'home_quickMock': 'মক টেষ্ট',
+    'home_quickUpcoming': 'আগন্তুক',
+    'home_quickBookmarks': 'বুকমাৰ্ক',
+    'home_apply': 'আবেদন',
+    'home_important': 'গুৰুত্বপূৰ্ণ',
+    'home_updates': 'আপডেট',
+    'home_premiumHeadline': 'ExamVault প্ৰিমিয়াম আনলক কৰক',
+    'home_premiumCta': 'এতিয়া আপগ্ৰেড কৰক',
+    'home_premiumSubtitle2':
+        'আনলিমিটেড পৰীক্ষা, বিস্তৃত সমাধান আৰু অধিক পাওক',
+    'home_noCategories': 'কোনো শিতান উপলব্ধ নাই',
+    'home_noSubjects': 'এতিয়ালৈকে কোনো বিষয় নাই',
+    'home_noUpcoming': 'কোনো আগন্তুক পৰীক্ষা নিৰ্ধাৰিত নহয়',
+    'home_noCurrentAffairs': 'কোনো সাম্প্ৰতিক ঘটনা উপলব্ধ নাই',
+    'home_days': 'দিন',
+    'home_daysAgo': 'দিন আগতে',
 
     // Category / Subjects
     'category_subjects': 'বিষয়সমূহ',

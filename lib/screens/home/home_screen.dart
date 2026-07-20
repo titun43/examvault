@@ -7,11 +7,14 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../models/category_model.dart';
@@ -186,26 +189,42 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // Brand emerald AppBar — gives the first screen a strong identity.
+        // Previously the AppBar used the default theme background (light stone)
+        // while the icons/title were hardcoded white, which made them invisible.
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(AppTheme.spaceSm),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
               ),
-              child: const Icon(Icons.school, color: Colors.white),
+              child: const Icon(Icons.school_rounded,
+                  color: Colors.white, size: 20),
             ),
-            const SizedBox(width: 12),
-            const Text('ExamVault'),
+            const SizedBox(width: AppTheme.spaceMd),
+            Text(
+              'ExamVault',
+              style: AppFonts.style(
+                size: 20,
+                weight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: 0.2,
+              ),
+            ),
           ],
         ),
         actions: [
           // Global search — opens a full-screen SearchScreen that searches
           // across categories, subjects, tests and current affairs.
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            tooltip: 'Search',
+            icon: const Icon(Icons.search_rounded, color: Colors.white),
+            tooltip: tr(context, 'search'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -227,7 +246,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+            tooltip: tr(context, 'settings_notifications'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -244,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppTheme.spaceLg),
           // RepaintBoundary isolates the scrollable content's layer so that
           // repainting during scroll doesn't bleed into the AppBar / bottom
           // nav. This reduces the visible "flash" the user reported when
@@ -254,23 +274,23 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildBannerCarousel(),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppTheme.spaceLg),
               _buildGuestBanner(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildQuickActions(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildAnnouncementsTicker(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildCategoriesSection(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildPopularSubjects(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildUpcomingExamsPreview(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildCurrentAffairs(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
               _buildPremiumBanner(),
-              const SizedBox(height: 24),
+              const SizedBox(height: AppTheme.spaceXl),
             ],
           ),
           ),  // RepaintBoundary
@@ -364,17 +384,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Container(
                       margin: const EdgeInsets.symmetric(horizontal: 2),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                        boxShadow: AppTheme.softShadow2,
                       ),
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
@@ -414,10 +428,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               left: 10,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                    horizontal: AppTheme.spaceSm, vertical: AppTheme.spaceXs),
                                 decoration: BoxDecoration(
                                   color: Colors.red.withOpacity(0.9),
-                                  borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(AppTheme.radiusSm + 2),
                                   boxShadow: [
                                     BoxShadow(
                                       color: Colors.red.withOpacity(0.4),
@@ -437,13 +451,13 @@ class _HomeScreenState extends State<HomeScreen> {
                                         shape: BoxShape.circle,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    const Text(
+                                    const SizedBox(width: AppTheme.spaceXs),
+                                    Text(
                                       'LIVE',
-                                      style: TextStyle(
+                                      style: AppFonts.style(
                                         color: Colors.white,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
+                                        size: 9,
+                                        weight: FontWeight.w800,
                                         letterSpacing: 0.5,
                                       ),
                                     ),
@@ -466,10 +480,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 children: [
                                   Text(
                                     b.title,
-                                    style: const TextStyle(
+                                    style: AppFonts.style(
                                       color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
+                                      size: 16,
+                                      weight: FontWeight.w700,
+                                      height: 1.25,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -478,9 +493,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       b.subtitle!,
-                                      style: TextStyle(
+                                      style: AppFonts.style(
                                         color: Colors.white.withOpacity(0.9),
-                                        fontSize: 11,
+                                        size: 11,
+                                        height: 1.3,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -488,7 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ],
                                   if (b.primaryButton != null ||
                                       b.secondaryButton != null) ...[
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: AppTheme.spaceSm),
                                     Row(
                                       children: [
                                         if (b.primaryButton != null &&
@@ -504,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             b.primaryButton!.isSet &&
                                             b.secondaryButton != null &&
                                             b.secondaryButton!.isSet) ...[
-                                          const SizedBox(width: 8),
+                                          const SizedBox(width: AppTheme.spaceSm),
                                           Expanded(
                                             child: _buildBannerButton(
                                               context,
@@ -538,7 +554,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppTheme.spaceSm),
             // Page indicator
             if (banners.length > 1)
               Row(
@@ -552,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 6,
                     decoration: BoxDecoration(
                       color: isActive ? AppTheme.primaryColor : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                   );
                 }),
@@ -589,9 +605,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+            style: AppFonts.style(
+              size: 11,
+              weight: FontWeight.w700,
               color: isPrimary ? AppTheme.primaryColor : Colors.white,
             ),
           ),
@@ -608,27 +624,45 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildGuestBanner() {
     final auth = Provider.of<AuthProvider>(context);
     if (!auth.isGuest) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceMd),
       decoration: BoxDecoration(
         color: AppTheme.accentColor.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
         border: Border.all(color: AppTheme.accentColor.withOpacity(0.4)),
+        boxShadow: AppTheme.softShadow1,
       ),
       child: Row(
         children: [
-          const Icon(Icons.person_outline, size: 20, color: AppTheme.accentColor),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'Browsing as guest. Sign in to unlock premium tests & save progress.',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppTheme.accentColor.withOpacity(0.18),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.person_outline_rounded,
+                size: 18, color: AppTheme.accentColor),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
+          Expanded(
+            child: L10nText(
+              'home_guestMsg',
+              style: AppFonts.style(
+                size: 12,
+                weight: FontWeight.w500,
+                color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
+                height: 1.4,
+              ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppTheme.spaceSm),
           TextButton(
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceXs),
               minimumSize: const Size(0, 28),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               foregroundColor: AppTheme.accentColor,
@@ -639,21 +673,60 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
               );
             },
-            child: const Text('Sign In',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            child: L10nText(
+              'home_signIn',
+              style: AppFonts.style(
+                  size: 12,
+                  weight: FontWeight.w700,
+                  color: AppTheme.accentColor),
+            ),
           ),
         ],
       ),
-    );
+    )
+        .animate()
+        .fadeIn(duration: 400.ms)
+        .slideY(begin: 0.1);
   }
 
   Widget _buildQuickActions() {
+    // Curated palette aligned with the Assam theme — NO raw color literals.
+    // Daily Quiz  → amber (accentColor)
+    // Mock Tests  → emerald (primaryColor)
+    // Upcoming    → success green
+    // Current Affairs → violet (category accent — not a brand color)
+    // Bookmarks   → warning orange
     final actions = [
-      {'icon': Icons.quiz, 'label': 'Daily Quiz', 'color': const Color(0xFFFF6F00)},
-      {'icon': Icons.assignment, 'label': 'Mock Tests', 'color': AppTheme.primaryColor},
-      {'icon': Icons.event_available, 'label': 'Upcoming', 'color': const Color(0xFF43A047)},
-      {'icon': Icons.newspaper, 'label': 'Current Affairs', 'color': const Color(0xFF8E24AA)},
-      {'icon': Icons.bookmark, 'label': 'Bookmarks', 'color': const Color(0xFFE65100)},
+      _QuickAction(
+        icon: Icons.quiz_rounded,
+        labelKey: 'home_dailyQuiz',
+        color: AppTheme.accentColor,
+        route: _QuickRoute.quiz,
+      ),
+      _QuickAction(
+        icon: Icons.assignment_rounded,
+        labelKey: 'home_quickMock',
+        color: AppTheme.primaryColor,
+        route: _QuickRoute.mock,
+      ),
+      _QuickAction(
+        icon: Icons.event_available_rounded,
+        labelKey: 'home_quickUpcoming',
+        color: AppTheme.successColor,
+        route: _QuickRoute.upcoming,
+      ),
+      _QuickAction(
+        icon: Icons.newspaper_rounded,
+        labelKey: 'home_currentAffairs',
+        color: const Color(0xFF7C3AED), // Violet 600 — category accent
+        route: _QuickRoute.current,
+      ),
+      _QuickAction(
+        icon: Icons.bookmark_rounded,
+        labelKey: 'home_quickBookmarks',
+        color: AppTheme.warningColor,
+        route: _QuickRoute.bookmarks,
+      ),
     ];
 
     return GridView.builder(
@@ -661,79 +734,102 @@ class _HomeScreenState extends State<HomeScreen> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 5,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisSpacing: AppTheme.spaceSm,
+        crossAxisSpacing: AppTheme.spaceSm,
         childAspectRatio: 0.78,
       ),
       itemCount: actions.length,
       itemBuilder: (context, index) {
         final action = actions[index];
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {
-            final label = action['label'] as String;
-            if (label == 'Daily Quiz') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
-            } else if (label == 'Mock Tests') {
-              // Open the Test Series screen so users can browse ALL test
-              // types (Mock, Previous Year, Daily Quiz, Practice, Subject-wise)
-              // — not just upcoming exams. Previously the home screen had no
-              // direct entry to mock tests, so users only saw upcoming exams
-              // and previous-year papers in the app.
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const TestSeriesScreen()));
-            } else if (label == 'Current Affairs') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
-            } else if (label == 'Upcoming') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
-            } else if (label == 'Bookmarks') {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const BookmarksScreen()));
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: (action['color'] as Color).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    action['icon'] as IconData,
-                    color: action['color'] as Color,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  action['label'] as String,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        );
+        return _buildQuickActionCard(action)
+            .animate()
+            .fadeIn(delay: (80 + index * 40).ms, duration: 350.ms)
+            .slideY(begin: 0.12);
       },
     );
+  }
+
+  Widget _buildQuickActionCard(_QuickAction action) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _navigateQuickAction(action.route),
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spaceSm),
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkCardColor : Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.softShadow1,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              padding: const EdgeInsets.all(AppTheme.spaceSm),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    action.color.withOpacity(0.18),
+                    action.color.withOpacity(0.08),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: Icon(
+                action.icon,
+                color: action.color,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spaceXs + 2),
+            L10nText(
+              action.labelKey,
+              style: AppFonts.style(
+                size: 10,
+                weight: FontWeight.w600,
+                color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
+                height: 1.2,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateQuickAction(_QuickRoute route) {
+    switch (route) {
+      case _QuickRoute.quiz:
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const DailyQuizScreen()));
+        break;
+      case _QuickRoute.mock:
+        // Open the Test Series screen so users can browse ALL test types
+        // (Mock, Previous Year, Daily Quiz, Practice, Subject-wise) — not
+        // just upcoming exams.
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const TestSeriesScreen()));
+        break;
+      case _QuickRoute.current:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()));
+        break;
+      case _QuickRoute.upcoming:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
+        break;
+      case _QuickRoute.bookmarks:
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const BookmarksScreen()));
+        break;
+    }
   }
 
   // ==================== ANNOUNCEMENTS TICKER ====================
@@ -752,21 +848,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(builder: (_) => const AnnouncementsScreen()));
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceSm + 2),
             decoration: BoxDecoration(
               color: AppTheme.primaryColor.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border:
+                  Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+              boxShadow: AppTheme.softShadow1,
             ),
             child: Row(
               children: [
                 // LIVE pulsing badge — the "live" indicator the user saw in
                 // the admin preview but was missing in the user app.
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: AppTheme.spaceXs - 1),
                   decoration: BoxDecoration(
                     color: Colors.red,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius:
+                        BorderRadius.circular(AppTheme.radiusSm - 2),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.red.withOpacity(0.4),
@@ -786,53 +887,60 @@ class _HomeScreenState extends State<HomeScreen> {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 3),
-                      const Text(
+                      const SizedBox(width: AppTheme.spaceXs - 1),
+                      Text(
                         'LIVE',
-                        style: TextStyle(
+                        style: AppFonts.style(
                           color: Colors.white,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
+                          size: 9,
+                          weight: FontWeight.w800,
                           letterSpacing: 0.5,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppTheme.spaceSm),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm, vertical: AppTheme.spaceXs),
                   decoration: BoxDecoration(
                     color: AppTheme.primaryColor,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius:
+                        BorderRadius.circular(AppTheme.radiusSm - 2),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.campaign, color: Colors.white, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'Updates',
-                        style: TextStyle(
+                      const Icon(Icons.campaign_rounded,
+                          color: Colors.white, size: 14),
+                      const SizedBox(width: AppTheme.spaceXs),
+                      L10nText(
+                        'home_updates',
+                        style: AppFonts.style(
                           color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          size: 11,
+                          weight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppTheme.spaceSm + 2),
                 Expanded(
                   child: _MarqueeText(
                     texts: list.map((a) => a.title).toList(),
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppTheme.primaryColor, size: 18),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppTheme.primaryColor, size: 18),
               ],
             ),
           ),
-        );
+        )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .slideY(begin: 0.06);
       },
     );
   }
@@ -844,11 +952,12 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Exam Categories',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+            L10nText(
+              'home_categories',
+              style: AppFonts.style(
+                size: 18,
+                weight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             TextButton(
@@ -862,11 +971,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       builder: (_) => const AllCategoriesScreen()),
                 );
               },
-              child: const Text('View All'),
+              child: L10nText(
+                'viewAll',
+                style: AppFonts.style(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppTheme.primaryColor),
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: AppTheme.spaceMd),
         // _categories is kept fresh by _categoriesSub in initState.
         // No StreamBuilder here — having both a subscription AND a StreamBuilder
         // created two Firestore listeners and caused every update to rebuild
@@ -874,20 +989,23 @@ class _HomeScreenState extends State<HomeScreen> {
         if (!_categoriesLoaded)
           _buildShimmerGrid()
         else if (_categories.isEmpty)
-          _buildSectionEmpty('No categories available')
+          _buildSectionEmpty(tr(context, 'home_noCategories'))
         else
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.85,
+              mainAxisSpacing: AppTheme.spaceMd,
+              crossAxisSpacing: AppTheme.spaceMd,
+              childAspectRatio: 0.82,
             ),
             itemCount: _categories.length,
             itemBuilder: (context, index) {
-              return _buildCategoryCard(_categories[index]);
+              return _buildCategoryCard(_categories[index])
+                  .animate()
+                  .fadeIn(delay: (120 + index * 50).ms, duration: 400.ms)
+                  .slideY(begin: 0.08);
             },
           ),
       ],
@@ -895,7 +1013,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCategoryCard(CategoryModel category) {
-    final color = AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor;
+    // Per-category color + gradient — gives each exam its own signature look.
+    final color = AppTheme.colorFor(category.name);
     // Use Selector so only the lock state (a single bool) is watched from
     // AuthProvider. Without this, EVERY notifyListeners() call (including
     // unrelated auth events) would rebuild every category card in the grid,
@@ -904,6 +1023,7 @@ class _HomeScreenState extends State<HomeScreen> {
       selector: (_, auth) =>
           category.isPremium && !auth.hasCategoryAccess(category.id),
       builder: (context, categoryLocked, _) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return GestureDetector(
           // CRITICAL: opaque hit-testing so taps register anywhere on the
           // card — not just on painted pixels. Without this, transparent
@@ -927,27 +1047,34 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Stack(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppTheme.spaceMd),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  color: isDark ? AppTheme.darkCardColor : Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                  boxShadow: AppTheme.softShadow2,
+                  border: Border.all(
+                      color: color.withOpacity(0.08), width: 1),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Category-tinted icon tile (gradient tint).
                     Container(
-                      width: 50,
-                      height: 50,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
-                        color: color.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(25),
+                        gradient: LinearGradient(
+                          colors: [
+                            color.withOpacity(0.18),
+                            color.withOpacity(0.08),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusMd),
+                        border: Border.all(
+                            color: color.withOpacity(0.15), width: 1),
                       ),
                       child: Center(
                         child: Text(
@@ -956,21 +1083,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppTheme.spaceSm),
                     // Fixed-height name block so every card looks the SAME
                     // size regardless of name length. Short names ("LIC",
                     // "SSC") center in the 32px box; long names ("Maharashtra",
                     // "Assam APSC") wrap to 2 lines and clip with ellipsis.
-                    // Previously, short names were 1 line and long names were
-                    // 2 lines, making the cards look "some big some small".
                     SizedBox(
                       height: 32,
                       child: Center(
                         child: Text(
                           category.name,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                          style: AppFonts.style(
+                            size: 12,
+                            weight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.2,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 2,
@@ -978,22 +1105,33 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${category.subjectCount} Subjects',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade600,
+                    const SizedBox(height: AppTheme.spaceXs),
+                    // Subject-count badge with category tint.
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spaceSm, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusFull),
+                      ),
+                      child: Text(
+                        '${category.subjectCount} ${tr(context, 'category_subjects')}',
+                        style: AppFonts.style(
+                          size: 10,
+                          weight: FontWeight.w600,
+                          color: color,
+                        ),
                       ),
                     ),
                     // Premium price hint under the subject count for locked cats.
                     if (categoryLocked && category.premiumPrice > 0) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppTheme.spaceXs),
                       Text(
                         '₹${category.premiumPrice}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
+                        style: AppFonts.style(
+                          size: 11,
+                          weight: FontWeight.w700,
                           color: AppTheme.accentColor,
                         ),
                       ),
@@ -1001,23 +1139,42 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              // Crown badge for premium categories (top-right corner).
+              // Crown / lock badge for premium categories (top-right corner).
               if (category.isPremium)
                 Positioned(
-                  top: 6,
-                  right: 6,
+                  top: AppTheme.spaceXs + 2,
+                  right: AppTheme.spaceXs + 2,
                   child: Container(
-                    padding: const EdgeInsets.all(3),
+                    padding: const EdgeInsets.all(AppTheme.spaceXs),
                     decoration: BoxDecoration(
+                      gradient: categoryLocked
+                          ? const LinearGradient(
+                              colors: AppTheme.accentGradientColors)
+                          : null,
                       color: categoryLocked
-                          ? AppTheme.accentColor
+                          ? null
                           : AppTheme.accentColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusSm),
+                      boxShadow: categoryLocked
+                          ? [
+                              BoxShadow(
+                                color: AppTheme.accentColor
+                                    .withOpacity(0.4),
+                                blurRadius: 6,
+                                spreadRadius: 0,
+                              ),
+                            ]
+                          : null,
                     ),
                     child: Icon(
-                      categoryLocked ? Icons.lock : Icons.workspace_premium,
+                      categoryLocked
+                          ? Icons.lock_rounded
+                          : Icons.workspace_premium_rounded,
                       size: 12,
-                      color: categoryLocked ? Colors.white : AppTheme.accentColor,
+                      color: categoryLocked
+                          ? Colors.white
+                          : AppTheme.accentColor,
                     ),
                   ),
                 ),
@@ -1313,9 +1470,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Popular Subjects',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            L10nText(
+              'home_popular',
+              style: AppFonts.style(
+                size: 18,
+                weight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             // Wire up the 'View All' button to the All Subjects screen where
             // the user can browse every subject, filter by category, and search.
@@ -1327,11 +1488,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   MaterialPageRoute(builder: (_) => const AllSubjectsScreen()),
                 );
               },
-              child: const Text('View All'),
+              child: L10nText(
+                'viewAll',
+                style: AppFonts.style(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppTheme.primaryColor),
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: AppTheme.spaceMd),
         StreamBuilder<List<SubjectModel>>(
           stream: _subjectsStream,
           builder: (context, snapshot) {
@@ -1349,12 +1516,16 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
               final subjects = snapshot.data!;
               return SizedBox(
-                height: 160,
+                height: 168,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(right: AppTheme.spaceMd),
                   itemCount: subjects.length,
                   itemBuilder: (context, index) {
-                    return _buildSubjectCard(subjects[index]);
+                    return _buildSubjectCard(subjects[index])
+                        .animate()
+                        .fadeIn(delay: (120 + index * 60).ms, duration: 400.ms)
+                        .slideX(begin: 0.1);
                   },
                 ),
               );
@@ -1367,9 +1538,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // screen — if the subjects stream errors out, the user sees an
             // empty section and thinks "Start Now is not clickable".
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load subjects. Check your connection.');
+              return _buildSectionError(tr(context, 'error_connectionDesc'));
             }
-            return _buildSectionEmpty('No subjects available yet');
+            return _buildSectionEmpty(tr(context, 'home_noSubjects'));
           },
         ),
       ],
@@ -1388,6 +1559,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final authCategoryId = matchedCategory.id.isNotEmpty
         ? matchedCategory.id
         : subject.categoryId;
+    // Category-tinted gradient — falls back to brand emerald when no match.
+    final gradient = matchedCategory.id.isNotEmpty
+        ? AppTheme.gradientFor(matchedCategory.name)
+        : AppTheme.brandGradient;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -1403,11 +1578,16 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Container(
         width: 220,
-        margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(right: AppTheme.spaceMd),
+        padding: const EdgeInsets.all(AppTheme.spaceLg),
         decoration: BoxDecoration(
-          gradient: AppTheme.cardGradient,
-          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: gradient,
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.softShadow2,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1416,26 +1596,36 @@ class _HomeScreenState extends State<HomeScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  width: 40,
+                  height: 40,
+                  padding: const EdgeInsets.all(AppTheme.spaceSm),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.3), width: 1),
                   ),
-                  child: Text(
-                    subject.icon ?? '📚',
-                    style: const TextStyle(fontSize: 20),
+                  child: Center(
+                    child: Text(
+                      subject.icon ?? '📚',
+                      style: const TextStyle(fontSize: 20),
+                    ),
                   ),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm, vertical: AppTheme.spaceXs),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                   ),
                   child: Text(
-                    '${subject.testCount} Tests',
-                    style: const TextStyle(color: Colors.white, fontSize: 10),
+                    '${subject.testCount} ${tr(context, 'subject_tests')}',
+                    style: AppFonts.style(
+                        color: Colors.white,
+                        size: 10,
+                        weight: FontWeight.w700),
                   ),
                 ),
               ],
@@ -1445,20 +1635,22 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Text(
                   subject.name,
-                  style: const TextStyle(
+                  style: AppFonts.style(
                     color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    size: 16,
+                    weight: FontWeight.w700,
+                    height: 1.25,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppTheme.spaceXs),
                 Text(
                   subject.description ?? '',
-                  style: TextStyle(
+                  style: AppFonts.style(
                     color: Colors.white.withOpacity(0.9),
-                    fontSize: 11,
+                    size: 11,
+                    height: 1.4,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -1466,26 +1658,30 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             // "Start Now" CTA — the whole card is tappable, this is a visual
-            // affordance. Fixed-width container so the text never truncates.
+            // affordance. Pill shape with subtle border so it reads as a button.
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceXs + 2),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.25),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                border: Border.all(
+                    color: Colors.white.withOpacity(0.3), width: 1),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Start Now',
-                    style: TextStyle(
+                  L10nText(
+                    'startNow',
+                    style: AppFonts.style(
                       color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      size: 12,
+                      weight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(width: 4),
-                  Icon(Icons.arrow_forward, color: Colors.white, size: 14),
+                  const SizedBox(width: AppTheme.spaceXs),
+                  const Icon(Icons.arrow_forward_rounded,
+                      color: Colors.white, size: 14),
                 ],
               ),
             ),
@@ -1503,20 +1699,30 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Upcoming Exams',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            L10nText(
+              'home_upcoming',
+              style: AppFonts.style(
+                size: 18,
+                weight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             TextButton(
               onPressed: () {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const UpcomingExamsScreen()));
               },
-              child: const Text('View All'),
+              child: L10nText(
+                'viewAll',
+                style: AppFonts.style(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppTheme.primaryColor),
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: AppTheme.spaceMd),
         StreamBuilder<List<UpcomingExamModel>>(
           stream: _upcomingExamsStream,
           builder: (context, snapshot) {
@@ -1524,18 +1730,24 @@ class _HomeScreenState extends State<HomeScreen> {
             // instantly from the Firestore offline cache instead of
             // flashing a shimmer on every stream re-validation.
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final exams = snapshot.data!;
               return Column(
-                children: snapshot.data!.map((e) => _buildUpcomingExamMiniCard(e)).toList(),
+                children: List.generate(exams.length, (i) {
+                  return _buildUpcomingExamMiniCard(exams[i])
+                      .animate()
+                      .fadeIn(delay: (120 + i * 60).ms, duration: 400.ms)
+                      .slideY(begin: 0.05);
+                }),
               );
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load upcoming exams. Check your connection.');
+              return _buildSectionError(tr(context, 'error_connectionDesc'));
             }
             return _buildSectionEmpty(
-              'No upcoming exams scheduled',
+              tr(context, 'home_noUpcoming'),
               onTap: () {
                 Navigator.push(
                     context,
@@ -1552,6 +1764,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildUpcomingExamMiniCard(UpcomingExamModel e) {
     final days = e.daysRemaining;
     final isPast = days < 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Accent color: grey for past, red for ≤30 days, emerald otherwise.
+    final accentColor = isPast
+        ? Colors.grey
+        : days <= 30
+            ? AppTheme.errorColor
+            : AppTheme.primaryColor;
     // Tapping a mini exam card now opens that specific exam's detail page
     // (UpcomingExamDetailScreen) instead of the full "Upcoming Exams" list —
     // so each card is independently clickable. The "View All" header button
@@ -1559,12 +1778,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // visible ripple. The inner "Apply" chip keeps its own GestureDetector so
     // it can launch the URL directly without leaving the home screen.
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceSm + 4),
       child: Material(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? AppTheme.darkCardColor : Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         child: InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           onTap: () {
             Navigator.push(
                 context,
@@ -1573,39 +1792,75 @@ class _HomeScreenState extends State<HomeScreen> {
                         UpcomingExamDetailScreen(exam: e)));
           },
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(AppTheme.spaceMd),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               border: Border(
                 left: BorderSide(
-                  color: isPast
-                      ? Colors.grey
-                      : days <= 30
-                          ? Colors.red
-                          : AppTheme.primaryColor,
+                  color: accentColor,
                   width: 3,
                 ),
               ),
             ),
             child: Row(
               children: [
+                // Calendar-style date badge — day + month abbreviation.
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${e.examDate.day}',
+                        style: AppFonts.style(
+                            size: 16,
+                            weight: FontWeight.w700,
+                            color: accentColor,
+                            height: 1.0),
+                      ),
+                      Text(
+                        _monthName(e.examDate.month),
+                        style: AppFonts.style(
+                            size: 9,
+                            weight: FontWeight.w700,
+                            color: accentColor,
+                            height: 1.0,
+                            letterSpacing: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spaceMd),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         e.name,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
+                        style: AppFonts.style(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            height: 1.25),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${e.examDate.day}/${e.examDate.month}/${e.examDate.year}'
-                        '${e.organization != null && e.organization!.isNotEmpty ? ' • ${e.organization}' : ''}',
-                        style: TextStyle(
-                            fontSize: 11, color: Colors.grey.shade600),
+                        e.organization != null && e.organization!.isNotEmpty
+                            ? e.organization!
+                            : '${e.examDate.day}/${e.examDate.month}/${e.examDate.year}',
+                        style: AppFonts.style(
+                            size: 11,
+                            color: Colors.grey.shade600,
+                            height: 1.3),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
@@ -1616,7 +1871,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // gesture handler, so the chip's GestureDetector wins over the
                 // outer InkWell; tapping anywhere else still opens the list.
                 if (e.applyUrl != null && e.applyUrl!.isNotEmpty) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppTheme.spaceSm),
                   GestureDetector(
                     onTap: () async {
                       final uri = Uri.tryParse(e.applyUrl!);
@@ -1632,21 +1887,24 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
+                          horizontal: AppTheme.spaceSm + 2,
+                          vertical: AppTheme.spaceXs + 2),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryColor,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.open_in_new, size: 12, color: Colors.white),
-                          SizedBox(width: 3),
-                          Text(
-                            'Apply',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                          const Icon(Icons.open_in_new_rounded,
+                              size: 12, color: Colors.white),
+                          const SizedBox(width: 3),
+                          L10nText(
+                            'home_apply',
+                            style: AppFonts.style(
+                              size: 11,
+                              weight: FontWeight.w700,
                               color: Colors.white,
                             ),
                           ),
@@ -1654,28 +1912,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppTheme.spaceSm),
                 ],
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm,
+                      vertical: AppTheme.spaceXs + 1),
                   decoration: BoxDecoration(
-                    color: isPast
-                        ? Colors.grey.shade200
-                        : days <= 30
-                            ? Colors.red.withOpacity(0.1)
-                            : AppTheme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
+                    color: accentColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
                   child: Text(
-                    isPast ? '${-days}d ago' : '$days days',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isPast
-                          ? Colors.grey
-                          : days <= 30
-                              ? Colors.red
-                              : AppTheme.primaryColor,
+                    isPast
+                        ? '${-days} ${tr(context, 'home_daysAgo')}'
+                        : '$days ${tr(context, 'home_days')}',
+                    style: AppFonts.style(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: accentColor,
                     ),
                   ),
                 ),
@@ -1694,9 +1948,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Current Affairs',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            L10nText(
+              'home_currentAffairs',
+              style: AppFonts.style(
+                size: 18,
+                weight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             TextButton(
               onPressed: () {
@@ -1705,11 +1963,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()),
                 );
               },
-              child: const Text('View All'),
+              child: L10nText(
+                'viewAll',
+                style: AppFonts.style(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppTheme.primaryColor),
+              ),
             ),
           ],
-        ),
-        const SizedBox(height: 12),
+        ).animate().fadeIn(duration: 300.ms),
+        const SizedBox(height: AppTheme.spaceMd),
         StreamBuilder<List<CurrentAffairModel>>(
           stream: _currentAffairsStream,
           builder: (context, snapshot) {
@@ -1717,20 +1981,24 @@ class _HomeScreenState extends State<HomeScreen> {
             // instantly from the Firestore offline cache instead of
             // flashing a shimmer on every stream re-validation.
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+              final affairs = snapshot.data!;
               return Column(
-                children: snapshot.data!.map((affair) {
-                  return _buildCurrentAffairCard(affair);
-                }).toList(),
+                children: List.generate(affairs.length, (i) {
+                  return _buildCurrentAffairCard(affairs[i])
+                      .animate()
+                      .fadeIn(delay: (120 + i * 60).ms, duration: 400.ms)
+                      .slideY(begin: 0.05);
+                }),
               );
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildShimmerList();
             }
             if (snapshot.hasError) {
-              return _buildSectionError('Couldn\'t load current affairs. Check your connection.');
+              return _buildSectionError(tr(context, 'error_connectionDesc'));
             }
             return _buildSectionEmpty(
-              'No current affairs available',
+              tr(context, 'home_noCurrentAffairs'),
               onTap: () {
                 Navigator.push(
                     context,
@@ -1745,6 +2013,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCurrentAffairCard(CurrentAffairModel affair) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent =
+        affair.isImportant ? AppTheme.accentColor : AppTheme.primaryColor;
     // Tapping a current-affair card now opens that specific affair's detail
     // page (CurrentAffairDetailScreen) instead of the full list — so each card
     // is independently clickable. "View All" header button still opens the
@@ -1759,80 +2030,104 @@ class _HomeScreenState extends State<HomeScreen> {
                     CurrentAffairDetailScreen(affair: affair)));
       },
       child: Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border(
-          left: BorderSide(
-            color: affair.isImportant ? AppTheme.accentColor : AppTheme.primaryColor,
-            width: 4,
+        margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+        padding: const EdgeInsets.all(AppTheme.spaceLg),
+        decoration: BoxDecoration(
+          color: isDark ? AppTheme.darkCardColor : Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          border: Border(
+            left: BorderSide(
+              color: accent,
+              width: 4,
+            ),
           ),
+          boxShadow: AppTheme.softShadow1,
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '${affair.date.day} ${_monthName(affair.date.month)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (affair.isImportant) ...[
-                const SizedBox(width: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Date pill tinted with the accent color.
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm,
+                      vertical: AppTheme.spaceXs),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
+                    color: accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
-                  child: const Text(
-                    'Important',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.accentColor,
-                      fontWeight: FontWeight.w600,
+                  child: Text(
+                    '${affair.date.day} ${_monthName(affair.date.month)}',
+                    style: AppFonts.style(
+                      size: 11,
+                      color: accent,
+                      weight: FontWeight.w700,
                     ),
                   ),
                 ),
-              ],
-              const Spacer(),
-              Text(
-                affair.category,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
+                if (affair.isImportant) ...[
+                  const SizedBox(width: AppTheme.spaceSm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spaceSm, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.star_rounded,
+                            size: 10, color: AppTheme.accentColor),
+                        const SizedBox(width: 3),
+                        L10nText(
+                          'home_important',
+                          style: AppFonts.style(
+                            size: 10,
+                            color: AppTheme.accentColor,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                Text(
+                  affair.category,
+                  style: AppFonts.style(
+                    size: 11,
+                    color: Colors.grey.shade600,
+                    weight: FontWeight.w500,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
+            Text(
+              affair.title,
+              style: AppFonts.style(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+                height: 1.3,
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            affair.title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            affair.summary,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
+            const SizedBox(height: AppTheme.spaceXs),
+            Text(
+              affair.summary,
+              style: AppFonts.style(
+                size: 12,
+                color: Colors.grey.shade600,
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
@@ -1841,10 +2136,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = Provider.of<AuthProvider>(context);
     if (auth.isPremium) return const SizedBox.shrink();
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppTheme.spaceXl),
       decoration: BoxDecoration(
-        gradient: AppTheme.accentGradient,
-        borderRadius: BorderRadius.circular(20),
+        // Amber→orange premium gradient — gives the CTA a warm, premium feel.
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.accentGradientColors,
+        ),
+        borderRadius: BorderRadius.circular(AppTheme.radiusXl),
+        boxShadow: AppTheme.softShadow3,
       ),
       child: Row(
         children: [
@@ -1852,64 +2153,117 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Unlock ExamVault Premium',
-                  style: TextStyle(
+                // Small "PREMIUM" chip — establishes the gold-standard feel.
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm + 2,
+                      vertical: AppTheme.spaceXs),
+                  margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.22),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                  ),
+                  child: L10nText(
+                    'premium',
+                    style: AppFonts.style(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 1.2),
+                  ),
+                ),
+                L10nText(
+                  'home_premiumHeadline',
+                  style: AppFonts.style(
                     color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                    size: 18,
+                    weight: FontWeight.w700,
+                    height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Get unlimited tests, detailed solutions & more',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 12,
+                const SizedBox(height: AppTheme.spaceXs),
+                L10nText(
+                  'home_premiumSubtitle2',
+                  style: AppFonts.style(
+                    color: Colors.white.withOpacity(0.92),
+                    size: 12,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 12),
-                ElevatedButton(
+                const SizedBox(height: AppTheme.spaceMd),
+                ElevatedButton.icon(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const PremiumScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: AppTheme.accentColor,
+                    foregroundColor: AppTheme.accentDarkColor,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spaceLg,
+                        vertical: AppTheme.spaceSm + 2),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusFull),
+                    ),
                   ),
-                  child: const Text('Upgrade Now'),
+                  icon: const Icon(Icons.workspace_premium_rounded, size: 18),
+                  label: L10nText(
+                    'home_premiumCta',
+                    style: AppFonts.style(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: AppTheme.accentDarkColor),
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.workspace_premium, color: Colors.white, size: 60),
+          const SizedBox(width: AppTheme.spaceMd),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.18),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.3), width: 1.5),
+            ),
+            child: const Icon(Icons.workspace_premium_rounded,
+                color: Colors.white, size: 32),
+          ),
         ],
       ),
-    );
+    )
+        .animate()
+        .fadeIn(delay: 200.ms, duration: 500.ms)
+        .slideY(begin: 0.08);
   }
 
   Widget _buildShimmerGrid() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+      highlightColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.85,
+          mainAxisSpacing: AppTheme.spaceMd,
+          crossAxisSpacing: AppTheme.spaceMd,
+          childAspectRatio: 0.82,
         ),
         itemCount: 6,
         itemBuilder: (context, index) {
           return Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              color: isDark ? AppTheme.darkCardColor : Colors.white,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
             ),
           );
         },
@@ -1921,17 +2275,32 @@ class _HomeScreenState extends State<HomeScreen> {
   /// instead of silently rendering an empty list (which made users think the
   /// section "wasn't clickable" when in fact the stream had errored out).
   Widget _buildSectionError(String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          vertical: AppTheme.spaceXl, horizontal: AppTheme.spaceLg),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off, size: 18, color: Colors.grey.shade500),
-          const SizedBox(width: 8),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.cloud_off_rounded,
+                size: 18, color: AppTheme.errorColor),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
           Flexible(
             child: Text(
               message,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: AppFonts.style(
+                size: 13,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                height: 1.4,
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -1945,17 +2314,33 @@ class _HomeScreenState extends State<HomeScreen> {
   /// provided so the user can navigate to the full screen even when there's
   /// no preview content (another "not clickable" bug fixed).
   Widget _buildSectionEmpty(String message, {VoidCallback? onTap}) {
-    final content = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final content = Container(
+      padding: const EdgeInsets.symmetric(
+          vertical: AppTheme.spaceXl, horizontal: AppTheme.spaceLg),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inbox, size: 18, color: Colors.grey.shade400),
-          const SizedBox(width: 8),
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.inbox_outlined,
+                size: 18,
+                color: AppTheme.primaryColor.withOpacity(0.7)),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
           Flexible(
             child: Text(
               message,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+              style: AppFonts.style(
+                size: 13,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                height: 1.4,
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 2,
             ),
@@ -1968,21 +2353,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildShimmerList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
+      baseColor: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+      highlightColor: isDark ? Colors.grey.shade700 : Colors.grey.shade100,
       child: SizedBox(
-        height: 140,
+        height: 168,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: 3,
           itemBuilder: (context, index) {
             return Container(
-              width: 200,
-              margin: const EdgeInsets.only(right: 12),
+              width: 220,
+              margin: const EdgeInsets.only(right: AppTheme.spaceMd),
               decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                color: isDark ? AppTheme.darkCardColor : Colors.white,
+                borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               ),
             );
           },
@@ -2042,18 +2429,46 @@ class _MarqueeTextState extends State<_MarqueeText> {
       child: Text(
         widget.texts[_index],
         key: ValueKey(_index),
-        style: TextStyle(
-          fontSize: 12,
+        style: AppFonts.style(
+          size: 12,
           // Theme-aware so the ticker text is readable on both the light
-          // blue-ish ticker card (light mode) and the dark blue-ish card
-          // (dark mode). Previously hardcoded to grey.shade800 which was
-          // near-invisible in dark mode.
+          // ticker card (light mode) and the dark card (dark mode).
           color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
-          fontWeight: FontWeight.w500,
+          weight: FontWeight.w500,
+          height: 1.3,
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
     );
   }
+}
+
+// =============================================================================
+// QUICK ACTION — data holder for the home screen quick-actions grid
+// =============================================================================
+/// Routes for the 5 quick-action tiles. Using an enum (instead of matching on
+/// the label string) keeps routing stable when the label is translated —
+/// otherwise switching to Assamese would break the navigation switch.
+enum _QuickRoute {
+  quiz,
+  mock,
+  upcoming,
+  current,
+  bookmarks,
+}
+
+/// Immutable descriptor for a single quick-action tile.
+class _QuickAction {
+  final IconData icon;
+  final String labelKey; // l10n key, e.g. 'home_dailyQuiz'
+  final Color color; // theme-token color (no raw literals)
+  final _QuickRoute route;
+
+  const _QuickAction({
+    required this.icon,
+    required this.labelKey,
+    required this.color,
+    required this.route,
+  });
 }
