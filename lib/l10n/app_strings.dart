@@ -254,6 +254,32 @@ class AppStrings {
     'error_connectionDesc': 'Please check your network and try again.',
     'error_generic': 'Something went wrong',
     'error_genericDesc': 'Please try again later.',
+
+    // Phase 3.2 — remaining screens (nav, leaderboard, splash, materials)
+    'nav_ranks': 'Ranks',
+    'exit_title': 'Exit App?',
+    'exit_confirm': 'Do you really want to exit ExamVault?',
+    'exit_button': 'Exit',
+    'leaderboard_title': 'Leaderboard',
+    'leaderboard_weekly': 'Weekly',
+    'leaderboard_monthly': 'Monthly',
+    'leaderboard_allTime': 'All Time',
+    'leaderboard_you': 'YOU',
+    'leaderboard_stale':
+        'Showing cached rankings — reconnect to refresh.',
+    'leaderboard_empty': 'No leaderboard data available',
+    'leaderboard_tests': 'tests',
+    'leaderboard_avg': 'avg',
+    'splash_tagline': "India's #1 MCQ Mock Test platform",
+    'splash_taglineShort': 'MCQ Mock Test Platform',
+    'material_offlineTitle': 'You are offline',
+    'material_offlineDesc': 'Connect to the internet to load study materials.',
+    'material_emptyDesc':
+        'New content will appear here automatically when the admin adds it.',
+    'material_premiumTitle': 'Premium Content',
+    'material_premiumDesc':
+        '"{title}" is a premium study material. Upgrade to ExamVault Premium to access all papers, notes, and syllabi.',
+    'material_pagesSuffix': 'pages',
   };
 
   static const Map<String, String> assamese = {
@@ -495,5 +521,32 @@ class AppStrings {
     'error_connectionDesc': 'অনুগ্ৰহ কৰি নেটৱৰ্ক পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।',
     'error_generic': 'কিবা ভুল হৈছে',
     'error_genericDesc': 'অনুগ্ৰহ কৰি পিছত পুনৰ চেষ্টা কৰক।',
+
+    // Phase 3.2 — remaining screens (nav, leaderboard, splash, materials)
+    'nav_ranks': 'স্থান',
+    'exit_title': 'এপ্ বন্ধ কৰিব?',
+    'exit_confirm': 'আপুনি সঁচাকৈ ExamVault বন্ধ কৰিব বিচাৰে নে?',
+    'exit_button': 'ওলাই যাওক',
+    'leaderboard_title': "লিডাৰব'ৰ্ড",
+    'leaderboard_weekly': 'সাপ্তাহিক',
+    'leaderboard_monthly': 'মাহিক',
+    'leaderboard_allTime': 'সৰ্বকাল',
+    'leaderboard_you': 'আপুনি',
+    'leaderboard_stale':
+        'কেশ্ব কৰা স্থান দেখুওৱা হৈছে — ৰিফ্ৰেশ্ব কৰিবলৈ পুনঃ সংযোগ কৰক।',
+    'leaderboard_empty': "কোনো লিডাৰব'ৰ্ড তথ্য নাই",
+    'leaderboard_tests': 'পৰীক্ষা',
+    'leaderboard_avg': 'গড়',
+    'splash_tagline': 'ভাৰতৰ #1 MCQ মক টেষ্ট প্লেটফৰ্ম',
+    'splash_taglineShort': 'MCQ মক টেষ্ট প্লেটফৰ্ম',
+    'material_offlineTitle': 'আপুনি অফলাইন',
+    'material_offlineDesc':
+        'অধ্যয়ন সামগ্ৰী লোড কৰিবলৈ ইন্টাৰনেট সংযোগ কৰক।',
+    'material_emptyDesc':
+        'এডমিনে যোগ কৰিলে নতুন সামগ্ৰী ইয়াত স্বয়ংক্ৰিয়ভাৱে দেখা যাব।',
+    'material_premiumTitle': 'প্ৰিমিয়াম সামগ্ৰী',
+    'material_premiumDesc':
+        '"{title}" এটা প্ৰিমিয়াম অধ্যয়ন সামগ্ৰী। সকলো প্ৰশ্নপত্ৰ, টোকা আৰু পাঠ্যক্ৰম এক্সেছ কৰিবলৈ ExamVault প্ৰিমিয়ামলৈ আপগ্ৰেড কৰক।',
+    'material_pagesSuffix': 'পৃষ্ঠা',
   };
 }

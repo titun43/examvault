@@ -16,9 +16,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/study_material_model.dart';
 import '../../models/subject_model.dart';
 import '../../models/user_model.dart';
+import '../../l10n/app_localizations.dart';
+import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
@@ -47,7 +50,16 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     final type = widget.type;
     return Scaffold(
       appBar: AppBar(
-        title: Text(type.label),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
+        title: Text(
+          type.label,
+          style: AppFonts.style(
+            size: 18,
+            weight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
         actions: [
           // Quick subject indicator in the app bar
           Center(
@@ -55,9 +67,10 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               padding: const EdgeInsets.only(right: 16),
               child: Text(
                 widget.subject.name,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withOpacity(0.7),
+                style: AppFonts.style(
+                  size: 13,
+                  weight: FontWeight.w500,
+                  color: Colors.white.withOpacity(0.85),
                 ),
               ),
             ),
@@ -91,7 +104,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppTheme.spaceLg),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -114,33 +127,36 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
             height: 48,
             decoration: BoxDecoration(
               color: AppTheme.primaryColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: Center(
               child: Text(
                 widget.type.emoji,
-                style: const TextStyle(fontSize: 24),
+                style: AppFonts.style(size: 24),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: AppTheme.spaceMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.subject.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                  style: AppFonts.style(
+                    size: 16,
+                    weight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   '${widget.type.emoji} ${widget.type.label}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
+                  style: AppFonts.style(
+                    size: 13,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.6),
                   ),
                 ),
               ],
@@ -155,10 +171,15 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     return Stack(
       children: [
         ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(AppTheme.spaceLg),
           itemCount: materials.length,
-          itemBuilder: (context, index) =>
-              _buildMaterialCard(materials[index]),
+          itemBuilder: (context, index) => _buildMaterialCard(materials[index])
+              .animate()
+              .fadeIn(
+                duration: 300.ms,
+                delay: (index * 50).ms,
+              )
+              .slideY(begin: 0.05),
         ),
         if (isStale) _buildStaleBanner(),
       ],
@@ -166,97 +187,125 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   }
 
   Widget _buildMaterialCard(StudyMaterialModel material) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => _onMaterialTap(material),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // PDF icon / thumbnail
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _typeColor(material.type).withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
+    final typeColor = _typeColor(material.type);
+    return Container(
+      margin: EdgeInsets.only(bottom: AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow1,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          onTap: () => _onMaterialTap(material),
+          child: Padding(
+            padding: EdgeInsets.all(AppTheme.spaceLg),
+            child: Row(
+              children: [
+                // PDF icon / thumbnail — type-tinted background
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: typeColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
+                  child: Icon(
+                    Icons.picture_as_pdf,
+                    color: typeColor,
+                    size: 28,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Colors.red,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 14),
-              // Title + meta
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            material.title,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                SizedBox(width: AppTheme.spaceMd),
+                // Title + meta
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              material.title,
+                              style: AppFonts.style(
+                                size: 15,
+                                weight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        if (material.isPremium) ...[
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.workspace_premium,
-                            size: 18,
-                            color: Color(0xFFFF6F00),
+                          if (material.isPremium) ...[
+                            SizedBox(width: AppTheme.spaceSm),
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: AppTheme.accentGradientColors,
+                                ),
+                                borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSm),
+                              ),
+                              child: const Icon(
+                                Icons.workspace_premium,
+                                size: 14,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      SizedBox(height: AppTheme.spaceXs),
+                      Wrap(
+                        spacing: AppTheme.spaceSm,
+                        children: [
+                          if (material.year != null)
+                            _buildMetaChip('${material.year}'),
+                          if (material.pages != null)
+                            _buildMetaChip(
+                              '${material.pages} ${tr(context, 'material_pagesSuffix')}',
+                            ),
+                          _buildMetaChip(
+                            material.isPremium
+                                ? tr(context, 'premium')
+                                : tr(context, 'free'),
+                            isPremium: material.isPremium,
                           ),
                         ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        if (material.year != null)
-                          _buildMetaChip('${material.year}'),
-                        if (material.pages != null)
-                          _buildMetaChip('${material.pages} pages'),
-                        _buildMetaChip(
-                          material.isPremium ? 'Premium' : 'Free',
-                          isPremium: material.isPremium,
-                        ),
-                      ],
-                    ),
-                    if (material.description != null &&
-                        material.description!.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        material.description!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
                       ),
+                      if (material.description != null &&
+                          material.description!.isNotEmpty) ...[
+                        SizedBox(height: AppTheme.spaceSm),
+                        Text(
+                          material.description!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppFonts.style(
+                            size: 12,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurface
+                                .withOpacity(0.6),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.grey,
-                size: 24,
-              ),
-            ],
+                SizedBox(width: AppTheme.spaceSm),
+                Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.4),
+                  size: 24,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -268,18 +317,24 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isPremium
-            ? const Color(0xFFFF6F00).withOpacity(0.15)
-            : Colors.grey.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(8),
+            ? AppTheme.accentColor.withOpacity(0.15)
+            : Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
       ),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+        style: AppFonts.style(
+          size: 11,
+          weight: FontWeight.w600,
           color: isPremium
-              ? const Color(0xFFFF6F00)
-              : Colors.grey[700],
+              ? AppTheme.accentColor
+              : Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withOpacity(0.6),
         ),
       ),
     );
@@ -331,24 +386,60 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        ),
+        title: Row(
           children: [
-            Icon(Icons.workspace_premium, color: Color(0xFFFF6F00), size: 28),
-            SizedBox(width: 8),
-            Text('Premium Content'),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: AppTheme.accentGradientColors,
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              ),
+              child: const Icon(
+                Icons.workspace_premium,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            SizedBox(width: AppTheme.spaceMd),
+            Expanded(
+              child: L10nText(
+                'material_premiumTitle',
+                style: AppFonts.style(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  color: Theme.of(ctx).colorScheme.onSurface,
+                ),
+              ),
+            ),
           ],
         ),
         content: Text(
-          '"${material.title}" is a premium study material. '
-          'Upgrade to ExamVault Premium to access all papers, notes, and syllabi.',
+          tr(context, 'material_premiumDesc').replaceAll(
+              '{title}', material.title),
+          style: AppFonts.style(
+            size: 14,
+            height: 1.5,
+            color: Theme.of(ctx).colorScheme.onSurface.withOpacity(0.8),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Maybe later'),
+            child: L10nText(
+              'test_maybeLater',
+              style: AppFonts.style(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Theme.of(ctx).colorScheme.primary,
+              ),
+            ),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.push(
@@ -356,10 +447,21 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 MaterialPageRoute(builder: (_) => const PremiumScreen()),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF6F00),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.accentColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
             ),
-            child: const Text('Upgrade Now'),
+            child: L10nText(
+              'premium_title',
+              style: AppFonts.style(
+                size: 14,
+                weight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
           ),
         ],
       ),
@@ -369,59 +471,66 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   Color _typeColor(StudyMaterialType type) {
     switch (type) {
       case StudyMaterialType.previousPaper:
-        return AppTheme.primaryColor;
+        return AppTheme.primaryColor;            // emerald
       case StudyMaterialType.notes:
-        return const Color(0xFF388E3C);
+        return AppTheme.successColor;            // green 600
       case StudyMaterialType.syllabus:
-        return const Color(0xFFF57C00);
+        return AppTheme.warningColor;            // orange 600
     }
   }
 
   Widget _buildShimmerList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white12 : Colors.grey.shade300;
+    final highlightColor =
+        isDark ? Colors.white24 : Colors.grey.shade100;
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppTheme.spaceLg),
       itemCount: 5,
-      itemBuilder: (_, __) => Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(10),
-                ),
+      itemBuilder: (_, __) => Container(
+        margin: EdgeInsets.only(bottom: AppTheme.spaceMd),
+        padding: EdgeInsets.all(AppTheme.spaceLg),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.softShadow1,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 14,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+            ),
+            SizedBox(width: AppTheme.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    height: 14,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: baseColor,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 12,
-                      width: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                  ),
+                  SizedBox(height: AppTheme.spaceSm),
+                  Container(
+                    height: 12,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: highlightColor,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -430,104 +539,175 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   Widget _buildEmptyState(VoidCallback retry) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(AppTheme.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              widget.type.emoji,
-              style: const TextStyle(fontSize: 56),
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  widget.type.emoji,
+                  style: AppFonts.style(size: 40),
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: AppTheme.spaceLg),
             Text(
               'No ${widget.type.pluralLabel} available yet',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
+              style: AppFonts.style(
+                size: 16,
+                weight: FontWeight.w600,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'New content will appear here automatically '
-              'when the admin adds it.',
+            SizedBox(height: AppTheme.spaceSm),
+            L10nText(
+              'material_emptyDesc',
+              style: AppFonts.style(
+                size: 13,
+                height: 1.5,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.5),
+              ),
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spaceXl),
             OutlinedButton.icon(
               onPressed: retry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Refresh'),
+              label: L10nText('refresh',
+                  style: AppFonts.style(
+                      size: 14, weight: FontWeight.w600)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primaryColor,
+                side: const BorderSide(color: AppTheme.primaryColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppTheme.radiusMd),
+                ),
+              ),
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05);
   }
 
   Widget _buildOfflineState(VoidCallback retry) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(AppTheme.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, size: 56, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text(
-              'You are offline',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppTheme.warningColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cloud_off,
+                size: 48,
+                color: AppTheme.warningColor,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Connect to the internet to load study materials.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+            SizedBox(height: AppTheme.spaceLg),
+            L10nText(
+              'material_offlineTitle',
+              style: AppFonts.style(
+                size: 16,
+                weight: FontWeight.w600,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.7),
+              ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spaceSm),
+            L10nText(
+              'material_offlineDesc',
+              style: AppFonts.style(
+                size: 13,
+                height: 1.5,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.5),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: AppTheme.spaceXl),
             ElevatedButton.icon(
               onPressed: retry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
+              label: L10nText('retry',
+                  style: AppFonts.style(
+                      size: 14, weight: FontWeight.w600)),
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05);
   }
 
   Widget _buildErrorState(Object error, VoidCallback retry) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(AppTheme.spaceXxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 56, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text(
-              'Something went wrong',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline,
+                size: 48,
+                color: AppTheme.errorColor,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppTheme.spaceLg),
+            L10nText(
+              'error_generic',
+              style: AppFonts.style(
+                size: 16,
+                weight: FontWeight.w600,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurface
+                    .withOpacity(0.7),
+              ),
+            ),
+            SizedBox(height: AppTheme.spaceXl),
             ElevatedButton.icon(
               onPressed: retry,
               icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Retry'),
+              label: L10nText('retry',
+                  style: AppFonts.style(
+                      size: 14, weight: FontWeight.w600)),
             ),
           ],
         ),
       ),
-    );
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05);
   }
 
   Widget _buildStaleBanner() {
@@ -536,19 +716,20 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
       left: 0,
       right: 0,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        color: Colors.orange.withOpacity(0.9),
-        child: const Row(
+        padding: EdgeInsets.symmetric(
+            horizontal: AppTheme.spaceLg, vertical: 6),
+        color: AppTheme.warningColor.withOpacity(0.92),
+        child: Row(
           children: [
-            Icon(Icons.cloud_off, size: 16, color: Colors.white),
-            SizedBox(width: 8),
+            const Icon(Icons.cloud_off, size: 16, color: Colors.white),
+            const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                'Showing cached content (offline)',
-                style: TextStyle(
+              child: L10nText(
+                'leaderboard_stale',
+                style: AppFonts.style(
                   color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  size: 12,
+                  weight: FontWeight.w600,
                 ),
               ),
             ),

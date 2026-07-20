@@ -35,6 +35,8 @@ import '../services/firestore_service.dart';
 import '../utils/app_open_banner_frequency.dart';
 import '../utils/in_app_navigator.dart' show runActionButton;
 import '../theme/app_theme.dart';
+import '../theme/app_fonts.dart';
+import '../l10n/app_localizations.dart';
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../admin/admin_dashboard.dart';
@@ -190,11 +192,11 @@ class _SplashScreenState extends State<SplashScreen> {
               FadeInUp(
                 duration: const Duration(milliseconds: 800),
                 delay: const Duration(milliseconds: 600),
-                child: const Text(
+                child: Text(
                   'ExamVault',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
+                  style: AppFonts.style(
+                    size: 36,
+                    weight: FontWeight.w700,
                     color: Colors.white,
                     letterSpacing: 2,
                   ),
@@ -204,11 +206,15 @@ class _SplashScreenState extends State<SplashScreen> {
               FadeInUp(
                 duration: const Duration(milliseconds: 800),
                 delay: const Duration(milliseconds: 900),
-                child: Text(
-                  'MCQ Mock Test Platform',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white.withOpacity(0.9),
+                child: Builder(
+                  builder: (context) => L10nText(
+                    'splash_tagline',
+                    style: AppFonts.style(
+                      size: 16,
+                      weight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.9),
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),

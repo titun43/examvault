@@ -21,7 +21,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/leaderboard_model.dart';
 import '../../services/firestore_service.dart';
@@ -37,12 +40,21 @@ class LeaderboardScreen extends StatelessWidget {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Leaderboard'),
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
+          title: L10nText(
+            'leaderboard_title',
+            style: AppFonts.style(
+              size: 20,
+              weight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
           actions: [
             // Global search — available on every bottom-nav tab, not just Home.
             IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: 'Search',
+              icon: const Icon(Icons.search, color: Colors.white),
+              tooltip: tr(context, 'search'),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -51,11 +63,19 @@ class LeaderboardScreen extends StatelessWidget {
               },
             ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white.withOpacity(0.7),
+            indicatorColor: AppTheme.accentColor,
+            indicatorWeight: 3,
+            labelStyle: AppFonts.style(
+                size: 14, weight: FontWeight.w600),
+            unselectedLabelStyle: AppFonts.style(
+                size: 14, weight: FontWeight.w500),
             tabs: [
-              Tab(text: 'Weekly'),
-              Tab(text: 'Monthly'),
-              Tab(text: 'All Time'),
+              Tab(text: tr(context, 'leaderboard_weekly')),
+              Tab(text: tr(context, 'leaderboard_monthly')),
+              Tab(text: tr(context, 'leaderboard_allTime')),
             ],
           ),
         ),
@@ -81,7 +101,7 @@ class LeaderboardScreen extends StatelessWidget {
       stream: FirestoreService.getLeaderboardStream(type: type),
       dataBuilder: (context, leaderboard, isStale) {
         if (leaderboard.isEmpty) {
-          return const Center(child: Text('No leaderboard data available'));
+          return _buildEmptyState(context);
         }
         return Column(
           children: [
@@ -94,12 +114,17 @@ class LeaderboardScreen extends StatelessWidget {
             // List
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppTheme.spaceLg),
                 itemCount: leaderboard.length,
                 itemBuilder: (context, index) {
                   final entry = leaderboard[index];
                   final isCurrentUser = entry.userId == currentUserId;
-                  return _buildRankCard(context, entry, isCurrentUser);
+                  return _buildRankCard(context, entry, isCurrentUser)
+                      .animate()
+                      .fadeIn(
+                        duration: 300.ms,
+                        delay: (index * 40).ms,
+                      );
                 },
               ),
             ),
@@ -115,19 +140,20 @@ class LeaderboardScreen extends StatelessWidget {
   Widget _buildStaleBanner(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.amber.shade100,
+      padding: EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
+      color: AppTheme.warningColor.withOpacity(0.12),
       child: Row(
         children: [
-          Icon(Icons.cloud_off, size: 16, color: Colors.amber.shade800),
+          Icon(Icons.cloud_off, size: 16, color: AppTheme.warningColor),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              'Showing cached rankings — reconnect to refresh.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.amber.shade900,
-                fontWeight: FontWeight.w500,
+            child: L10nText(
+              'leaderboard_stale',
+              style: AppFonts.style(
+                size: 12,
+                weight: FontWeight.w500,
+                color: AppTheme.warningColor,
               ),
             ),
           ),
@@ -136,13 +162,52 @@ class LeaderboardScreen extends StatelessWidget {
     );
   }
 
+  /// Illustrated empty state when there is no leaderboard data.
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppTheme.spaceXxl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.emoji_events_outlined,
+                size: 48,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            SizedBox(height: AppTheme.spaceLg),
+            L10nText(
+              'leaderboard_empty',
+              style: AppFonts.style(
+                size: 15,
+                weight: FontWeight.w500,
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05);
+  }
+
   Widget _buildTopThree(BuildContext context, List<LeaderboardModel> leaderboard) {
     final top3 = leaderboard.take(3).toList();
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(AppTheme.spaceXl),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: AppTheme.brandGradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Row(
@@ -150,25 +215,42 @@ class LeaderboardScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // 2nd place
-          _buildTopPlayer(top3[1], 2, 80),
+          _buildTopPlayer(top3[1], 2, 80)
+              .animate()
+              .fadeIn(delay: 100.ms, duration: 450.ms)
+              .slideY(begin: 0.2)
+              .scale(begin: const Offset(0.9, 0.9)),
           // 1st place
-          _buildTopPlayer(top3[0], 1, 100),
+          _buildTopPlayer(top3[0], 1, 100)
+              .animate()
+              .fadeIn(delay: 180.ms, duration: 450.ms)
+              .slideY(begin: 0.25)
+              .scale(begin: const Offset(0.85, 0.85)),
           // 3rd place
-          _buildTopPlayer(top3[2], 3, 70),
+          _buildTopPlayer(top3[2], 3, 70)
+              .animate()
+              .fadeIn(delay: 260.ms, duration: 450.ms)
+              .slideY(begin: 0.2)
+              .scale(begin: const Offset(0.9, 0.9)),
         ],
       ),
     );
   }
 
   Widget _buildTopPlayer(LeaderboardModel player, int rank, double height) {
+    // Medal palette — gold (amber), silver (slate), bronze (orange).
+    // Uses the Assam theme tokens so it harmonizes with the emerald brand
+    // gradient instead of the old Material-2 raw Colors.yellow.
     final colors = [
-      Colors.yellow, // 1st
-      Colors.grey.shade300, // 2nd
-      Colors.orange.shade300, // 3rd
+      AppTheme.accentColor,            // 1st — gold/amber
+      const Color(0xFF94A3B8),         // 2nd — slate 400 (silver)
+      const Color(0xFFEA580C),         // 3rd — orange 600 (bronze)
     ];
+    final rankLabels = ['1st', '2nd', '3rd'];
     return Column(
       children: [
         Stack(
+          clipBehavior: Clip.none,
           children: [
             CircleAvatar(
               radius: 30,
@@ -190,32 +272,38 @@ class LeaderboardScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors[rank - 1],
                   shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: AppTheme.softShadow1,
                 ),
                 child: Text(
-                  rank == 1 ? '1st' : rank == 2 ? '2nd' : '3rd',
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+                  rankLabels[rank - 1],
+                  style: AppFonts.style(
+                    size: 10,
+                    weight: FontWeight.w800,
+                    color: Colors.white,
                   ),
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: AppTheme.spaceSm),
         Text(
           player.userName,
-          style: const TextStyle(
+          style: AppFonts.style(
             color: Colors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+            size: 12,
+            weight: FontWeight.w600,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         Text(
           '${player.totalXp} XP',
-          style: TextStyle(
+          style: AppFonts.style(
             color: Colors.white.withOpacity(0.9),
-            fontSize: 11,
+            size: 11,
+            weight: FontWeight.w500,
           ),
         ),
       ],
@@ -224,16 +312,17 @@ class LeaderboardScreen extends StatelessWidget {
 
   Widget _buildRankCard(BuildContext context, LeaderboardModel entry, bool isCurrentUser) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.only(bottom: AppTheme.spaceSm),
+      padding: EdgeInsets.all(AppTheme.spaceMd),
       decoration: BoxDecoration(
         color: isCurrentUser
             ? AppTheme.primaryColor.withOpacity(0.1)
             : Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: isCurrentUser
             ? Border.all(color: AppTheme.primaryColor, width: 2)
             : null,
+        boxShadow: AppTheme.softShadow1,
       ),
       child: Row(
         children: [
@@ -241,18 +330,18 @@ class LeaderboardScreen extends StatelessWidget {
             width: 40,
             child: Text(
               '${entry.rank}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+              style: AppFonts.style(
+                size: 18,
+                weight: FontWeight.w700,
                 color: AppTheme.primaryColor,
               ),
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: AppTheme.spaceMd),
           CircleAvatar(
             radius: 20,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
             child: entry.userPhoto != null
                 ? ClipOval(
                     child: CachedNetworkImage(
@@ -260,24 +349,58 @@ class LeaderboardScreen extends StatelessWidget {
                       fit: BoxFit.cover,
                     ),
                   )
-                : const Icon(Icons.person),
+                : const Icon(Icons.person, color: AppTheme.primaryColor),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: AppTheme.spaceMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  entry.userName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        entry.userName,
+                        style: AppFonts.style(
+                          weight: FontWeight.w600,
+                          size: 14,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isCurrentUser) ...[
+                      SizedBox(width: AppTheme.spaceSm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSm),
+                        ),
+                        child: L10nText(
+                          'leaderboard_you',
+                          style: AppFonts.style(
+                            size: 9,
+                            weight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
+                SizedBox(height: 2),
                 Text(
-                  '${entry.totalTestsAttempted} tests • ${entry.averageScore.toStringAsFixed(1)}% avg',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
+                  '${entry.totalTestsAttempted} ${tr(context, 'leaderboard_tests')} • ${entry.averageScore.toStringAsFixed(1)}% ${tr(context, 'leaderboard_avg')}',
+                  style: AppFonts.style(
+                    size: 11,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.55),
                   ),
                 ),
               ],
@@ -288,30 +411,33 @@ class LeaderboardScreen extends StatelessWidget {
             children: [
               Text(
                 '${entry.totalXp}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
+                style: AppFonts.style(
+                  weight: FontWeight.w700,
+                  size: 16,
                   color: AppTheme.primaryColor,
                 ),
               ),
-              const Text(
+              Text(
                 'XP',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey,
+                style: AppFonts.style(
+                  size: 10,
+                  weight: FontWeight.w600,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withOpacity(0.5),
                 ),
               ),
               // Streak chip — only shown when the user has a streak of at
-              // least 1 day. Leaderboard entries are refreshed after every
-              // test submission, so the stored streak value is reasonably
-              // fresh (no client-side staleness computation needed here).
+              // least 1 day.
               if (entry.streak > 0) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: AppTheme.spaceXs),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppTheme.accentColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -324,10 +450,10 @@ class LeaderboardScreen extends StatelessWidget {
                       const SizedBox(width: 2),
                       Text(
                         '${entry.streak}',
-                        style: const TextStyle(
-                          fontSize: 10,
+                        style: AppFonts.style(
+                          size: 10,
                           color: AppTheme.accentColor,
-                          fontWeight: FontWeight.w700,
+                          weight: FontWeight.w700,
                         ),
                       ),
                     ],
