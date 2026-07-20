@@ -1274,12 +1274,15 @@ class _TestListScreenState extends State<TestListScreen> {
     bool isGradient = false,
     bool outlined = false,
   }) {
-    final bg = isGradient
+    final LinearGradient? gradientBg = isGradient
         ? LinearGradient(
             colors: gradientColors!,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
+        : null;
+    final Color? solidBg = isGradient
+        ? null
         : (outlined ? color!.withOpacity(0.1) : color!.withOpacity(0.15));
 
     return Container(
@@ -1288,8 +1291,8 @@ class _TestListScreenState extends State<TestListScreen> {
         vertical: AppTheme.spaceXs,
       ),
       decoration: BoxDecoration(
-        gradient: isGradient ? bg : null,
-        color: isGradient ? null : bg,
+        gradient: gradientBg,
+        color: solidBg,
         borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         border: outlined
             ? Border.all(color: color!.withOpacity(0.4), width: 0.8)

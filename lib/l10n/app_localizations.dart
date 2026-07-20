@@ -144,7 +144,7 @@ String trAs(String key) => AppStrings.assamese[key] ?? key;
 /// instead of:
 ///   Text(tr(context, 'subject_tests'), style: TextStyle(fontSize: 16))
 class L10nText extends StatelessWidget {
-  final String key;
+  final String l10nKey;
   final TextStyle? style;
   final TextAlign? textAlign;
   final int? maxLines;
@@ -152,7 +152,7 @@ class L10nText extends StatelessWidget {
   final bool both; // if true, always show "English / অসমীয়া"
 
   const L10nText(
-    this.key, {
+    this.l10nKey, {
     super.key,
     this.style,
     this.textAlign,
@@ -163,7 +163,7 @@ class L10nText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = both ? trBoth(context, key) : tr(context, key);
+    final text = both ? trBoth(context, l10nKey) : tr(context, l10nKey);
     return Text(
       text,
       style: style,
