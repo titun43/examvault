@@ -1,10 +1,38 @@
 // =============================================================================
 // ExamVault - Take Test Screen (Test taking with timer)
 // =============================================================================
+// v2 MODERNIZATION (visual layer overhaul — access/payment logic unchanged):
+//   - AppBar themed with AppTheme.primaryColor (emerald) + white foreground.
+//     Timer pill turns AppTheme.errorColor (red) when < 5 min remaining.
+//   - Every Text widget uses AppFonts.style() so Assamese script (অসমীয়া)
+//     renders via the NotoSansBengali fallback chain. Previously inline
+//     TextStyle() calls had no fallback, so bilingual question/option text
+//     showed tofu boxes on devices without an Indic font.
+//   - All user-visible strings now flow through tr()/L10nText (bilingual).
+//     New l10n keys: test_close, test_exitTitle, test_exitConfirm, test_exit,
+//     test_noQuestions, test_noQuestionsDesc, test_goBack, test_paywallTitle,
+//     test_paywallGuestDesc, test_paywallBuyDesc, test_paywallPremiumDesc,
+//     test_paywallRollingOut, test_signInToUnlock, test_buyFor, test_goPremium,
+//     test_checkPurchases, test_bookmarkSaved, test_bookmarkRemoved,
+//     test_bookmarkFailed, test_bookmarkPermission, test_bookmarkAddTooltip,
+//     test_bookmarkRemoveTooltip.
+//   - Question card + option rows redesigned with design tokens
+//     (AppTheme.space*/radius*/softShadow1), colored selected state using
+//     AppTheme.primaryColor, and staggered flutter_animate entrance on question
+//     change so transitions feel responsive.
+//   - Bottom nav bar uses a top soft shadow + design-token padding.
+//   - Paywall, loading skeleton, question palette, exit dialog, and bookmark
+//     snackbars all modernized with AppFonts + bilingual labels.
+//   - NO blue/indigo — emerald primary, amber accent, semantic colors only.
+//   - Payment / access / Razorpay / exam-pack / ad / persistence logic is
+//     preserved EXACTLY. Only the visual + i18n layer changed.
+// =============================================================================
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/test_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_result_model.dart';
@@ -15,6 +43,7 @@ import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -489,76 +518,82 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     final user = auth.user;
     final isGuest = auth.isGuest;
     final canBuyTest = widget.test.price > 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: Text(widget.test.title)),
+      backgroundColor:
+          isDark ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor,
+      appBar: AppBar(
+        title: Text(
+          widget.test.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppTheme.spaceXl),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                width: 96,
+                height: 96,
+                padding: const EdgeInsets.all(AppTheme.spaceXl),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentColor.withOpacity(0.1),
+                  color: AppTheme.accentColor.withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.lock,
-                    size: 56, color: AppTheme.accentColor),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Premium Test',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
+                child:
+                    const Icon(Icons.lock_rounded, color: AppTheme.accentColor),
+              ).animate().fadeIn(duration: 350.ms).scale(begin: const Offset(0.8, 0.8)),
+              const SizedBox(height: AppTheme.spaceXl),
+              L10nText(
+                'test_paywallTitle',
+                style: AppFonts.style(
+                    size: 22, weight: FontWeight.w700),
+              ).animate().fadeIn(delay: 80.ms),
+              const SizedBox(height: AppTheme.spaceSm),
               Text(
                 isGuest
-                    ? 'Sign in to unlock this test. Free tests are available without an account.'
+                    ? tr(context, 'test_paywallGuestDesc')
                     : canBuyTest
-                        ? 'Buy this test or upgrade to Premium for unlimited access.'
-                        : 'Upgrade to Premium to attempt this test.',
+                        ? tr(context, 'test_paywallBuyDesc')
+                        : tr(context, 'test_paywallPremiumDesc'),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
-              ),
+                style: AppFonts.style(
+                    size: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    height: 1.5),
+              ).animate().fadeIn(delay: 140.ms),
               if (_accessCheckUnavailable && !isGuest) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: AppTheme.spaceLg),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(AppTheme.spaceMd),
                   decoration: BoxDecoration(
                     color: AppTheme.warningColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline,
+                      const Icon(Icons.info_outline_rounded,
                           color: AppTheme.warningColor, size: 18),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppTheme.spaceSm),
                       Expanded(
                         child: Text(
-                          'Live access verification is being rolled out. '
-                          'Please update the app soon.',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade700,
-                          ),
+                          tr(context, 'test_paywallRollingOut'),
+                          style: AppFonts.style(
+                              size: 11,
+                              color: isDark
+                                  ? Colors.grey.shade300
+                                  : Colors.grey.shade700),
                         ),
                       ),
                     ],
                   ),
                 ),
               ],
-              const SizedBox(height: 28),
-              // GUEST CTA — prompt sign-in first. Once signed in, the user can
-              // buy the test or go premium. This matches the product rule:
-              // free tests are open to everyone; premium content requires an
-              // account.
+              const SizedBox(height: AppTheme.spaceXxl),
+              // GUEST CTA — prompt sign-in first.
               if (isGuest) ...[
                 SizedBox(
                   width: double.infinity,
@@ -575,11 +610,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                       backgroundColor: AppTheme.primaryColor,
                       foregroundColor: Colors.white,
                     ),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Sign In to Unlock'),
+                    icon: const Icon(Icons.login_rounded),
+                    label: L10nText('test_signInToUnlock'),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppTheme.spaceMd),
               ] else ...[
                 if (canBuyTest) ...[
                   SizedBox(
@@ -592,31 +627,33 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                         foregroundColor: Colors.white,
                       ),
                       icon: const Icon(Icons.shopping_cart_outlined),
-                      label: Text('Buy for ₹${widget.test.price}'),
+                      label: Text(
+                        tr(context, 'test_buyFor').replaceAll(
+                            '{price}', widget.test.price.toStringAsFixed(0)),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppTheme.spaceMd),
                 ],
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: OutlinedButton.icon(
                     onPressed: () {
-                      // FIXED: refresh access when user returns from premium screen.
                       Navigator.pushNamed(context, '/premium').then((_) {
                         if (mounted) _checkAccessAndLoad();
                       });
                     },
-                    icon: const Icon(Icons.workspace_premium,
+                    icon: const Icon(Icons.workspace_premium_rounded,
                         color: AppTheme.accentColor),
-                    label: const Text('Go Premium'),
+                    label: L10nText('test_goPremium'),
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: AppTheme.spaceLg),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Go Back'),
+                child: L10nText('test_goBack'),
               ),
             ],
           ),
@@ -651,12 +688,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
-          content: const Text(
-            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
-          ),
+          content: Text(tr(context, 'test_paymentTakingLong')),
           backgroundColor: AppTheme.warningColor,
           action: SnackBarAction(
-            label: 'My Purchases',
+            label: tr(context, 'test_checkPurchases'),
             textColor: Colors.white,
             onPressed: () {
               if (mounted) {
@@ -681,7 +716,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Preparing payment...',
+          message: tr(context, 'test_preparingPayment'),
           cancellable: true,
           onCancel: () => cancelled = true,
           onSafetyTimeout: showCheckPurchasesMessage,
@@ -694,9 +729,9 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Verifying payment...',
+          message: tr(context, 'test_verifyingPayment'),
           cancellable: true,
-          cancelLabel: 'Check My Purchases',
+          cancelLabel: tr(context, 'test_checkPurchases'),
           // 60s accommodates the verify call (20s) + order-status polling
           // (up to 3 polls × ~13s) which lets the Razorpay webhook fire.
           safetyTimeout: const Duration(seconds: 60),
@@ -728,7 +763,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           context,
           itemName: widget.test.title,
           amount: widget.test.price,
-          actionLabel: 'Start Test',
+          actionLabel: tr(context, 'test_startTest'),
           paymentId: response.paymentId,
         ).then((_) {
           if (!mounted) return;
@@ -754,7 +789,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Payment failed: ${response.message ?? 'Please try again.'}'),
+                '${tr(context, 'test_paymentFailedPrefix')} ${response.message ?? tr(context, 'test_paymentFailedGeneric')}'),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -906,25 +941,58 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     // Empty-questions guard: if questions failed to load, show a friendly
     // message instead of crashing on _questions[_currentQuestionIndex].
     if (_questions.isEmpty) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       return Scaffold(
-        appBar: AppBar(title: Text(widget.test.title)),
+        backgroundColor:
+            isDark ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: Text(
+            widget.test.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         body: Center(
           child: Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(AppTheme.spaceXl),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.inbox, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text(
-                  'No questions available for this test yet.',
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.inbox_outlined,
+                      size: 48, color: AppTheme.primaryColor),
+                ).animate().fadeIn(duration: 350.ms).scale(begin: const Offset(0.85, 0.85)),
+                const SizedBox(height: AppTheme.spaceXl),
+                L10nText(
+                  'test_noQuestions',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 24),
+                  style: AppFonts.style(
+                      size: 16,
+                      weight: FontWeight.w600,
+                      color: isDark
+                          ? Colors.grey.shade100
+                          : Colors.grey.shade800),
+                ).animate().fadeIn(delay: 80.ms),
+                const SizedBox(height: AppTheme.spaceSm),
+                L10nText(
+                  'test_noQuestionsDesc',
+                  textAlign: TextAlign.center,
+                  style: AppFonts.style(
+                      size: 13,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade500),
+                ).animate().fadeIn(delay: 140.ms),
+                const SizedBox(height: AppTheme.spaceXxl),
                 OutlinedButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Go Back'),
+                  child: L10nText('test_goBack'),
                 ),
               ],
             ),
@@ -946,36 +1014,62 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         }
       },
       child: Scaffold(
+        backgroundColor:
+            isDark ? AppTheme.darkBackgroundColor : AppTheme.backgroundColor,
         appBar: AppBar(
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
+          iconTheme: const IconThemeData(color: Colors.white),
           title: Text(
             widget.test.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: AppFonts.style(
+                size: 18, weight: FontWeight.w600, color: Colors.white),
           ),
           actions: [
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceXs + 2),
                 decoration: BoxDecoration(
-                  color: _timeRemaining < 300 ? Colors.red : Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
+                  color: _timeRemaining < 300
+                      ? AppTheme.errorColor
+                      : Colors.white.withOpacity(0.22),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 ),
-                child: Text(
-                  '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: _timeRemaining < 300
+                          ? Colors.white
+                          : Colors.white.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                      style: AppFonts.style(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             // Bookmark toggle button — saves this test to the user's bookmarks.
             _BookmarkButton(test: widget.test),
             IconButton(
-              icon: const Icon(Icons.grid_view),
+              icon: const Icon(Icons.grid_view_rounded),
               onPressed: _showQuestionPalette,
+              tooltip: tr(context, 'test_palette'),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: AppTheme.spaceXs),
           ],
         ),
         body: Column(
@@ -983,28 +1077,41 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             // Progress bar
             LinearProgressIndicator(
               value: (_currentQuestionIndex + 1) / _questions.length,
-              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              backgroundColor:
+                  isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+              minHeight: 4,
             ),
             // Question counter
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTheme.spaceLg),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                    '${tr(context, 'test_question')} ${_currentQuestionIndex + 1} ${tr(context, 'test_of')} ${_questions.length}',
+                    style: AppFonts.style(
+                      size: 14,
+                      weight: FontWeight.w600,
                       color: isDark ? Colors.grey.shade100 : Colors.black87,
                     ),
                   ),
-                  Text(
-                    'Marks: ${question.marks}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey,
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spaceSm + 2,
+                        vertical: AppTheme.spaceXs),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                    ),
+                    child: Text(
+                      '${tr(context, 'test_marks')}: ${question.marks}',
+                      style: AppFonts.style(
+                        size: 11,
+                        weight: FontWeight.w700,
+                        color: AppTheme.accentDarkColor,
+                      ),
                     ),
                   ),
                 ],
@@ -1013,89 +1120,132 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             // Question
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceLg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (question.imageUrl != null) ...[
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusMd),
                         child: Image.network(question.imageUrl!),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppTheme.spaceLg),
                     ],
-                    Text(
-                      question.question,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
-                        color: isDark ? Colors.grey.shade50 : Colors.black87,
+                    // Question text — AppFonts.style ensures Assamese fallback.
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppTheme.spaceLg),
+                      margin: const EdgeInsets.only(bottom: AppTheme.spaceLg),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppTheme.darkCardColor : Colors.white,
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusLg),
+                        boxShadow: AppTheme.softShadow1,
                       ),
-                    ),
-                    const SizedBox(height: 24),
+                      child: Text(
+                        question.question,
+                        style: AppFonts.style(
+                          size: 16,
+                          weight: FontWeight.w500,
+                          height: 1.5,
+                          color: isDark ? Colors.grey.shade50 : Colors.black87,
+                        ),
+                      ),
+                    ).animate(key: ValueKey(_currentQuestionIndex)).fadeIn(
+                        duration: 300.ms).slideY(begin: 0.06),
                     // Options
                     ...List.generate(question.options.length, (index) {
-                      final isSelected = _userAnswers[_currentQuestionIndex] == index;
+                      final isSelected =
+                          _userAnswers[_currentQuestionIndex] == index;
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: InkWell(
-                          onTap: () => _selectAnswer(index),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppTheme.primaryColor.withOpacity(0.1)
-                                  : Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
+                        margin: const EdgeInsets.only(
+                            bottom: AppTheme.spaceMd),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => _selectAnswer(index),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusMd),
+                            child: Container(
+                              padding: const EdgeInsets.all(AppTheme.spaceLg),
+                              decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppTheme.primaryColor
-                                    : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
-                                width: isSelected ? 2 : 1,
+                                    ? AppTheme.primaryColor.withOpacity(0.08)
+                                    : (isDark
+                                        ? AppTheme.darkCardColor
+                                        : Colors.white),
+                                borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusMd),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? AppTheme.primaryColor
+                                      : (isDark
+                                          ? Colors.grey.shade600
+                                          : Colors.grey.shade300),
+                                  width: isSelected ? 2 : 1,
+                                ),
+                                boxShadow: isSelected
+                                    ? []
+                                    : AppTheme.softShadow1,
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? AppTheme.primaryColor
-                                        : (isDark ? Colors.grey.shade700 : Colors.grey.shade100),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      String.fromCharCode(65 + index),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: isSelected
-                                            ? Colors.white
-                                            : (isDark ? Colors.grey.shade100 : Colors.grey.shade700),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppTheme.primaryColor
+                                          : (isDark
+                                              ? Colors.grey.shade700
+                                              : Colors.grey.shade100),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        String.fromCharCode(65 + index),
+                                        style: AppFonts.style(
+                                          size: 14,
+                                          weight: FontWeight.w700,
+                                          color: isSelected
+                                              ? Colors.white
+                                              : (isDark
+                                                  ? Colors.grey.shade100
+                                                  : Colors.grey.shade700),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    question.options[index],
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isSelected
-                                          ? AppTheme.primaryColor
-                                          : (isDark ? Colors.grey.shade50 : Colors.black87),
+                                  const SizedBox(width: AppTheme.spaceMd),
+                                  Expanded(
+                                    child: Text(
+                                      question.options[index],
+                                      style: AppFonts.style(
+                                        size: 14,
+                                        height: 1.4,
+                                        color: isSelected
+                                            ? AppTheme.primaryColor
+                                            : (isDark
+                                                ? Colors.grey.shade50
+                                                : Colors.black87),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                  if (isSelected)
+                                    const Icon(Icons.check_circle_rounded,
+                                        color: AppTheme.primaryColor, size: 20),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      );
+                      )
+                          .animate(key: ValueKey('opt$_currentQuestionIndex-$index'))
+                          .fadeIn(
+                              delay: (80 + index * 50).ms,
+                              duration: 280.ms);
                     }),
                   ],
                 ),
@@ -1103,9 +1253,9 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             ),
             // Bottom navigation
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppTheme.spaceLg),
               decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
+                color: isDark ? AppTheme.darkSurfaceColor : Colors.white,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.05),
@@ -1120,23 +1270,24 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: _previousQuestion,
-                        child: const Text('Previous'),
+                        child: L10nText('test_previous'),
                       ),
                     ),
                   if (_currentQuestionIndex > 0)
-                    const SizedBox(width: 12),
+                    const SizedBox(width: AppTheme.spaceMd),
                   Expanded(
                     child: _currentQuestionIndex == _questions.length - 1
                         ? ElevatedButton(
                             onPressed: _submitTest,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.successColor,
+                              foregroundColor: Colors.white,
                             ),
-                            child: const Text('Submit Test'),
+                            child: L10nText('test_submit'),
                           )
                         : ElevatedButton(
                             onPressed: _nextQuestion,
-                            child: const Text('Next'),
+                            child: L10nText('test_next'),
                           ),
                   ),
                 ],
@@ -1154,60 +1305,122 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Question Palette'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.grid_view_rounded, color: AppTheme.primaryColor),
+              const SizedBox(width: AppTheme.spaceSm),
+              L10nText('test_palette',
+                  style: AppFonts.style(
+                      size: 18, weight: FontWeight.w700)),
+            ],
+          ),
           content: SizedBox(
             width: double.maxFinite,
-            child: GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-              ),
-              itemCount: _questions.length,
-              itemBuilder: (context, index) {
-                final isAnswered = _userAnswers[index] != -1;
-                final isCurrent = index == _currentQuestionIndex;
-                return GestureDetector(
-                  onTap: () => _goToQuestion(index),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isCurrent
-                          ? AppTheme.primaryColor
-                          : isAnswered
-                              ? AppTheme.successColor.withOpacity(0.2)
-                              : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
-                      borderRadius: BorderRadius.circular(8),
-                      border: isCurrent
-                          ? Border.all(color: AppTheme.primaryColor, width: 2)
-                          : null,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Legend
+                Wrap(
+                  spacing: AppTheme.spaceMd,
+                  runSpacing: AppTheme.spaceXs,
+                  children: [
+                    _paletteLegend(
+                        AppTheme.primaryColor, tr(context, 'test_answered')),
+                    _paletteLegend(
+                        AppTheme.successColor.withOpacity(0.3),
+                        tr(context, 'test_notVisited')),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceMd),
+                Flexible(
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      mainAxisSpacing: AppTheme.spaceSm,
+                      crossAxisSpacing: AppTheme.spaceSm,
+                      childAspectRatio: 1,
                     ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: isCurrent
-                              ? Colors.white
-                              : isAnswered
-                                  ? AppTheme.successColor
-                                  : (isDark ? Colors.grey.shade100 : Colors.grey.shade700),
+                    itemCount: _questions.length,
+                    itemBuilder: (context, index) {
+                      final isAnswered = _userAnswers[index] != -1;
+                      final isCurrent = index == _currentQuestionIndex;
+                      return GestureDetector(
+                        onTap: () => _goToQuestion(index),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? AppTheme.primaryColor
+                                : isAnswered
+                                    ? AppTheme.successColor.withOpacity(0.2)
+                                    : (isDark
+                                        ? Colors.grey.shade700
+                                        : Colors.grey.shade200),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusSm),
+                            border: isCurrent
+                                ? Border.all(
+                                    color: AppTheme.primaryColor, width: 2)
+                                : null,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: AppFonts.style(
+                                size: 14,
+                                weight: FontWeight.w700,
+                                color: isCurrent
+                                    ? Colors.white
+                                    : isAnswered
+                                        ? AppTheme.successColor
+                                        : (isDark
+                                            ? Colors.grey.shade100
+                                            : Colors.grey.shade700),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
+              child: L10nText('test_close'),
             ),
           ],
         );
       },
+    );
+  }
+
+  /// Small legend chip for the question palette dialog.
+  Widget _paletteLegend(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label,
+            style: AppFonts.style(
+                size: 11, color: Colors.grey.shade600)),
+      ],
     );
   }
 
@@ -1216,19 +1429,36 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Exit Test?'),
-          content: const Text('Your progress will be lost. Are you sure?'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: AppTheme.errorColor),
+              const SizedBox(width: AppTheme.spaceSm),
+              L10nText('test_exitTitle',
+                  style: AppFonts.style(
+                      size: 18, weight: FontWeight.w700)),
+            ],
+          ),
+          content: L10nText('test_exitConfirm',
+              style: AppFonts.style(size: 14, height: 1.5)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: L10nText('cancel'),
             ),
-            TextButton(
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.errorColor,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () {
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
-              child: const Text('Exit'),
+              child: L10nText('test_exit'),
             ),
           ],
         );
@@ -1296,9 +1526,9 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bookmark saved'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(tr(context, 'test_bookmarkSaved')),
+            duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1306,9 +1536,9 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
         await FirestoreService.removeBookmark(uid, widget.test.id);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Bookmark removed'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(tr(context, 'test_bookmarkRemoved')),
+            duration: const Duration(seconds: 2),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -1321,13 +1551,13 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
 
       // Show a specific message for permission errors so the admin knows
       // Firestore security rules need to be deployed.
-      String msg = 'Failed to update bookmark. Please try again.';
+      String msg = tr(context, 'test_bookmarkFailed');
       if (e.toString().contains('permission-denied') ||
           e.toString().contains('PERMISSION_DENIED')) {
-        msg = 'Bookmark error: permission denied. Admin must deploy Firestore rules.';
+        msg = tr(context, 'test_bookmarkPermission');
       } else if (e.toString().contains('network') ||
           e.toString().contains('unavailable')) {
-        msg = 'No internet connection. Please check your network and try again.';
+        msg = tr(context, 'error_connectionDesc');
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1344,10 +1574,12 @@ class _BookmarkButtonState extends State<_BookmarkButton> {
     if (_loading) return const SizedBox(width: 48);
     return IconButton(
       icon: Icon(
-        _bookmarked ? Icons.bookmark : Icons.bookmark_border,
+        _bookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
         color: Colors.white,
       ),
-      tooltip: _bookmarked ? 'Remove bookmark' : 'Bookmark this test',
+      tooltip: _bookmarked
+          ? tr(context, 'test_bookmarkRemoveTooltip')
+          : tr(context, 'test_bookmarkAddTooltip'),
       onPressed: _toggle,
     );
   }

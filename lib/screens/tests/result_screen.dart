@@ -1,19 +1,50 @@
 // =============================================================================
 // ExamVault - Result Screen
 // =============================================================================
+//
+// v2 MODERNIZATION (visual layer overhaul):
+//   - Hero header replaced with a circular progress ring
+//     (CircularPercentIndicator) showing the score percentage. Ring color
+//     reflects performance: green (>=60%), orange (35-59%), red (<35%).
+//     Header gradient is brand emerald (AppTheme.brandGradient).
+//   - Inside the ring: "obtained/total" big and bold + percentage subtitle.
+//   - Contextual message below the ring: result_excellent (>=80%),
+//     result_good (>=60%), result_keepGoing (<60%). Bilingual via L10nText.
+//   - "Share Result" icon button in the hero corner (share_plus).
+//   - 3-card stats row: Correct (green check) / Wrong (red close) /
+//     Skipped (grey dash). Each card: soft shadow, rounded, colored icon tile.
+//   - Time-taken + Rank pills row (rank shown only if > 0).
+//   - Action buttons: Retake Test (outlined) + Review Answers (filled,
+//     scrolls to the review section via Scrollable.ensureVisible).
+//   - Answer review section: each question is an expandable card with a
+//     status-colored number badge, status chip, color-coded options
+//     (correct=green, user-wrong=red), and an explanation box with
+//     primaryColor tint + light-bulb icon. All question/option/explanation
+//     text uses AppFonts.style so Assamese script renders correctly.
+//   - All visible strings bilingual via tr() / L10nText.
+//   - flutter_animate staggered entrance on hero, stats, pills, buttons,
+//     and the review list.
+//   - Design tokens (AppTheme.space*/radius*/softShadow*) used throughout.
+//   - NO blue/indigo -- emerald primary, amber accent, semantic colors only.
+// =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import 'package:share_plus/share_plus.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/test_result_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_model.dart';
 import '../../services/admob_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
 
-class ResultScreen extends StatelessWidget {
+class ResultScreen extends StatefulWidget {
   final TestResultModel result;
   final List<QuestionModel> questions;
   final List<int> userAnswers;
-  final TestModel? test; // optional — needed for "Retake Test"
+  final TestModel? test; // optional -- needed for "Retake Test"
 
   const ResultScreen({
     super.key,
@@ -24,188 +55,419 @@ class ResultScreen extends StatelessWidget {
   });
 
   @override
+  State<ResultScreen> createState() => _ResultScreenState();
+}
+
+class _ResultScreenState extends State<ResultScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _reviewKey = GlobalKey();
+  // Indices of question cards the user has expanded.
+  final Set<int> _expanded = <int>{};
+
+  TestResultModel get _result => widget.result;
+  List<QuestionModel> get _questions => widget.questions;
+  List<int> get _userAnswers => widget.userAnswers;
+
+  /// Ring + accent color reflecting performance bands.
+  Color get _ringColor {
+    if (_result.percentage >= 60) return AppTheme.successColor;
+    if (_result.percentage >= 35) return AppTheme.warningColor;
+    return AppTheme.errorColor;
+  }
+
+  /// l10n key for the contextual congratulations / encouragement message.
+  String get _messageKey {
+    if (_result.percentage >= 80) return 'result_excellent';
+    if (_result.percentage >= 60) return 'result_good';
+    return 'result_keepGoing';
+  }
+
+  /// "12m 30s" style formatting of the time-taken seconds value.
+  String get _timeFormatted {
+    final m = _result.timeTaken ~/ 60;
+    final s = _result.timeTaken % 60;
+    return '${m}m ${s.toString().padLeft(2, '0')}s';
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToReview() {
+    final ctx = _reviewKey.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.0,
+      );
+    }
+  }
+
+  Future<void> _shareResult() async {
+    final lines = <String>[
+      '📝 ${_result.testTitle}',
+      'Score: ${_result.obtainedMarks}/${_result.totalMarks} '
+          '(${_result.percentage.toStringAsFixed(1)}%)',
+      '✅ Correct: ${_result.correctAnswers}  '
+          '❌ Wrong: ${_result.wrongAnswers}  '
+          '➖ Skipped: ${_result.unattempted}',
+      '⏱ Time: $_timeFormatted',
+    ];
+    try {
+      await Share.share(
+        lines.join('\n'),
+        subject: 'ExamVault — ${_result.testTitle}',
+      );
+    } catch (_) {
+      // Non-fatal: silent on share failure.
+    }
+  }
+
+  void _retake() {
+    // Preserve original navigation: pop back so the user can restart the
+    // test or navigate from the test list.
+    Navigator.pop(context);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Test Result'),
-        automaticallyImplyLeading: false,
-      ),
       body: Stack(
         children: [
-          // The actual result content.
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-            // Score Card
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: result.isPassed ? AppTheme.primaryGradient : AppTheme.accentGradient,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    result.isPassed ? Icons.celebration : Icons.sentiment_dissatisfied,
-                    color: Colors.white,
-                    size: 60,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    result.isPassed ? 'Congratulations!' : 'Keep Trying!',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${result.percentage.toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    'You scored ${result.obtainedMarks} out of ${result.totalMarks}',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Stats Grid
-            Row(
-              children: [
-                _buildStatCard(
-                  'Correct',
-                  result.correctAnswers.toString(),
-                  AppTheme.successColor,
-                  Icons.check_circle,
-                ),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                  'Wrong',
-                  result.wrongAnswers.toString(),
-                  AppTheme.errorColor,
-                  Icons.cancel,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildStatCard(
-                  'Unattempted',
-                  result.unattempted.toString(),
-                  Colors.grey,
-                  Icons.remove_circle,
-                ),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                  'Accuracy',
-                  '${result.accuracy.toStringAsFixed(1)}%',
-                  AppTheme.infoColor,
-                  Icons.gps_fixed,
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            // Time taken
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.timer, color: AppTheme.primaryColor),
-                title: const Text('Time Taken'),
-                trailing: Text(
-                  '${result.timeTaken ~/ 60}:${(result.timeTaken % 60).toString().padLeft(2, '0')}',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+          CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              // ==================== HERO HEADER (score ring) ====================
+              SliverToBoxAdapter(child: _buildHeroHeader()),
+              // ==================== STATS ROW (3 cards) ====================
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      AppTheme.spaceLg, AppTheme.spaceLg, AppTheme.spaceLg, 0),
+                  child: _buildStatsRow(isDark),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            // Solutions
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Solutions & Explanations',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.grey.shade50 : Colors.black87,
+              // ==================== TIME + RANK PILLS ====================
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceLg,
+                      vertical: AppTheme.spaceMd),
+                  child: _buildMetaPills(isDark),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ...List.generate(questions.length, (index) {
-              return _buildSolutionCard(context, index);
-            }),
-            const SizedBox(height: 24),
-            // Action buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.popUntil(context, (route) => route.isFirst);
-                    },
-                    child: const Text('Home'),
-                  ),
+              // ==================== ACTION BUTTONS ====================
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(AppTheme.spaceLg,
+                      AppTheme.spaceSm, AppTheme.spaceLg, AppTheme.spaceLg),
+                  child: _buildActionButtons(),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Retake Test'),
-                  ),
+              ),
+              // ==================== ANSWER REVIEW SECTION ====================
+              SliverToBoxAdapter(
+                child: Padding(
+                  key: _reviewKey,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceLg),
+                  child: _buildReviewHeader(isDark),
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      // Invisible trigger that shows the post-test interstitial ad after
-      // this screen is fully built + a 2s delay. See _PostTestAdTrigger docs.
-      const _PostTestAdTrigger(),
+              ),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spaceLg),
+                    child: _buildReviewCard(context, index, isDark),
+                  )
+                      .animate()
+                      .fadeIn(
+                        delay: (index * 50).clamp(0, 500).ms,
+                        duration: 350.ms,
+                      )
+                      .slideY(begin: 0.06),
+                  childCount: _questions.length,
+                ),
+              ),
+              const SliverToBoxAdapter(
+                  child: SizedBox(height: AppTheme.spaceXxl)),
+            ],
+          ),
+          // Invisible trigger that shows the post-test interstitial ad after
+          // this screen is fully built + a 2s delay. See _PostTestAdTrigger.
+          const _PostTestAdTrigger(),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color, IconData icon) {
+  // ==================== HERO HEADER ====================
+  Widget _buildHeroHeader() {
+    final clampedPercent =
+        (_result.percentage / 100).clamp(0.0, 1.0).toDouble();
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppTheme.brandGradient,
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppTheme.spaceLg,
+              AppTheme.spaceSm, AppTheme.spaceLg, AppTheme.spaceXl),
+          child: Column(
+            children: [
+              // Top row: back + title + share
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded,
+                        color: Colors.white),
+                    onPressed: () => Navigator.maybePop(context),
+                    tooltip: tr(context, 'back'),
+                  ),
+                  Expanded(
+                    child: L10nText(
+                      'result_testResult',
+                      style: AppFonts.style(
+                        size: 18,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.share_rounded,
+                        color: Colors.white),
+                    onPressed: _shareResult,
+                    tooltip: tr(context, 'result_share'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spaceLg),
+              // Score ring
+              CircularPercentIndicator(
+                radius: 90,
+                lineWidth: 12,
+                percent: clampedPercent,
+                circularStrokeCap: CircularStrokeCap.round,
+                progressColor: _ringColor,
+                backgroundColor: Colors.white.withOpacity(0.18),
+                animation: true,
+                animationDuration: 900,
+                center: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${_result.obtainedMarks}/${_result.totalMarks}',
+                      style: AppFonts.style(
+                        size: 28,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_result.percentage.toStringAsFixed(1)}%',
+                      style: AppFonts.style(
+                        size: 14,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.92),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+                  .animate()
+                  .fadeIn(duration: 500.ms)
+                  .scale(begin: const Offset(0.88, 0.88)),
+              const SizedBox(height: AppTheme.spaceMd),
+              // Contextual message
+              L10nText(
+                _messageKey,
+                style: AppFonts.style(
+                  size: 18,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ).animate().fadeIn(delay: 250.ms),
+              const SizedBox(height: AppTheme.spaceXs),
+              L10nText(
+                'result_score',
+                style: AppFonts.style(
+                  size: 12,
+                  color: Colors.white.withOpacity(0.85),
+                ),
+              ).animate().fadeIn(delay: 320.ms),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ==================== STATS ROW (3 cards) ====================
+  Widget _buildStatsRow(bool isDark) {
+    return Row(
+      children: [
+        _buildStatCard(
+          icon: Icons.check_rounded,
+          count: _result.correctAnswers,
+          labelKey: 'result_correct',
+          color: AppTheme.successColor,
+          isDark: isDark,
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        _buildStatCard(
+          icon: Icons.close_rounded,
+          count: _result.wrongAnswers,
+          labelKey: 'result_wrong',
+          color: AppTheme.errorColor,
+          isDark: isDark,
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        _buildStatCard(
+          icon: Icons.remove_rounded,
+          count: _result.unattempted,
+          labelKey: 'result_skipped',
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          isDark: isDark,
+        ),
+      ],
+    ).animate().fadeIn(delay: 380.ms, duration: 400.ms).slideY(begin: 0.08);
+  }
+
+  Widget _buildStatCard({
+    required IconData icon,
+    required int count,
+    required String labelKey,
+    required Color color,
+    required bool isDark,
+  }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppTheme.spaceMd),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
+          color: isDark ? AppTheme.darkCardColor : Colors.white,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.softShadow1,
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: AppTheme.spaceSm),
             Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: color,
+              '$count',
+              style: AppFonts.style(
+                size: 22,
+                weight: FontWeight.w700,
+                color: isDark ? Colors.white : Colors.black87,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
+            const SizedBox(height: 2),
+            L10nText(
+              labelKey,
+              style: AppFonts.style(
+                size: 11,
+                weight: FontWeight.w600,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==================== TIME + RANK PILLS ====================
+  Widget _buildMetaPills(bool isDark) {
+    final pills = <Widget>[
+      _buildPill(
+        icon: Icons.timer_rounded,
+        value: _timeFormatted,
+        labelKey: 'result_timeTaken',
+        color: AppTheme.primaryColor,
+        isDark: isDark,
+      ),
+    ];
+    if (_result.rank > 0) {
+      pills.add(const SizedBox(width: AppTheme.spaceMd));
+      pills.add(_buildPill(
+        icon: Icons.emoji_events_rounded,
+        value: '#${_result.rank}',
+        labelKey: 'result_rank',
+        color: AppTheme.accentDarkColor,
+        isDark: isDark,
+      ));
+    }
+    return Row(children: pills)
+        .animate()
+        .fadeIn(delay: 440.ms, duration: 400.ms)
+        .slideY(begin: 0.06);
+  }
+
+  Widget _buildPill({
+    required IconData icon,
+    required String value,
+    required String labelKey,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceMd,
+          vertical: AppTheme.spaceSm + 2,
+        ),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+          border: Border.all(color: color.withOpacity(0.25), width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: AppTheme.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    value,
+                    style: AppFonts.style(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: color,
+                    ),
+                  ),
+                  L10nText(
+                    labelKey,
+                    style: AppFonts.style(
+                      size: 10,
+                      color:
+                          isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -214,153 +476,347 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSolutionCard(BuildContext context, int index) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final question = questions[index];
-    final userAnswer = userAnswers[index];
+  // ==================== ACTION BUTTONS ====================
+  Widget _buildActionButtons() {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: _retake,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: L10nText('result_retake'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: AppTheme.spaceMd),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: _scrollToReview,
+            icon: const Icon(Icons.menu_book_rounded, size: 18),
+            label: L10nText('result_review'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ).animate().fadeIn(delay: 500.ms);
+  }
+
+  // ==================== REVIEW HEADER ====================
+  Widget _buildReviewHeader(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(
+          top: AppTheme.spaceLg, bottom: AppTheme.spaceMd),
+      child: Row(
+        children: [
+          L10nText(
+            'result_answerReview',
+            style: AppFonts.style(
+              size: 18,
+              weight: FontWeight.w700,
+              color: isDark ? Colors.grey.shade50 : Colors.black87,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceSm + 2, vertical: AppTheme.spaceXs),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            ),
+            child: Text(
+              '${_questions.length}',
+              style: AppFonts.style(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 540.ms);
+  }
+
+  // ==================== REVIEW CARD (expandable) ====================
+  Widget _buildReviewCard(BuildContext context, int index, bool isDark) {
+    final question = _questions[index];
+    final userAnswer =
+        index < _userAnswers.length ? _userAnswers[index] : -1;
     final isCorrect = userAnswer == question.correctAnswerIndex;
+    final isSkipped = userAnswer == -1;
+    final isExpanded = _expanded.contains(index);
 
-    // Theme-aware neutral colors so the "default" option (not correct, not
-    // user-selected) is readable in both light and dark mode. Previously
-    // this used Colors.grey.shade50 which is near-invisible on a dark card.
-    final Color neutralBg = isDark ? Colors.grey.shade800 : Colors.grey.shade50;
-    final Color neutralBorder = isDark ? Colors.grey.shade600 : Colors.grey.shade200;
-    final Color optionTextColor = isDark ? Colors.grey.shade50 : Colors.black87;
-    final Color questionTextColor = isDark ? Colors.grey.shade50 : Colors.black87;
-    final Color labelTextColor = isDark ? Colors.grey.shade100 : Colors.black87;
+    final Color statusColor = isCorrect
+        ? AppTheme.successColor
+        : isSkipped
+            ? (isDark ? Colors.grey.shade400 : Colors.grey.shade600)
+            : AppTheme.errorColor;
+    final String statusKey = isCorrect
+        ? 'result_correct'
+        : isSkipped
+            ? 'result_skipped'
+            : 'result_wrong';
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: isDark ? AppTheme.darkCardColor : Colors.white,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow1,
+        border: Border.all(color: statusColor.withOpacity(0.18), width: 1),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          onTap: () {
+            setState(() {
+              if (isExpanded) {
+                _expanded.remove(index);
+              } else {
+                _expanded.add(index);
+              }
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(AppTheme.spaceLg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isCorrect
-                        ? AppTheme.successColor
-                        : userAnswer == -1
-                            ? Colors.grey
-                            : AppTheme.errorColor,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    isCorrect
-                        ? Icons.check
-                        : userAnswer == -1
-                            ? Icons.remove
-                            : Icons.close,
-                    color: Colors.white,
-                    size: 18,
-                  ),
+                // Header row: badge + question + chevron
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Number badge (status-colored)
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusSm),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: AppFonts.style(
+                            size: 13,
+                            weight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spaceMd),
+                    // Question text (AppFonts.style for Assamese fallback)
+                    Expanded(
+                      child: Text(
+                        question.question,
+                        style: AppFonts.style(
+                          size: 14,
+                          weight: FontWeight.w500,
+                          height: 1.5,
+                          color:
+                              isDark ? Colors.grey.shade50 : Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppTheme.spaceSm),
+                    // Chevron
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                      size: 22,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Question ${index + 1}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: labelTextColor,
+                const SizedBox(height: AppTheme.spaceSm),
+                // Status chip
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceSm + 2,
+                    vertical: AppTheme.spaceXs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.12),
+                    borderRadius:
+                        BorderRadius.circular(AppTheme.radiusFull),
+                  ),
+                  child: L10nText(
+                    statusKey,
+                    style: AppFonts.style(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: statusColor,
                     ),
                   ),
                 ),
+                // Expandable detail (options + explanation)
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  child: isExpanded
+                      ? _buildReviewDetail(
+                          context, question, userAnswer, isDark)
+                      : const SizedBox.shrink(),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              question.question,
-              style: TextStyle(fontSize: 14, color: questionTextColor),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReviewDetail(
+    BuildContext context,
+    QuestionModel question,
+    int userAnswer,
+    bool isDark,
+  ) {
+    final Color neutralBg =
+        isDark ? Colors.grey.shade800 : Colors.grey.shade50;
+    final Color neutralBorder =
+        isDark ? Colors.grey.shade600 : Colors.grey.shade200;
+    final Color optionTextColor =
+        isDark ? Colors.grey.shade50 : Colors.black87;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppTheme.spaceMd),
+        // Options -- correct answer green, user's wrong answer red
+        ...List.generate(question.options.length, (i) {
+          final isCorrectAnswer = i == question.correctAnswerIndex;
+          final isUserAnswer = i == userAnswer;
+          final Color bgColor = isCorrectAnswer
+              ? AppTheme.successColor.withOpacity(0.12)
+              : isUserAnswer
+                  ? AppTheme.errorColor.withOpacity(0.12)
+                  : neutralBg;
+          final Color borderColor = isCorrectAnswer
+              ? AppTheme.successColor
+              : isUserAnswer
+                  ? AppTheme.errorColor
+                  : neutralBorder;
+          return Container(
+            margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+            padding: const EdgeInsets.all(AppTheme.spaceMd),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              border: Border.all(color: borderColor, width: 1),
             ),
-            const SizedBox(height: 12),
-            // Show options
-            ...List.generate(question.options.length, (i) {
-              final isCorrectAnswer = i == question.correctAnswerIndex;
-              final isUserAnswer = i == userAnswer;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isCorrectAnswer
-                      ? AppTheme.successColor.withOpacity(0.1)
-                      : isUserAnswer
-                          ? AppTheme.errorColor.withOpacity(0.1)
-                          : neutralBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
+            child: Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
                     color: isCorrectAnswer
                         ? AppTheme.successColor
                         : isUserAnswer
                             ? AppTheme.errorColor
-                            : neutralBorder,
+                            : (isDark
+                                ? Colors.grey.shade700
+                                : Colors.grey.shade300),
+                    borderRadius:
+                        BorderRadius.circular(AppTheme.radiusSm),
+                  ),
+                  child: Center(
+                    child: Text(
+                      String.fromCharCode(65 + i),
+                      style: AppFonts.style(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Text(
-                      '${String.fromCharCode(65 + i)}.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: optionTextColor,
-                      ),
+                const SizedBox(width: AppTheme.spaceMd),
+                // Option text uses AppFonts.style for Assamese fallback
+                Expanded(
+                  child: Text(
+                    question.options[i],
+                    style: AppFonts.style(
+                      size: 13,
+                      color: optionTextColor,
+                      height: 1.4,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        question.options[i],
-                        style: TextStyle(color: optionTextColor),
-                      ),
-                    ),
-                    if (isCorrectAnswer)
-                      const Icon(Icons.check_circle, color: AppTheme.successColor, size: 18)
-                    else if (isUserAnswer)
-                      const Icon(Icons.cancel, color: AppTheme.errorColor, size: 18),
-                  ],
+                  ),
                 ),
-              );
-            }),
-            if (question.explanation != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.infoColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.lightbulb, color: AppTheme.infoColor, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Explanation',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.infoColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      question.explanation!,
-                      style: TextStyle(
-                        color: isDark ? Colors.grey.shade100 : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
+                if (isCorrectAnswer)
+                  const Icon(Icons.check_circle,
+                      color: AppTheme.successColor, size: 18)
+                else if (isUserAnswer)
+                  const Icon(Icons.cancel,
+                      color: AppTheme.errorColor, size: 18),
+              ],
+            ),
+          );
+        }),
+        // Explanation box (primaryColor tint + light-bulb icon)
+        if (question.explanation != null &&
+            question.explanation!.isNotEmpty) ...[
+          const SizedBox(height: AppTheme.spaceSm),
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spaceMd),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+              border: Border.all(
+                color: AppTheme.primaryColor.withOpacity(0.18),
+                width: 1,
               ),
-            ],
-          ],
-        ),
-      ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('💡', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: AppTheme.spaceXs),
+                    L10nText(
+                      'result_explanation',
+                      style: AppFonts.style(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceSm),
+                // Explanation text uses AppFonts.style for Assamese fallback
+                Text(
+                  question.explanation!,
+                  style: AppFonts.style(
+                    size: 13,
+                    height: 1.5,
+                    color: isDark ? Colors.grey.shade100 : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

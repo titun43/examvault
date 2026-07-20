@@ -28,6 +28,7 @@ import 'services/razorpay_service.dart';
 import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'l10n/app_localizations.dart';
 import 'screens/splash_screen.dart';
 import 'screens/premium/premium_screen.dart';
 import 'screens/payments/my_purchases_screen.dart';
@@ -126,6 +127,7 @@ class ExamVaultApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {

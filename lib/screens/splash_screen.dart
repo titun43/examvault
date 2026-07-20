@@ -34,6 +34,7 @@ import '../providers/auth_provider.dart';
 import '../services/firestore_service.dart';
 import '../utils/app_open_banner_frequency.dart';
 import '../utils/in_app_navigator.dart' show runActionButton;
+import '../theme/app_theme.dart';
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../admin/admin_dashboard.dart';
@@ -169,11 +170,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF1565C0), Color(0xFF003C8F)],
+            colors: AppTheme.brandGradient,
           ),
         ),
         child: Center(
@@ -391,7 +392,7 @@ class _BookLogoState extends State<_BookLogo>
       child: const Icon(
         Icons.menu_book,
         size: 60,
-        color: Color(0xFF1565C0),
+        color: AppTheme.primaryColor,
       ),
     );
   }
@@ -457,7 +458,7 @@ class _BookLogoState extends State<_BookLogo>
       width: width,
       height: 3,
       decoration: BoxDecoration(
-        color: const Color(0xFF1565C0).withOpacity(0.22),
+        color: AppTheme.primaryColor.withOpacity(0.22),
         borderRadius: BorderRadius.circular(2),
       ),
     );

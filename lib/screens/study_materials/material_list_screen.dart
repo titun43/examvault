@@ -369,7 +369,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   Color _typeColor(StudyMaterialType type) {
     switch (type) {
       case StudyMaterialType.previousPaper:
-        return const Color(0xFF1565C0);
+        return AppTheme.primaryColor;
       case StudyMaterialType.notes:
         return const Color(0xFF388E3C);
       case StudyMaterialType.syllabus:

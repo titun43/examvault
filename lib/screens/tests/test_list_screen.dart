@@ -25,10 +25,88 @@
 // calls AccessService.checkTestAccess(). If the backend denies access, a
 // purchase sheet is shown: Buy this test / Go Premium. FREE tests open
 // immediately without a server round-trip.
+//
+// =============================================================================
+// v2 MODERNIZATION (visual layer only — payment/access logic unchanged):
+//   - Plain AppBar replaced with a category-themed SliverAppBar hero header.
+//     The hero shows the subject icon + name + "N Tests" count + an optional
+//     category chip, all wrapped in AppTheme.gradientFor(categoryId) so every
+//     exam keeps its signature look (ADRE → orange, APSC → violet, TET → pink,
+//     etc.). Falls back to the brand emerald gradient when no category match.
+//   - Loading state now renders a 4-card shimmer skeleton list (using the
+//     `shimmer` package) inside visible white/dark cards — no more bare
+//     CircularProgressIndicator.
+//   - Empty state is illustrated: large 📝 in a soft primaryColor circle,
+//     bilingual title (test_noTests), subtitle (test_noTestsDesc), and a
+//     primary-colored CTA line (test_checkBackSoon). A separate filtered
+//     empty state (test_noMatchingTests) appears when a chip yields no rows.
+//   - Added a horizontal filter-chip row (All / Free / Premium / Mock /
+//     Previous Year) with bilingual labels. Active chip = filled with
+//     AppTheme.primaryColor; inactive = outlined. Staggered flutter_animate
+//     entrance (index * 60 ms).
+//   - Test cards completely redesigned:
+//       * Colored left accent bar (4 px) using AppTheme.colorFor(category).
+//       * Icon tile (40×40) with the test-type emoji on a category-tinted bg.
+//       * Bold bilingual title (16 px / w700) with Assamese font fallback.
+//       * Badges with VISUAL HIERARCHY:
+//           - FREE  → green pill (AppTheme.successColor, filled)
+//           - Premium-only → amber gradient pill (AppTheme.accentGradientColors)
+//           - Paid (₹X) → amber solid pill (AppTheme.accentColor)
+//           - Test type (Mock / Previous Year) → outlined primary pill
+//           - Year → outlined primary pill
+//         No more flat Wrap of identically-styled pills.
+//       * Meta row with ⏱ duration / 📝 questions / 🎯 marks / 📈 attempts
+//         using small leading icons.
+//       * Negative-marking warning chip (⚠ + test_negativeMarking) in
+//         AppTheme.warningColor when test.negativeMarking is true.
+//       * Action button with three visual states:
+//           - Start Test → filled AppTheme.primaryColor
+//           - Unlock with Premium → outlined amber
+//           - Buy Now ₹X → amber gradient (custom _GradientButton)
+//       * Soft shadow (AppTheme.softShadow1), radiusLg corners, subtle border,
+//         dark-mode aware (AppTheme.darkCardColor vs Colors.white).
+//       * Entrance animation: fadeIn + slideY with index * 60 ms stagger.
+//   - Subject-pack banner modernized: primary gradient card, icon tile,
+//     bilingual title/subtitle (test_unlockSubject / test_unlockSubjectDesc),
+//     white pill CTA with the price. Soft shadow + radiusLg.
+//   - Purchase bottom sheet modernized: dark-aware surface, design-token
+//     spacing/radii, bilingual title/subtitle/option labels, AppFonts text
+//     styles. Sheet logic (Buy / Go Premium / dismiss) is UNCHANGED.
+//   - Payment progress + success dialog text now flows through tr() so the
+//     "Preparing payment…" / "Verifying payment…" / "Open Test" / "Payment
+//     failed: …" strings respect the user's language preference. The
+//     Razorpay call structure, callbacks, progress dialog API, and success
+//     dialog API are UNCHANGED.
+//   - Every user-visible string now uses tr(context, 'key') or L10nText.
+//     New l10n keys added to app_strings.dart (english + assamese maps):
+//     test_noMatchingTests, test_noMatchingTestsDesc, test_clearFilter,
+//     test_unableToLoad, test_unableToLoadDesc, test_unlockSubject,
+//     test_unlockSubjectDesc, test_unlockTest, test_buyOrPremiumDesc,
+//     test_premiumOnlyDesc, test_buyThisTest, test_attemptAnytime,
+//     test_unlimitedAccess, test_maybeLater, test_paymentTakingLong,
+//     test_preparingPayment, test_verifyingPayment, test_paymentFailedPrefix,
+//     test_paymentFailedGeneric, test_openTest, test_signInToPurchase,
+//     test_subjectPackPrefix, test_premiumOnlyHint, test_paidHint.
+//   - All hardcoded spacing/radii/shadows replaced with AppTheme tokens
+//     (spaceXs/Sm/Md/Lg/Xl/Xxl, radiusSm/Md/Lg/Xl/Full, softShadow1/2).
+//   - NO blue/indigo colors anywhere — primaryColor (emerald) or category
+//     colors only. The legacy file had zero blue literals too, so this is a
+//     preservation guarantee rather than a removal.
+//   - Payment / access / Razorpay / exam-pack / subject-pack logic is
+//     preserved EXACTLY: _startTest, _showPurchaseSheet (flow), _purchaseTest,
+//     _purchaseSubjectPack, AccessService calls, markTestPurchased /
+//     markSubjectPackPurchased cache writes, the fast-path local user model
+//     check, the server-side premium check on load, the local exam-pack
+//     pre-seed, the SharedPreferences cache pre-seed, the constructor
+//     signature, and all navigation to TakeTestScreen / LoginScreen /
+//     /premium / /my-purchases.
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
 import '../../models/user_model.dart';
@@ -38,6 +116,7 @@ import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -89,6 +168,10 @@ class _TestListScreenState extends State<TestListScreen> {
   // screen load (cached 60s by AccessService). Also drives the visibility of
   // the "Unlock this subject for ₹X" banner — hidden when true.
   bool _serverHasSubjectPackAccess = false;
+
+  // v2: active filter chip. Defaults to "all" so the full list shows. Tapping
+  // a chip calls setState and the build filters the streamed tests locally.
+  _TestFilter _activeFilter = _TestFilter.all;
 
   @override
   void initState() {
@@ -302,61 +385,116 @@ class _TestListScreenState extends State<TestListScreen> {
     return user?.isPremium ?? false;
   }
 
+  /// v2: locally filter the streamed tests by the active filter chip. Cheap
+  /// (in-memory List.where) — runs on every build. Returns a NEW list so the
+  /// caller can safely read its length.
+  List<TestModel> _applyFilter(List<TestModel> tests) {
+    switch (_activeFilter) {
+      case _TestFilter.all:
+        return tests;
+      case _TestFilter.free:
+        return tests.where((t) => !t.isPaid).toList();
+      case _TestFilter.premium:
+        return tests.where((t) => t.isPremium).toList();
+      case _TestFilter.mock:
+        return tests.where((t) => t.type == TestType.mock).toList();
+      case _TestFilter.previousYear:
+        return tests.where((t) => t.type == TestType.previousYear).toList();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subject = widget.subject;
+    // Best-effort category-name resolution: subject.categoryId may hold the
+    // category name, slug, or Firestore id (admin entry varies). Pass it to
+    // gradientFor/colorFor — they do case-insensitive `.contains()` matching
+    // against the known category keys, so "ADRE", "adre", and "adre-3-2024"
+    // all resolve to the ADRE palette. Unknown ids fall back to brand emerald.
+    final categoryName = subject?.categoryId;
+    final heroGradient = AppTheme.gradientFor(categoryName);
+    final heroTitle = subject?.name ?? tr(context, 'subject_tests');
+    final heroIcon = subject?.icon ?? '📝';
+
+    // Subject-pack banner visibility — same condition as v1, computed up
+    // front so the StreamBuilder's sliver list can conditionally include it.
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    final isPremiumUser = _effectiveIsPremium(user);
+    final showSubjectPackBanner = subject != null &&
+        subject.premiumPrice > 0 &&
+        !_serverHasSubjectPackAccess &&
+        !isPremiumUser;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.subject?.name ?? 'Tests'),
-      ),
       body: StreamBuilder<List<TestModel>>(
         stream: FirestoreService.getTestsStream(
-          subjectId: widget.subject?.id,
+          subjectId: subject?.id,
           isPublished: true,
         ),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Unable to load tests.\nPlease check your connection and retry.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
+          final isLoading = snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData;
+          final hasError = snapshot.hasError;
+          final allTests = snapshot.data ?? const <TestModel>[];
+          final tests = _applyFilter(allTests);
+          final hasDataButFilterEmpty =
+              allTests.isNotEmpty && tests.isEmpty;
+
+          return CustomScrollView(
+            slivers: [
+              // ==================== HERO HEADER ====================
+              _buildHero(
+                context: context,
+                title: heroTitle,
+                icon: heroIcon,
+                categoryName: categoryName,
+                gradient: heroGradient,
+                testCount: allTests.length,
               ),
-            );
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No tests available'));
-          }
-          // "Unlock this subject" banner — shown only when the admin has set a
-          // premiumPrice > 0 on this subject AND the user doesn't already have
-          // subject-pack access. Tapping it starts a Razorpay subject-pack
-          // purchase (startSubjectPackPurchase) which unlocks ALL tests in this
-          // subject.
-          final showSubjectPackBanner =
-              widget.subject != null &&
-              widget.subject!.premiumPrice > 0 &&
-              !_serverHasSubjectPackAccess &&
-              !_effectiveIsPremium(
-                  Provider.of<AuthProvider>(context, listen: false).user);
-          return Column(
-            children: [
+
+              // ==================== SUBJECT-PACK BANNER ====================
               if (showSubjectPackBanner)
-                _buildSubjectPackBanner(context, widget.subject!),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.length,
-                  itemBuilder: (context, index) {
-                    final test = snapshot.data![index];
-                    return _buildTestCard(context, test);
-                  },
+                SliverToBoxAdapter(
+                  child: _buildSubjectPackBanner(context, subject!),
                 ),
-              ),
+
+              // ==================== CONTENT STATES ====================
+              if (isLoading)
+                SliverToBoxAdapter(child: _buildShimmerList(isDark))
+              else if (hasError)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildErrorState(context),
+                )
+              else if (allTests.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(context, isFiltered: false),
+                )
+              else if (hasDataButFilterEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(context, isFiltered: true),
+                )
+              else ...[
+                // Filter chips row (sticky-ish: scrolls with content).
+                SliverToBoxAdapter(child: _buildFilterChips(context, isDark)),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spaceLg,
+                    AppTheme.spaceSm,
+                    AppTheme.spaceLg,
+                    AppTheme.spaceXl,
+                  ),
+                  sliver: SliverList.builder(
+                    itemCount: tests.length,
+                    itemBuilder: (context, index) =>
+                        _buildTestCard(context, tests[index], index, isDark),
+                  ),
+                ),
+              ],
             ],
           );
         },
@@ -364,7 +502,445 @@ class _TestListScreenState extends State<TestListScreen> {
     );
   }
 
-  Widget _buildTestCard(BuildContext context, TestModel test) {
+  // ===========================================================================
+  // HERO HEADER
+  // ===========================================================================
+  Widget _buildHero({
+    required BuildContext context,
+    required String title,
+    required String icon,
+    required String? categoryName,
+    required List<Color> gradient,
+    required int testCount,
+  }) {
+    // Show the category chip ONLY when categoryId exactly matches a known
+    // category key — otherwise we'd be showing a slug or Firestore id.
+    final String knownCategory = (categoryName != null && categoryName.isNotEmpty)
+        ? AppTheme.categoryColors.keys.firstWhere(
+            (k) => k.toLowerCase() == categoryName.toLowerCase(),
+            orElse: () => '',
+          )
+        : '';
+
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      backgroundColor: gradient.first,
+      foregroundColor: Colors.white,
+      iconTheme: const IconThemeData(color: Colors.white),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradient,
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.spaceLg,
+                AppTheme.spaceXl,
+                AppTheme.spaceLg,
+                AppTheme.spaceLg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (knownCategory.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spaceSm + 4,
+                        vertical: AppTheme.spaceXs + 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.22),
+                        borderRadius:
+                            BorderRadius.circular(AppTheme.radiusFull),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.25),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        knownCategory.toUpperCase(),
+                        style: AppFonts.style(
+                          size: 10,
+                          weight: FontWeight.w700,
+                          color: Colors.white,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 350.ms)
+                        .slideY(begin: -0.15),
+                    const SizedBox(height: AppTheme.spaceSm),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.25),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusLg),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.35),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(icon, style: const TextStyle(fontSize: 28)),
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spaceMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
+                              style: AppFonts.style(
+                                size: 22,
+                                weight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.15,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$testCount ${tr(context, 'subject_tests')}',
+                              style: AppFonts.style(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.92),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                      .animate()
+                      .fadeIn(delay: 100.ms, duration: 450.ms)
+                      .slideY(begin: 0.12),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // SHIMMER LOADING SKELETON
+  // ===========================================================================
+  Widget _buildShimmerList(bool isDark) {
+    final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
+    final baseColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : Colors.grey.shade300;
+    final highlightColor = isDark
+        ? Colors.white.withOpacity(0.14)
+        : Colors.grey.shade100;
+
+    return Column(
+      children: List.generate(4, (index) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(
+              AppTheme.spaceLg, AppTheme.spaceSm, AppTheme.spaceLg, 0),
+          padding: const EdgeInsets.all(AppTheme.spaceLg),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            boxShadow: AppTheme.softShadow1,
+          ),
+          child: Shimmer.fromColors(
+            baseColor: baseColor,
+            highlightColor: highlightColor,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title + badge row
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _skeletonBox(40, 40, AppTheme.radiusMd),
+                    const SizedBox(width: AppTheme.spaceMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _skeletonBox(double.infinity, 14, AppTheme.radiusSm),
+                          const SizedBox(height: AppTheme.spaceSm),
+                          Row(
+                            children: [
+                              _skeletonBox(54, 16, AppTheme.radiusFull),
+                              const SizedBox(width: AppTheme.spaceXs + 2),
+                              _skeletonBox(54, 16, AppTheme.radiusFull),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceMd),
+                // Meta row
+                Row(
+                  children: [
+                    _skeletonBox(72, 10, AppTheme.radiusSm),
+                    const SizedBox(width: AppTheme.spaceMd),
+                    _skeletonBox(72, 10, AppTheme.radiusSm),
+                    const SizedBox(width: AppTheme.spaceMd),
+                    _skeletonBox(72, 10, AppTheme.radiusSm),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceMd),
+                // Button skeleton
+                _skeletonBox(double.infinity, 36, AppTheme.radiusMd),
+              ],
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _skeletonBox(double width, double height, double radius) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.grey, // any opaque color — Shimmer's ShaderMask recolors it
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // EMPTY STATE (illustrated)
+  // ===========================================================================
+  Widget _buildEmptyState(BuildContext context, {required bool isFiltered}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? Colors.white : const Color(0xFF1C1917);
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spaceXxl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text('📝', style: TextStyle(fontSize: 44)),
+            ),
+          )
+              .animate()
+              .fadeIn(duration: 400.ms)
+              .slideY(begin: 0.1),
+          const SizedBox(height: AppTheme.spaceXl),
+          L10nText(
+            isFiltered ? 'test_noMatchingTests' : 'test_noTests',
+            style: AppFonts.style(
+              size: 18,
+              weight: FontWeight.w700,
+              color: titleColor,
+            ),
+            textAlign: TextAlign.center,
+          ).animate().fadeIn(delay: 120.ms, duration: 400.ms),
+          const SizedBox(height: AppTheme.spaceSm),
+          L10nText(
+            isFiltered ? 'test_noMatchingTestsDesc' : 'test_noTestsDesc',
+            style: AppFonts.style(
+              size: 13,
+              color: Colors.grey[600],
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ).animate().fadeIn(delay: 220.ms, duration: 400.ms),
+          const SizedBox(height: AppTheme.spaceXs),
+          if (isFiltered)
+            TextButton(
+              onPressed: () => setState(() => _activeFilter = _TestFilter.all),
+              child: L10nText(
+                'test_clearFilter',
+                style: AppFonts.style(
+                  size: 13,
+                  weight: FontWeight.w700,
+                  color: AppTheme.primaryColor,
+                ),
+              ),
+            ).animate().fadeIn(delay: 320.ms, duration: 400.ms)
+          else
+            L10nText(
+              'test_checkBackSoon',
+              style: AppFonts.style(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppTheme.primaryColor,
+              ),
+            ).animate().fadeIn(delay: 320.ms, duration: 400.ms),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // ERROR STATE
+  // ===========================================================================
+  Widget _buildErrorState(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spaceXxl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: AppTheme.errorColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.cloud_off_rounded,
+              size: 44,
+              color: AppTheme.errorColor,
+            ),
+          ).animate().fadeIn(duration: 400.ms),
+          const SizedBox(height: AppTheme.spaceXl),
+          L10nText(
+            'test_unableToLoad',
+            style: AppFonts.style(
+              size: 18,
+              weight: FontWeight.w700,
+              color: titleColor,
+            ),
+            textAlign: TextAlign.center,
+          ).animate().fadeIn(delay: 120.ms, duration: 400.ms),
+          const SizedBox(height: AppTheme.spaceSm),
+          L10nText(
+            'test_unableToLoadDesc',
+            style: AppFonts.style(
+              size: 13,
+              color: Colors.grey[600],
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ).animate().fadeIn(delay: 220.ms, duration: 400.ms),
+        ],
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // FILTER CHIPS
+  // ===========================================================================
+  Widget _buildFilterChips(BuildContext context, bool isDark) {
+    final chips = const <_FilterChipData>[
+      _FilterChipData(key: 'test_all', filter: _TestFilter.all),
+      _FilterChipData(key: 'test_free', filter: _TestFilter.free),
+      _FilterChipData(key: 'test_premium', filter: _TestFilter.premium),
+      _FilterChipData(key: 'test_mock', filter: _TestFilter.mock),
+      _FilterChipData(key: 'test_previousYear', filter: _TestFilter.previousYear),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spaceLg,
+        AppTheme.spaceMd,
+        AppTheme.spaceLg,
+        AppTheme.spaceSm,
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (int i = 0; i < chips.length; i++) ...[
+              _buildFilterChip(context, chips[i], isDark)
+                  .animate()
+                  .fadeIn(delay: (i * 60).ms, duration: 350.ms)
+                  .slideX(begin: 0.08),
+              if (i < chips.length - 1)
+                const SizedBox(width: AppTheme.spaceSm),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(
+    BuildContext context,
+    _FilterChipData data,
+    bool isDark,
+  ) {
+    final isActive = _activeFilter == data.filter;
+    return GestureDetector(
+      onTap: () => setState(() => _activeFilter = data.filter),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceMd + 2,
+          vertical: AppTheme.spaceSm + 2,
+        ),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppTheme.primaryColor
+              : (isDark ? AppTheme.darkCardColor : Colors.white),
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+          border: Border.all(
+            color: isActive
+                ? AppTheme.primaryColor
+                : (isDark
+                    ? Colors.white.withOpacity(0.12)
+                    : Colors.grey.shade300),
+            width: 1.2,
+          ),
+          boxShadow: isActive ? AppTheme.softShadow1 : null,
+        ),
+        child: Text(
+          tr(context, data.key),
+          style: AppFonts.style(
+            size: 12,
+            weight: FontWeight.w700,
+            color: isActive
+                ? Colors.white
+                : (isDark ? Colors.white70 : const Color(0xFF44403C)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // TEST CARD (modernized)
+  // ===========================================================================
+  Widget _buildTestCard(
+    BuildContext context,
+    TestModel test,
+    int index,
+    bool isDark,
+  ) {
     // listen: TRUE — so the card rebuilds when AuthProvider changes.
     // This is CRITICAL: after a successful payment, addPurchasedTest() calls
     // notifyListeners(). Without listen:true, the card would NOT rebuild and
@@ -393,173 +969,433 @@ class _TestListScreenState extends State<TestListScreen> {
     // Also grant access when the user owns the exam pack for this category
     // (local OR server-confirmed). Without this check, exam-pack buyers see
     // a "Buy" button on every test inside the category they already paid for.
-    final hasAccess =
-        isPremium || hasPurchasedTest || localHasExamPack || _serverHasExamPackAccess || _serverHasSubjectPackAccess;
+    final hasAccess = isPremium ||
+        hasPurchasedTest ||
+        localHasExamPack ||
+        _serverHasExamPackAccess ||
+        _serverHasSubjectPackAccess;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
     // Distinguish "premium-only" (no individual price) from "buy individually".
     final isPremiumOnly = test.isPremium && test.price <= 0;
     final canBuyIndividually = test.price > 0;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    // Category accent color (for the left bar + icon tile).
+    final categoryName = widget.subject?.categoryId;
+    final categoryColor = AppTheme.colorFor(categoryName);
+
+    final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
+    final subtleTextColor =
+        isDark ? Colors.white70 : const Color(0xFF57534E);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : Colors.black.withOpacity(0.05);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow1,
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title + price/premium badge
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    test.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (test.isPremium)
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+            // Colored left accent bar (category identity).
+            Container(width: 4, color: categoryColor),
+            // Card content.
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.spaceLg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ===== Title row: icon tile + title + badges =====
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.workspace_premium,
-                            color: AppTheme.accentColor, size: 14),
-                        const SizedBox(width: 3),
-                        Text(
-                          canBuyIndividually ? '₹${test.price}' : 'Premium',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accentColor,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: categoryColor.withOpacity(0.12),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusMd),
+                          ),
+                          child: Center(
+                            child: Text(
+                              _emojiForTestType(test.type),
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spaceMd),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                test.title,
+                                style: AppFonts.style(
+                                  size: 16,
+                                  weight: FontWeight.w700,
+                                  color: titleColor,
+                                  height: 1.25,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: AppTheme.spaceXs + 2,
+                                runSpacing: AppTheme.spaceXs,
+                                children: _buildBadges(
+                                  context: context,
+                                  test: test,
+                                  canBuyIndividually: canBuyIndividually,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  )
-                else if (test.price > 0)
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '₹${test.price}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.successColor,
-                      ),
-                    ),
-                  )
-                else
-                  // Explicit "FREE" badge so users can see at a glance that
-                  // this test requires no payment or premium subscription.
-                  Container(
-                    margin: const EdgeInsets.only(left: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: AppTheme.successColor.withOpacity(0.3),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      'FREE',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                        color: AppTheme.successColor,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Test meta info
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                _buildInfo(
-                    Icons.help_outline, '${test.questionCount} Questions'),
-                _buildInfo(Icons.timer, '${test.duration} min'),
-                _buildInfo(Icons.star, '${test.totalMarks} marks'),
-                _buildInfo(
-                    Icons.trending_up, '${test.attemptCount} attempts'),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Action button — Buy / Go Premium / Start depending on access.
-            // For paid tests the button reflects the server-side access state
-            // so the label always matches what happens on tap.
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: !needsPurchase
-                  ? ElevatedButton.icon(
-                      onPressed: () => _startTest(context, test),
-                      icon: const Icon(Icons.play_arrow, size: 20),
-                      label: const Text('Start Test'),
-                    )
-                  : isPremiumOnly
-                      ? ElevatedButton.icon(
-                          onPressed: () =>
-                              _showPurchaseSheet(context, test, user),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.accentColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          icon: const Icon(Icons.workspace_premium,
-                              size: 20),
-                          label: const Text('Go Premium'),
-                        )
-                      : ElevatedButton.icon(
-                          onPressed: () =>
-                              _showPurchaseSheet(context, test, user),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.successColor,
-                            foregroundColor: Colors.white,
-                          ),
-                          icon: const Icon(Icons.shopping_cart_outlined,
-                              size: 20),
-                          label: Text('Buy for ₹${test.price}'),
+
+                    const SizedBox(height: AppTheme.spaceMd),
+
+                    // ===== Meta row: duration / questions / marks / attempts =====
+                    Wrap(
+                      spacing: AppTheme.spaceMd,
+                      runSpacing: AppTheme.spaceXs,
+                      children: [
+                        _buildMetaItem(
+                          icon: Icons.timer_outlined,
+                          text:
+                              '${test.duration} ${tr(context, 'test_duration')}',
+                          color: subtleTextColor,
                         ),
-            ),
-            // Hint text for paid tests
-            if (needsPurchase)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  isPremiumOnly
-                      ? 'Subscribe to Premium to attempt this test.'
-                      : 'Buy this test or upgrade to Premium.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
-                  ),
+                        _buildMetaItem(
+                          icon: Icons.help_outline_rounded,
+                          text:
+                              '${test.questionCount} ${tr(context, 'test_questions')}',
+                          color: subtleTextColor,
+                        ),
+                        _buildMetaItem(
+                          icon: Icons.star_outline_rounded,
+                          text:
+                              '${test.totalMarks} ${tr(context, 'test_marks')}',
+                          color: subtleTextColor,
+                        ),
+                        if (test.attemptCount > 0)
+                          _buildMetaItem(
+                            icon: Icons.trending_up_rounded,
+                            text:
+                                '${test.attemptCount} ${tr(context, 'test_attempts')}',
+                            color: subtleTextColor,
+                          ),
+                      ],
+                    ),
+
+                    // ===== Negative-marking warning =====
+                    if (test.negativeMarking) ...[
+                      const SizedBox(height: AppTheme.spaceSm),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spaceSm + 2,
+                          vertical: AppTheme.spaceXs + 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.warningColor.withOpacity(0.1),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusSm),
+                          border: Border.all(
+                            color: AppTheme.warningColor.withOpacity(0.25),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.warning_amber_rounded,
+                              size: 14,
+                              color: AppTheme.warningColor,
+                            ),
+                            const SizedBox(width: 4),
+                            L10nText(
+                              'test_negativeMarking',
+                              style: AppFonts.style(
+                                size: 11,
+                                weight: FontWeight.w700,
+                                color: AppTheme.warningColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: AppTheme.spaceMd),
+
+                    // ===== Action button (Start / Unlock Premium / Buy Now) =====
+                    _buildActionButton(
+                      context: context,
+                      test: test,
+                      user: user,
+                      needsPurchase: needsPurchase,
+                      isPremiumOnly: isPremiumOnly,
+                      price: test.price,
+                    ),
+
+                    // ===== Hint text for paid tests =====
+                    if (needsPurchase) ...[
+                      const SizedBox(height: AppTheme.spaceSm),
+                      L10nText(
+                        isPremiumOnly
+                            ? 'test_premiumOnlyHint'
+                            : 'test_paidHint',
+                        style: AppFonts.style(
+                          size: 11,
+                          color: Colors.grey[600],
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
+            ),
           ],
         ),
       ),
+    )
+        .animate()
+        .fadeIn(delay: (index * 60).ms, duration: 450.ms)
+        .slideY(begin: 0.08);
+  }
+
+  String _emojiForTestType(TestType type) {
+    switch (type) {
+      case TestType.mock:
+        return '📝';
+      case TestType.previousYear:
+        return '📄';
+      case TestType.dailyQuiz:
+        return '⚡';
+      case TestType.practice:
+        return '🎯';
+      case TestType.subjectwise:
+        return '📚';
+    }
+  }
+
+  /// Visual-hierarchy badges. FREE → green pill (filled), Premium-only →
+  /// amber gradient pill, Paid → amber solid pill (₹X), plus optional
+  /// outlined type/year pills. NOT a flat wrap of identically-styled pills.
+  List<Widget> _buildBadges({
+    required BuildContext context,
+    required TestModel test,
+    required bool canBuyIndividually,
+  }) {
+    final badges = <Widget>[];
+
+    if (!test.isPaid) {
+      // FREE — most prominent (green filled pill).
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'free'),
+        color: AppTheme.successColor,
+      ));
+    } else if (test.isPremium && !canBuyIndividually) {
+      // Premium-only — amber gradient pill.
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'premium'),
+        gradientColors: AppTheme.accentGradientColors,
+        isGradient: true,
+      ));
+    } else if (canBuyIndividually) {
+      // Paid — amber solid pill with ₹X.
+      badges.add(_pill(
+        context: context,
+        label: '₹${test.price}',
+        color: AppTheme.accentColor,
+      ));
+      if (test.isPremium) {
+        // ALSO premium — show secondary Premium outline.
+        badges.add(_pill(
+          context: context,
+          label: tr(context, 'premium'),
+          color: AppTheme.accentColor,
+          outlined: true,
+        ));
+      }
+    }
+
+    // Test-type pill (outlined primary).
+    if (test.type == TestType.mock) {
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'test_mock'),
+        color: AppTheme.primaryColor,
+        outlined: true,
+      ));
+    } else if (test.type == TestType.previousYear) {
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'test_previousYear'),
+        color: AppTheme.primaryColor,
+        outlined: true,
+      ));
+    }
+
+    // Year pill (outlined primary).
+    if (test.year != null && test.year! > 0) {
+      badges.add(_pill(
+        context: context,
+        label: '${test.year}',
+        color: AppTheme.primaryColor,
+        outlined: true,
+      ));
+    }
+
+    return badges;
+  }
+
+  Widget _pill({
+    required BuildContext context,
+    required String label,
+    Color? color,
+    List<Color>? gradientColors,
+    bool isGradient = false,
+    bool outlined = false,
+  }) {
+    final bg = isGradient
+        ? LinearGradient(
+            colors: gradientColors!,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : (outlined ? color!.withOpacity(0.1) : color!.withOpacity(0.15));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spaceSm,
+        vertical: AppTheme.spaceXs,
+      ),
+      decoration: BoxDecoration(
+        gradient: isGradient ? bg : null,
+        color: isGradient ? null : bg,
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        border: outlined
+            ? Border.all(color: color!.withOpacity(0.4), width: 0.8)
+            : null,
+      ),
+      child: Text(
+        label,
+        style: AppFonts.style(
+          size: 10,
+          weight: FontWeight.w800,
+          color: isGradient ? Colors.white : color,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetaItem({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: AppFonts.style(
+            size: 12,
+            weight: FontWeight.w500,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButton({
+    required BuildContext context,
+    required TestModel test,
+    required UserModel? user,
+    required bool needsPurchase,
+    required bool isPremiumOnly,
+    required int price,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 44,
+      child: !needsPurchase
+          ? ElevatedButton.icon(
+              onPressed: () => _startTest(context, test),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                ),
+                textStyle:
+                    AppFonts.style(size: 14, weight: FontWeight.w700),
+              ),
+              icon: const Icon(Icons.play_arrow_rounded, size: 20),
+              label: Text(
+                tr(context, 'test_startTest'),
+                style: AppFonts.style(
+                  size: 14,
+                  weight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            )
+          : isPremiumOnly
+              ? OutlinedButton.icon(
+                  onPressed: () =>
+                      _showPurchaseSheet(context, test, user),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accentColor,
+                    side: BorderSide(
+                        color: AppTheme.accentColor, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    textStyle: AppFonts.style(
+                        size: 14, weight: FontWeight.w700),
+                  ),
+                  icon: const Icon(Icons.workspace_premium_rounded,
+                      size: 20),
+                  label: Text(
+                    tr(context, 'test_unlockPremium'),
+                    style: AppFonts.style(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: AppTheme.accentColor,
+                    ),
+                  ),
+                )
+              : _GradientButton(
+                  gradient: AppTheme.accentGradientColors,
+                  icon: Icons.shopping_cart_outlined,
+                  label: '${tr(context, 'test_buyNow')} ₹$price',
+                  onPressed: () =>
+                      _showPurchaseSheet(context, test, user),
+                ),
     );
   }
 
@@ -696,62 +1532,83 @@ class _TestListScreenState extends State<TestListScreen> {
     }
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final canBuyTest = test.price > 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
 
     showModalBottomSheet<void>(
       context: context,
+      backgroundColor: isDark ? AppTheme.darkSurfaceColor : Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppTheme.radiusXl)),
       ),
       builder: (sheetCtx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: const EdgeInsets.fromLTRB(
+              AppTheme.spaceLg,
+              AppTheme.spaceMd,
+              AppTheme.spaceLg,
+              AppTheme.spaceLg,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius:
+                          BorderRadius.circular(AppTheme.radiusFull),
+                    ),
                   ),
                 ),
                 Text(
-                  'Unlock "${test.title}"',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                  tr(context, 'test_unlockTest')
+                      .replaceAll('{title}', test.title),
+                  style: AppFonts.style(
+                    size: 16,
+                    weight: FontWeight.w700,
+                    color: titleColor,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
+                L10nText(
                   canBuyTest
-                      ? 'Buy this test or upgrade to Premium. All payments are secure & verified.'
-                      : 'Upgrade to Premium for unlimited access. All payments are secure & verified.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ? 'test_buyOrPremiumDesc'
+                      : 'test_premiumOnlyDesc',
+                  style: AppFonts.style(
+                    size: 12,
+                    color: Colors.grey[600],
+                    height: 1.4,
+                  ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppTheme.spaceLg),
                 if (canBuyTest) ...[
                   _sheetOption(
+                    context: sheetCtx,
                     icon: Icons.shopping_cart_outlined,
                     color: AppTheme.successColor,
-                    title: 'Buy this test',
-                    subtitle: '₹${test.price} · attempt anytime',
+                    titleKey: 'test_buyThisTest',
+                    subtitle:
+                        '₹${test.price} · ${tr(sheetCtx, 'test_attemptAnytime')}',
                     onTap: () {
                       Navigator.pop(sheetCtx);
                       _purchaseTest(context, test, user, auth);
                     },
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppTheme.spaceSm),
                 ],
                 _sheetOption(
-                  icon: Icons.workspace_premium,
+                  context: sheetCtx,
+                  icon: Icons.workspace_premium_rounded,
                   color: AppTheme.accentColor,
-                  title: 'Go Premium',
-                  subtitle: 'Unlimited access to everything',
+                  titleKey: 'premium_title',
+                  subtitle: tr(sheetCtx, 'test_unlimitedAccess'),
                   onTap: () {
                     Navigator.pop(sheetCtx);
                     // FIXED: refresh access when user returns from premium screen.
@@ -760,10 +1617,14 @@ class _TestListScreenState extends State<TestListScreen> {
                     });
                   },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppTheme.spaceSm),
                 TextButton(
                   onPressed: () => Navigator.pop(sheetCtx),
-                  child: const Text('Maybe later'),
+                  child: L10nText(
+                    'test_maybeLater',
+                    style: AppFonts.style(
+                        size: 14, color: Colors.grey[700]),
+                  ),
                 ),
               ],
             ),
@@ -774,47 +1635,62 @@ class _TestListScreenState extends State<TestListScreen> {
   }
 
   Widget _sheetOption({
+    required BuildContext context,
     required IconData icon,
     required Color color,
-    required String title,
+    required String titleKey,
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(AppTheme.spaceMd),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.08)
+                : Colors.grey.shade200,
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(AppTheme.spaceSm),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius:
+                    BorderRadius.circular(AppTheme.radiusSm + 2),
               ),
               child: Icon(icon, color: color, size: 22),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppTheme.spaceMd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  L10nText(
+                    titleKey,
+                    style: AppFonts.style(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey.shade600)),
+                  Text(
+                    subtitle,
+                    style: AppFonts.style(
+                        size: 12, color: Colors.grey[600]),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey[400]),
           ],
         ),
       ),
@@ -853,12 +1729,10 @@ class _TestListScreenState extends State<TestListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
-          content: const Text(
-            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
-          ),
+          content: Text(tr(context, 'test_paymentTakingLong')),
           backgroundColor: AppTheme.warningColor,
           action: SnackBarAction(
-            label: 'My Purchases',
+            label: tr(context, 'profile_myPurchases'),
             textColor: Colors.white,
             onPressed: () {
               if (context.mounted) {
@@ -893,7 +1767,7 @@ class _TestListScreenState extends State<TestListScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Preparing payment...',
+          message: tr(context, 'test_preparingPayment'),
           cancellable: true,
           onCancel: () => cancelled = true,
           onSafetyTimeout: showCheckPurchasesMessage,
@@ -911,9 +1785,9 @@ class _TestListScreenState extends State<TestListScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Verifying payment...',
+          message: tr(context, 'test_verifyingPayment'),
           cancellable: true,
-          cancelLabel: 'Check My Purchases',
+          cancelLabel: tr(context, 'profile_myPurchases'),
           // 60s accommodates the verify call (20s) + order-status polling
           // (up to 3 polls × ~13s) which lets the Razorpay webhook fire.
           safetyTimeout: const Duration(seconds: 60),
@@ -948,7 +1822,7 @@ class _TestListScreenState extends State<TestListScreen> {
           context,
           itemName: test.title,
           amount: test.price,
-          actionLabel: 'Open Test',
+          actionLabel: tr(context, 'test_openTest'),
           paymentId: response.paymentId,
         ).then((shouldOpen) {
           if (shouldOpen && context.mounted) {
@@ -968,7 +1842,8 @@ class _TestListScreenState extends State<TestListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Payment failed: ${response.message ?? 'Please try again.'}'),
+              '${tr(context, 'test_paymentFailedPrefix')} ${response.message ?? tr(context, 'test_paymentFailedGeneric')}',
+            ),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -983,62 +1858,87 @@ class _TestListScreenState extends State<TestListScreen> {
   /// Tapping it starts a Razorpay subject-pack purchase.
   Widget _buildSubjectPackBanner(BuildContext context, SubjectModel subject) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(
+        AppTheme.spaceLg,
+        AppTheme.spaceMd,
+        AppTheme.spaceLg,
+        0,
+      ),
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
       decoration: BoxDecoration(
         gradient: AppTheme.primaryGradient,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow1,
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_open, color: Colors.white, size: 28),
-          const SizedBox(width: 12),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.22),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: const Icon(
+              Icons.lock_open_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Unlock all tests in ${subject.name}',
-                  style: const TextStyle(
+                  tr(context, 'test_unlockSubject')
+                      .replaceAll('{subject}', subject.name),
+                  style: AppFonts.style(
+                    size: 14,
+                    weight: FontWeight.w700,
                     color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
+                    height: 1.25,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'Get access to every test in this subject',
-                  style: TextStyle(
+                L10nText(
+                  'test_unlockSubjectDesc',
+                  style: AppFonts.style(
+                    size: 11,
                     color: Colors.white.withOpacity(0.85),
-                    fontSize: 12,
+                    height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppTheme.spaceSm),
           ElevatedButton(
             onPressed: () => _purchaseSubjectPack(context, subject),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AppTheme.primaryColor,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spaceLg,
+                vertical: AppTheme.spaceSm + 2,
+              ),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
             ),
             child: Text(
               '₹${subject.premiumPrice}',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
+              style: AppFonts.style(size: 14, weight: FontWeight.w700),
             ),
           ),
         ],
       ),
-    );
+    )
+        .animate()
+        .fadeIn(delay: 200.ms, duration: 450.ms)
+        .slideY(begin: 0.06);
   }
 
   /// Initiates a Razorpay payment for a subject pack (unlocks ALL tests in
@@ -1055,7 +1955,7 @@ class _TestListScreenState extends State<TestListScreen> {
     final user = auth.user;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to make a purchase.')),
+        SnackBar(content: Text(tr(context, 'test_signInToPurchase'))),
       );
       return;
     }
@@ -1068,12 +1968,10 @@ class _TestListScreenState extends State<TestListScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
-          content: const Text(
-            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
-          ),
+          content: Text(tr(context, 'test_paymentTakingLong')),
           backgroundColor: AppTheme.warningColor,
           action: SnackBarAction(
-            label: 'My Purchases',
+            label: tr(context, 'profile_myPurchases'),
             textColor: Colors.white,
             onPressed: () {
               if (context.mounted) {
@@ -1103,7 +2001,7 @@ class _TestListScreenState extends State<TestListScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Preparing payment...',
+          message: tr(context, 'test_preparingPayment'),
           cancellable: true,
           onCancel: () => cancelled = true,
           onSafetyTimeout: showCheckPurchasesMessage,
@@ -1116,9 +2014,9 @@ class _TestListScreenState extends State<TestListScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Verifying payment...',
+          message: tr(context, 'test_verifyingPayment'),
           cancellable: true,
-          cancelLabel: 'Check My Purchases',
+          cancelLabel: tr(context, 'profile_myPurchases'),
           safetyTimeout: const Duration(seconds: 60),
           onCancel: () {
             cancelled = true;
@@ -1139,9 +2037,10 @@ class _TestListScreenState extends State<TestListScreen> {
         if (!context.mounted) return;
         PaymentSuccessDialog.show(
           context,
-          itemName: 'Subject Pack: ${subject.name}',
+          itemName:
+              '${tr(context, 'test_subjectPackPrefix')}${subject.name}',
           amount: subject.premiumPrice,
-          actionLabel: 'Done',
+          actionLabel: tr(context, 'done'),
           paymentId: response.paymentId,
         );
       },
@@ -1152,28 +2051,85 @@ class _TestListScreenState extends State<TestListScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-                'Payment failed: ${response.message ?? 'Please try again.'}'),
+              '${tr(context, 'test_paymentFailedPrefix')} ${response.message ?? tr(context, 'test_paymentFailedGeneric')}',
+            ),
             backgroundColor: AppTheme.errorColor,
           ),
         );
       },
     );
   }
+}
 
-  Widget _buildInfo(IconData icon, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade600,
+// =============================================================================
+// v2 HELPERS
+// =============================================================================
+
+/// Filter chip enum (All / Free / Premium / Mock / Previous Year).
+enum _TestFilter { all, free, premium, mock, previousYear }
+
+/// Tiny data holder for a filter chip's l10n key + enum value.
+class _FilterChipData {
+  final String key;
+  final _TestFilter filter;
+  const _FilterChipData({required this.key, required this.filter});
+}
+
+/// Amber-gradient "Buy Now ₹X" button. ElevatedButton doesn't support
+/// gradients directly, so we use a Material + Ink + InkWell + gradient.
+class _GradientButton extends StatelessWidget {
+  final List<Color> gradient;
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _GradientButton({
+    required this.gradient,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+          ),
+          child: Container(
+            height: 44,
+            alignment: Alignment.center,
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: Colors.white),
+                const SizedBox(width: AppTheme.spaceSm),
+                Text(
+                  label,
+                  style: AppFonts.style(
+                    size: 14,
+                    weight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

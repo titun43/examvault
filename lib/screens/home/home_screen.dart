@@ -650,7 +650,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildQuickActions() {
     final actions = [
       {'icon': Icons.quiz, 'label': 'Daily Quiz', 'color': const Color(0xFFFF6F00)},
-      {'icon': Icons.assignment, 'label': 'Mock Tests', 'color': const Color(0xFF1565C0)},
+      {'icon': Icons.assignment, 'label': 'Mock Tests', 'color': AppTheme.primaryColor},
       {'icon': Icons.event_available, 'label': 'Upcoming', 'color': const Color(0xFF43A047)},
       {'icon': Icons.newspaper, 'label': 'Current Affairs', 'color': const Color(0xFF8E24AA)},
       {'icon': Icons.bookmark, 'label': 'Bookmarks', 'color': const Color(0xFFE65100)},

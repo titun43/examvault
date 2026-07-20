@@ -140,9 +140,9 @@ class LeaderboardScreen extends StatelessWidget {
     final top3 = leaderboard.take(3).toList();
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1565C0), Color(0xFF003C8F)],
+          colors: AppTheme.brandGradient,
         ),
       ),
       child: Row(

@@ -13,7 +13,9 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../providers/auth_provider.dart';
@@ -21,6 +23,8 @@ import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/payment_api_service.dart';
 import '../../services/razorpay_service.dart';
+import '../../l10n/app_localizations.dart';
+import '../../theme/app_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -340,17 +344,15 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 ),
               ),
             ),
-          // Header
+          // Header — category-themed 2-stop gradient
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(AppTheme.spaceXl),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [
-                  AppTheme.categoryColors[_liveCategory.name] ?? AppTheme.primaryColor,
-                  (AppTheme.categoryColors[_liveCategory.name] ?? AppTheme.primaryColor)
-                      .withOpacity(0.7),
-                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: AppTheme.gradientFor(_liveCategory.name),
               ),
             ),
             child: Column(
@@ -358,29 +360,44 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      _liveCategory.icon ?? '📚',
-                      style: const TextStyle(fontSize: 40),
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.25),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.35), width: 1.5),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _liveCategory.icon ?? '📚',
+                          style: const TextStyle(fontSize: 32),
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: AppTheme.spaceLg),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             _liveCategory.name,
-                            style: const TextStyle(
+                            style: AppFonts.style(
+                              size: 24,
+                              weight: FontWeight.w700,
                               color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
+                              height: 1.2,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_liveCategory.subjectCount} Subjects Available',
-                            style: TextStyle(
+                            '${_liveCategory.subjectCount} ${tr(context, 'category_subjectsAvailable')}',
+                            style: AppFonts.style(
+                              size: 13,
                               color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
                             ),
                           ),
                         ],
@@ -388,14 +405,18 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     ),
                   ],
                 ),
-                if (_liveCategory.description != null) ...[
-                  const SizedBox(height: 12),
+                if (_liveCategory.description != null &&
+                    _liveCategory.description!.isNotEmpty) ...[
+                  const SizedBox(height: AppTheme.spaceMd),
                   Text(
                     _liveCategory.description!,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 13,
+                    style: AppFonts.style(
+                      size: 13,
+                      color: Colors.white.withOpacity(0.92),
+                      height: 1.4,
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
@@ -413,7 +434,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   Widget _buildBody() {
     switch (_accessState) {
       case _AccessState.loading:
-        return const Center(child: CircularProgressIndicator());
+        return _buildLoadingShimmer();
       case _AccessState.allowed:
         return _buildSubjectsList();
       case _AccessState.rollingOut:
@@ -442,7 +463,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return _buildLoadingShimmer();
           }
           if (snapshot.hasError) {
             return _buildErrorState(snapshot.error.toString());
@@ -662,91 +683,222 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     );
   }
 
-  Widget _buildSubjectCard(BuildContext context, SubjectModel subject) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          width: 50,
-          height: 50,
+  /// Shimmer skeleton list — shown while subjects are loading from
+  /// Firestore. Replaces the old centered spinner so the layout doesn't
+  /// jump when data arrives.
+  Widget _buildLoadingShimmer() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white12 : Colors.grey.shade300;
+    final highlightColor = isDark ? Colors.white24 : Colors.grey.shade100;
+    return Shimmer.fromColors(
+      baseColor: baseColor,
+      highlightColor: highlightColor,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(AppTheme.spaceLg),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 6,
+        itemBuilder: (_, __) => Container(
+          margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+          padding: const EdgeInsets.all(AppTheme.spaceLg),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
+            color: baseColor,
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           ),
-          child: Center(
-            child: Text(
-              subject.icon ?? '📚',
-              style: const TextStyle(fontSize: 24),
-            ),
-          ),
-        ),
-        title: Text(
-          subject.name,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (subject.description != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  subject.description!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: baseColor,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                 ),
               ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${subject.testCount} Tests',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.primaryColor,
-                      fontWeight: FontWeight.w600,
+              const SizedBox(width: AppTheme.spaceMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 16,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: baseColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: AppTheme.spaceSm),
+                    Container(
+                      height: 12,
+                      width: 120,
+                      decoration: BoxDecoration(
+                        color: baseColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              // Navigate to the SubjectDetailScreen (content hub) instead of
-              // going straight to TestListScreen. The hub shows a grid of
-              // content-type cards: Tests (always), Previous Papers, Study
-              // Notes, Syllabus (each shown only if the admin has added ≥1
-              // item of that type — real-time via Firestore stream).
-              //
-              // We pass the authoritative category.id so the downstream
-              // TestListScreen (and TakeTestScreen + /access-check) uses the
-              // SAME id that was stored in ExamPackPurchase when the exam
-              // pack was bought. Without this, a subject whose Firestore
-              // `categoryId` field holds the category NAME/SLUG (allowed by
-              // getSubjectsStream's fallback matching) would cause the
-              // exam-pack access tier to silently no-match.
-              builder: (_) => SubjectDetailScreen(
-                subject: subject,
-                categoryId: _liveCategory.id,
-                categoryName: _liveCategory.name,
               ),
-            ),
-          );
-        },
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  Widget _buildSubjectCard(BuildContext context, SubjectModel subject) {
+    final categoryColor = AppTheme.colorFor(_liveCategory.name);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                // Navigate to the SubjectDetailScreen (content hub) instead of
+                // going straight to TestListScreen. The hub shows a grid of
+                // content-type cards: Tests (always), Previous Papers, Study
+                // Notes, Syllabus (each shown only if the admin has added ≥1
+                // item of that type — real-time via Firestore stream).
+                //
+                // We pass the authoritative category.id so the downstream
+                // TestListScreen (and TakeTestScreen + /access-check) uses the
+                // SAME id that was stored in ExamPackPurchase when the exam
+                // pack was bought. Without this, a subject whose Firestore
+                // `categoryId` field holds the category NAME/SLUG (allowed by
+                // getSubjectsStream's fallback matching) would cause the
+                // exam-pack access tier to silently no-match.
+                builder: (_) => SubjectDetailScreen(
+                  subject: subject,
+                  categoryId: _liveCategory.id,
+                  categoryName: _liveCategory.name,
+                ),
+              ),
+            );
+          },
+          child: Ink(
+            decoration: BoxDecoration(
+              color: isDark ? AppTheme.darkCardColor : Colors.white,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+              boxShadow: AppTheme.softShadow1,
+              border: Border.all(
+                color: categoryColor.withOpacity(0.08),
+                width: 1,
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spaceLg),
+              child: Row(
+                children: [
+                  // Icon tile — category-colored
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: categoryColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: Center(
+                      child: Text(
+                        subject.icon ?? '📚',
+                        style: const TextStyle(fontSize: 28),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spaceMd),
+                  // Title + description + pills
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subject.name,
+                          style: AppFonts.style(
+                            size: 16,
+                            weight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (subject.description != null &&
+                            subject.description!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subject.description!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppFonts.style(size: 12, color: Colors.grey[600]),
+                          ),
+                        ],
+                        const SizedBox(height: AppTheme.spaceSm),
+                        Row(
+                          children: [
+                            // Test count pill — bilingual
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: AppTheme.spaceSm + 2,
+                                  vertical: AppTheme.spaceXs),
+                              decoration: BoxDecoration(
+                                color: categoryColor.withOpacity(0.1),
+                                borderRadius:
+                                    BorderRadius.circular(AppTheme.radiusFull),
+                              ),
+                              child: Text(
+                                '${subject.testCount} ${tr(context, 'subject_tests')}',
+                                style: AppFonts.style(
+                                  size: 11,
+                                  weight: FontWeight.w700,
+                                  color: categoryColor,
+                                ),
+                              ),
+                            ),
+                            if (subject.premiumPrice > 0) ...[
+                              const SizedBox(width: AppTheme.spaceSm),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: AppTheme.spaceSm + 2,
+                                    vertical: AppTheme.spaceXs),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.accentColor.withOpacity(0.1),
+                                  borderRadius:
+                                      BorderRadius.circular(AppTheme.radiusFull),
+                                ),
+                                child: Text(
+                                  '₹${subject.premiumPrice}',
+                                  style: AppFonts.style(
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: AppTheme.accentDarkColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spaceSm),
+                  // Bigger, rounded chevron
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 22,
+                    color: Colors.grey[400],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(duration: 350.ms)
+        .slideY(begin: 0.04);
   }
 }
