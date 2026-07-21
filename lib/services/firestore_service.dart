@@ -585,6 +585,34 @@ class FirestoreService {
         });
   }
 
+  // ==================== QUESTION REPORTS ====================
+  // Lets a user flag a problem with a question while taking a test (wrong
+  // answer key, typo, unclear wording, etc). Stored at top-level
+  // `questionReports` so the admin panel can list/triage them across all
+  // tests. status starts 'open'; the admin panel is expected to update it
+  // to 'reviewed'/'resolved' once handled.
+  static Future<void> submitQuestionReport({
+    required String testId,
+    required String testTitle,
+    required String questionId,
+    required String questionText,
+    required String reason,
+    String? comment,
+    String? userId,
+  }) async {
+    await _db.collection('questionReports').add({
+      'testId': testId,
+      'testTitle': testTitle,
+      'questionId': questionId,
+      'questionText': questionText,
+      'reason': reason,
+      'comment': comment,
+      'userId': userId,
+      'status': 'open',
+      'reportedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   static Future<String?> saveResult(TestResultModel result) async {
     final docRef = await _db.collection('results').add(result.toFirestore());
     return docRef.id;

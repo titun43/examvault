@@ -5,20 +5,69 @@
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/upcoming_exam_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/category_preference_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/share_helper.dart';
+import '../onboarding/category_selection_screen.dart';
 
-class UpcomingExamsScreen extends StatelessWidget {
+class UpcomingExamsScreen extends StatefulWidget {
   const UpcomingExamsScreen({super.key});
+
+  @override
+  State<UpcomingExamsScreen> createState() => _UpcomingExamsScreenState();
+}
+
+class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
+  List<String> _preferredCategoryIds = [];
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    setState(() {
+      _preferredCategoryIds = ids;
+      _ready = true;
+    });
+  }
+
+  Future<void> _openManageCategories() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategorySelectionScreen(isOnboarding: false),
+      ),
+    );
+    if (changed == true) _load();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Upcoming Exams')),
-      body: StreamBuilder<List<UpcomingExamModel>>(
+      appBar: AppBar(
+        title: const Text('Upcoming Exams'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'My Categories',
+            onPressed: _openManageCategories,
+          ),
+        ],
+      ),
+      body: !_ready
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<List<UpcomingExamModel>>(
         stream: FirestoreService.getUpcomingExamsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -37,7 +86,19 @@ class UpcomingExamsScreen extends StatelessWidget {
               ),
             );
           }
-          final list = snapshot.data!;
+          // Default to the user's selected categories (from onboarding /
+          // Profile > My Categories). Falls back to everything if nothing
+          // is selected, or if the selection matches nothing here (an exam
+          // with no categoryId, or ids that don't line up).
+          var list = snapshot.data!;
+          if (_preferredCategoryIds.isNotEmpty) {
+            final filtered = list
+                .where((e) =>
+                    e.categoryId != null &&
+                    _preferredCategoryIds.contains(e.categoryId))
+                .toList();
+            if (filtered.isNotEmpty) list = filtered;
+          }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: list.length,

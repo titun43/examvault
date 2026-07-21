@@ -14,6 +14,7 @@ import '../../models/category_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/category_preference_service.dart';
 import '../tests/test_list_screen.dart';
 
 class AllSubjectsScreen extends StatefulWidget {
@@ -31,6 +32,12 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
   bool _categoriesReady = false;
   String _query = '';
   String? _selectedCategoryId;
+  // Categories the user picked during onboarding/Profile > My Categories.
+  // When set (and the user hasn't tapped a specific chip or "All"), the grid
+  // defaults to just these — fixes "View All" showing every category's
+  // subjects instead of the ones the user actually selected.
+  List<String> _preferredCategoryIds = [];
+  bool _explicitAll = false;
 
   StreamSubscription? _subjectsSub;
   StreamSubscription? _categoriesSub;
@@ -41,6 +48,17 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
   void initState() {
     super.initState();
     _initStreams();
+    _loadPreferredCategoryIds();
+  }
+
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    setState(() {
+      _preferredCategoryIds = ids;
+      _applyFilter();
+    });
   }
 
   void _initStreams() {
@@ -115,6 +133,23 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
               candidates.contains(s.categoryId) ||
               candidates.any((c) => s.categoryId == c))
           .toList();
+    } else if (!_explicitAll && _preferredCategoryIds.isNotEmpty) {
+      // No manual chip tap yet — default to the user's onboarding selection.
+      final candidates = <String>{};
+      for (final id in _preferredCategoryIds) {
+        candidates.add(id);
+        final cat = _categories.firstWhere(
+          (c) => c.id == id,
+          orElse: () => CategoryModel.empty(),
+        );
+        if (cat.name.isNotEmpty) candidates.add(cat.name);
+        if (cat.slug.isNotEmpty) candidates.add(cat.slug);
+      }
+      final preferredMatches =
+          list.where((s) => candidates.contains(s.categoryId)).toList();
+      // Safety fallback: if nothing matches (e.g. stale ids), don't show an
+      // empty grid — fall back to everything.
+      if (preferredMatches.isNotEmpty) list = preferredMatches;
     }
     if (_query.isNotEmpty) {
       final q = _query.toLowerCase();
@@ -229,7 +264,14 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
   }
 
   Widget _buildCategoryChip(String? id, String label) {
-    final selected = _selectedCategoryId == id;
+    // "All" chip appears selected either when the user explicitly tapped it,
+    // or (default state) when there's no onboarding preference to fall back
+    // to — so it doesn't look selected while a preferred-category filter is
+    // silently active.
+    final selected = id == null
+        ? (_selectedCategoryId == null &&
+            (_explicitAll || _preferredCategoryIds.isEmpty))
+        : _selectedCategoryId == id;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: FilterChip(
@@ -237,7 +279,13 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
         selected: selected,
         onSelected: (_) {
           setState(() {
-            _selectedCategoryId = selected ? null : id;
+            if (id == null) {
+              _selectedCategoryId = null;
+              _explicitAll = true;
+            } else {
+              _selectedCategoryId = _selectedCategoryId == id ? null : id;
+              _explicitAll = _selectedCategoryId == null;
+            }
             _applyFilter();
           });
         },

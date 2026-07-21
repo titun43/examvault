@@ -48,41 +48,99 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
   @override
   Widget build(BuildContext context) {
     final type = widget.type;
+    // Same per-category gradient used by SubjectDetailScreen/TestListScreen —
+    // ties this screen visually to the rest of the subject's content instead
+    // of the old flat solid-color AppBar.
+    final heroGradient = AppTheme.gradientFor(widget.subject.categoryId);
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        title: Text(
-          _localizedTypeLabel(type),
-          style: AppFonts.style(
-            size: 18,
-            weight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          // Quick subject indicator in the app bar
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Text(
-                widget.subject.name,
-                style: AppFonts.style(
-                  size: 13,
-                  weight: FontWeight.w500,
-                  color: Colors.white.withOpacity(0.85),
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 180,
+            pinned: true,
+            backgroundColor: heroGradient.first,
+            foregroundColor: Colors.white,
+            iconTheme: const IconThemeData(color: Colors.white),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: heroGradient,
+                  ),
+                ),
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppTheme.spaceLg, AppTheme.spaceXl, AppTheme.spaceLg, AppTheme.spaceLg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.25),
+                                borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                                border: Border.all(
+                                    color: Colors.white.withOpacity(0.35), width: 1.5),
+                              ),
+                              child: Center(
+                                child: Text(widget.type.emoji,
+                                    style: const TextStyle(fontSize: 28)),
+                              ),
+                            ),
+                            const SizedBox(width: AppTheme.spaceMd),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    _localizedTypeLabel(type),
+                                    style: AppFonts.style(
+                                      size: 22,
+                                      weight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.15,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    widget.subject.name,
+                                    style: AppFonts.style(
+                                      size: 13,
+                                      weight: FontWeight.w500,
+                                      color: Colors.white.withOpacity(0.9),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                            .animate()
+                            .fadeIn(duration: 400.ms)
+                            .slideY(begin: 0.1),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Header strip with subject info + count
-          _buildHeader(),
-          // Material list
-          Expanded(
+          SliverFillRemaining(
+            hasScrollBody: true,
             child: OfflineAwareStreamBuilder<List<StudyMaterialModel>>(
               stream: FirestoreService.getStudyMaterialsByTypeStream(
                 widget.subject.id,
@@ -94,72 +152,6 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               errorBuilder: (_, error, retry) => _buildErrorState(error, retry),
               dataBuilder: (context, materials, isStale) =>
                   _buildMaterialList(materials, isStale),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(AppTheme.spaceLg),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryColor.withOpacity(0.1),
-            AppTheme.primaryColor.withOpacity(0.03),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: AppTheme.primaryColor.withOpacity(0.2),
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            ),
-            child: Center(
-              child: Text(
-                widget.type.emoji,
-                style: AppFonts.style(size: 24),
-              ),
-            ),
-          ),
-          SizedBox(width: AppTheme.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.subject.name,
-                  style: AppFonts.style(
-                    size: 16,
-                    weight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '${widget.type.emoji} ${_localizedTypeLabel(widget.type)}',
-                  style: AppFonts.style(
-                    size: 13,
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withOpacity(0.6),
-                  ),
-                ),
-              ],
             ),
           ),
         ],

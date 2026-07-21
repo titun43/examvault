@@ -1071,6 +1071,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
             // Bookmark toggle button — saves this test to the user's bookmarks.
             _BookmarkButton(test: widget.test),
             IconButton(
+              icon: const Icon(Icons.flag_outlined),
+              tooltip: 'Report this question',
+              onPressed: () => _showReportQuestionDialog(question),
+            ),
+            IconButton(
               icon: const Icon(Icons.grid_view_rounded),
               onPressed: _showQuestionPalette,
               tooltip: tr(context, 'test_palette'),
@@ -1302,6 +1307,120 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showReportQuestionDialog(QuestionModel question) {
+    String selectedReason = 'Wrong Answer Key';
+    final commentController = TextEditingController();
+    const reasons = [
+      'Wrong Answer Key',
+      'Wrong / Confusing Question',
+      'Typo or Formatting Issue',
+      'Duplicate Question',
+      'Other',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: const Text('Report this question'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      question.question,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppFonts.style(
+                        size: 13,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withOpacity(0.6),
+                      ),
+                    ),
+                    const SizedBox(height: AppTheme.spaceMd),
+                    Text('What\'s the problem?',
+                        style: AppFonts.style(size: 13, weight: FontWeight.w600)),
+                    const SizedBox(height: AppTheme.spaceSm),
+                    Wrap(
+                      spacing: AppTheme.spaceSm,
+                      runSpacing: AppTheme.spaceSm,
+                      children: reasons.map((r) {
+                        final selected = selectedReason == r;
+                        return ChoiceChip(
+                          label: Text(r, style: const TextStyle(fontSize: 12)),
+                          selected: selected,
+                          selectedColor: AppTheme.primaryColor.withOpacity(0.15),
+                          labelStyle: TextStyle(
+                            color: selected ? AppTheme.primaryColor : null,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                          ),
+                          onSelected: (_) => setDialogState(() => selectedReason = r),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: AppTheme.spaceMd),
+                    TextField(
+                      controller: commentController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Add details (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: AppTheme.primaryColor),
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    final auth = Provider.of<AuthProvider>(context, listen: false);
+                    try {
+                      await FirestoreService.submitQuestionReport(
+                        testId: widget.test.id,
+                        testTitle: widget.test.title,
+                        questionId: question.id,
+                        questionText: question.question,
+                        reason: selectedReason,
+                        comment: commentController.text.trim().isEmpty
+                            ? null
+                            : commentController.text.trim(),
+                        userId: auth.user?.id,
+                      );
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Thanks — your report has been sent.')),
+                      );
+                    } catch (_) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Could not send report. Try again later.')),
+                      );
+                    }
+                  },
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
