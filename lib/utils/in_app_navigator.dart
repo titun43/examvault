@@ -30,7 +30,7 @@ import '../services/firestore_service.dart';
 import '../screens/tests/test_series_screen.dart';
 import '../screens/tests/daily_quiz_screen.dart';
 import '../screens/tests/test_list_screen.dart';
-import '../screens/tests/take_test_screen.dart';
+import '../screens/tests/test_instructions_screen.dart';
 import '../screens/home/category_detail_screen.dart';
 import '../screens/upcoming_exams/upcoming_exams_screen.dart';
 import '../screens/current_affairs/current_affairs_screen.dart';
@@ -226,7 +226,7 @@ class InAppNavigator {
     if (!context.mounted) return;
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+      MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test)),
     );
   }
 }

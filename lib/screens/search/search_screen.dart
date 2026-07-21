@@ -19,7 +19,7 @@ import '../../models/current_affair_model.dart';
 import '../../services/firestore_service.dart';
 import '../home/category_detail_screen.dart';
 import '../tests/test_list_screen.dart';
-import '../tests/take_test_screen.dart';
+import '../tests/test_instructions_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -439,7 +439,7 @@ class _SearchScreenState extends State<SearchScreen> {
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: t)),
+          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: t)),
         );
       },
     );

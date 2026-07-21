@@ -14,7 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/weekly_streak_indicator.dart';
-import 'take_test_screen.dart';
+import 'test_instructions_screen.dart';
 
 class DailyQuizScreen extends StatelessWidget {
   const DailyQuizScreen({super.key});
@@ -300,7 +300,7 @@ class _DailyQuizCard extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TakeTestScreen(test: test),
+                      builder: (_) => TestInstructionsScreen(test: test),
                     ),
                   );
                 },

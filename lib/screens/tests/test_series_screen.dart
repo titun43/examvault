@@ -24,7 +24,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../search/search_screen.dart';
 import '../onboarding/category_selection_screen.dart';
-import 'take_test_screen.dart';
+import 'test_instructions_screen.dart';
 import '../home/subject_detail_screen.dart';
 
 class TestSeriesScreen extends StatefulWidget {
@@ -330,7 +330,7 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => TakeTestScreen(test: test),
+                      builder: (_) => TestInstructionsScreen(test: test),
                     ),
                   );
                 },

@@ -15,7 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../auth/login_screen.dart';
-import '../tests/take_test_screen.dart';
+import '../tests/test_instructions_screen.dart';
 import '../../models/test_model.dart';
 
 class BookmarksScreen extends StatelessWidget {
@@ -157,7 +157,7 @@ class BookmarksScreen extends StatelessWidget {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test)),
       );
     } catch (_) {
       messenger.hideCurrentSnackBar();

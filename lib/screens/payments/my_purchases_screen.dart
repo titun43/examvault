@@ -21,7 +21,7 @@ import '../../models/test_model.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../theme/app_theme.dart';
-import '../tests/take_test_screen.dart';
+import '../tests/test_instructions_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../home/category_detail_screen.dart';
 
@@ -417,7 +417,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
       // via the server-side access check).
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test)),
+        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test)),
       );
     } catch (e) {
       if (!mounted) return;

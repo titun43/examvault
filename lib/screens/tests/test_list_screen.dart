@@ -122,7 +122,7 @@ import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
-import 'take_test_screen.dart';
+import 'test_instructions_screen.dart';
 import '../auth/login_screen.dart';
 
 class TestListScreen extends StatefulWidget {
@@ -1487,7 +1487,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -1525,7 +1525,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -1544,7 +1544,7 @@ class _TestListScreenState extends State<TestListScreen> {
         if (!context.mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
         );
         return;
       }
@@ -1557,7 +1557,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
         );
       } else if (e.statusCode == 404) {
         // Backend not ready — show the friendly message.
@@ -1572,7 +1572,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
         );
       }
     }
@@ -1890,7 +1890,7 @@ class _TestListScreenState extends State<TestListScreen> {
           if (shouldOpen && context.mounted) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
+              MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
             );
           }
         });
