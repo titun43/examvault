@@ -178,6 +178,18 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys.only(['isRead']));
     }
 
+    // ==================== QUESTION REPORTS ====================
+    // Users can create reports (when signed in). Admins can read all reports
+    // and update status (resolve/dismiss/reopen). No one can delete reports
+    // (preserve audit trail). The user app writes to this collection from
+    // take_test_screen when a user taps "Report Question".
+    match /questionReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      // No delete — keep full audit trail of all reports.
+    }
+
     // ==================== SUPPORT TICKETS ====================
     // In-app help & support chat. A user can create/read/update ONLY their
     // own tickets. Admins can read/update ALL tickets (e.g. reply, mark
