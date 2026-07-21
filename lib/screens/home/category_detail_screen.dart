@@ -182,7 +182,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     final user = auth.user;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to make a purchase.')),
+        SnackBar(content: Text(tr(context, 'cat_signInToPurchase'))),
       );
       return;
     }
@@ -206,12 +206,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 10),
-          content: const Text(
-            'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
+          content: Text(
+            tr(context, 'cat_paymentTakingLong'),
           ),
           backgroundColor: AppTheme.warningColor,
           action: SnackBarAction(
-            label: 'My Purchases',
+            label: tr(context, 'cat_checkPurchases'),
             textColor: Colors.white,
             onPressed: () {
               if (mounted) {
@@ -237,7 +237,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Preparing payment...',
+          message: tr(context, 'test_preparingPayment'),
           cancellable: true,
           onCancel: () => cancelled = true,
           onSafetyTimeout: showCheckPurchasesMessage,
@@ -253,9 +253,9 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         if (cancelled) return;
         progress.show(
           context,
-          message: 'Verifying payment...',
+          message: tr(context, 'test_verifyingPayment'),
           cancellable: true,
-          cancelLabel: 'Check My Purchases',
+          cancelLabel: tr(context, 'cat_checkPurchases'),
           safetyTimeout: const Duration(seconds: 60),
           onCancel: () {
             cancelled = true;
@@ -287,7 +287,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           context,
           itemName: _liveCategory.name,
           amount: _liveCategory.premiumPrice,
-          actionLabel: 'Open Exam',
+          actionLabel: tr(context, 'cat_openExam'),
           paymentId: response.paymentId,
         ).then((_) {
           if (mounted) {
@@ -304,7 +304,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response.message ?? 'Payment failed. Please try again.'),
+            content: Text(response.message ?? tr(context, 'cat_paymentFailed')),
             backgroundColor: AppTheme.errorColor,
           ),
         );
@@ -513,18 +513,18 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               size: 56, color: AppTheme.accentColor),
         ),
         const SizedBox(height: 20),
-        const Text(
-          'Premium Exam Pack',
+        Text(
+          tr(context, 'cat_premiumPack'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         Text(
           isGuest
-              ? 'Sign in to unlock "${_liveCategory.name}" and all its tests.'
+              ? tr(context, 'cat_signInToUnlock').replaceAll('{name}', _liveCategory.name)
               : canBuyExamPack
-                  ? 'Unlock "${_liveCategory.name}" and all its tests for ₹${_liveCategory.premiumPrice}, or upgrade to Premium for unlimited access.'
-                  : 'Subscribe to Premium to unlock "${_liveCategory.name}" and all its tests.',
+                  ? tr(context, 'cat_unlockFor').replaceAll('{name}', _liveCategory.name).replaceAll('{price}', '${_liveCategory.premiumPrice}')
+                  : tr(context, 'cat_subscribeToUnlock').replaceAll('{name}', _liveCategory.name),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -553,7 +553,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.login),
-              label: const Text('Sign In to Unlock'),
+              label: Text(tr(context, 'cat_signInBtn')),
             ),
           ),
           const SizedBox(height: 12),
@@ -570,7 +570,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.lock_open),
-              label: Text('Unlock this exam (₹${_liveCategory.premiumPrice})'),
+              label: Text(tr(context, 'cat_unlockExam').replaceAll('{price}', '${_liveCategory.premiumPrice}')),
             ),
           ),
           const SizedBox(height: 12),
@@ -591,14 +591,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     borderRadius: BorderRadius.circular(12)),
               ),
               icon: const Icon(Icons.workspace_premium),
-              label: const Text('Go Premium'),
+              label: Text(tr(context, 'cat_goPremium')),
             ),
           ),
           const SizedBox(height: 12),
         ],
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Maybe later'),
+          child: Text(tr(context, 'cat_maybeLater')),
         ),
       ],
     );
@@ -611,14 +611,14 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         const SizedBox(height: 40),
         Icon(Icons.hourglass_top, size: 56, color: Colors.grey.shade400),
         const SizedBox(height: 16),
-        const Text(
-          'This feature is being rolled out.',
+        Text(
+          tr(context, 'cat_rollingOut'),
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 8),
         Text(
-          'Please update the app soon to access premium content in ${_liveCategory.name}.',
+          tr(context, 'cat_updateApp').replaceAll('{name}', _liveCategory.name),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -628,7 +628,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             if (mounted) _checkAccess();
           }),
           icon: const Icon(Icons.workspace_premium),
-          label: const Text('Explore Premium'),
+          label: Text(tr(context, 'cat_explorePremium')),
         ),
       ],
     );

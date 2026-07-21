@@ -18,6 +18,7 @@ import '../../models/test_model.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import 'take_test_screen.dart';
+import '../../l10n/app_localizations.dart';
 
 class TestInstructionsScreen extends StatefulWidget {
   final TestModel test;
@@ -44,7 +45,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
       backgroundColor:
           isDark ? AppTheme.darkBackgroundColor : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Test Instructions'),
+        title: Text(tr(context, 'instr_title')),
         elevation: 0,
       ),
       body: SafeArea(
@@ -83,13 +84,13 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                         Row(
                           children: [
                             _headerStat(
-                                Icons.help_outline_rounded, '${test.questionCount}', 'Questions'),
+                                Icons.help_outline_rounded, '${test.questionCount}', tr(context, 'instr_questions')),
                             _headerStatDivider(),
                             _headerStat(
-                                Icons.timer_outlined, '${test.duration}', 'Minutes'),
+                                Icons.timer_outlined, '${test.duration}', tr(context, 'instr_minutes')),
                             _headerStatDivider(),
                             _headerStat(
-                                Icons.star_outline_rounded, '${test.totalMarks}', 'Marks'),
+                                Icons.star_outline_rounded, '${test.totalMarks}', tr(context, 'instr_marks')),
                           ],
                         ),
                       ],
@@ -101,14 +102,14 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                   // ===== Marking scheme =====
                   _sectionCard(
                     isDark: isDark,
-                    title: 'Marking Scheme',
+                    title: tr(context, 'instr_markingScheme'),
                     icon: Icons.rule_rounded,
                     iconColor: AppTheme.primaryColor,
                     children: [
                       _markingRow(
                         icon: Icons.add_circle_outline,
                         color: AppTheme.successColor,
-                        label: 'Correct Answer',
+                        label: tr(context, 'instr_correctAnswer'),
                         value: '+ ${_fmt(marksPerQuestion)} marks',
                         isDark: isDark,
                       ),
@@ -117,7 +118,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                         _markingRow(
                           icon: Icons.remove_circle_outline,
                           color: AppTheme.errorColor,
-                          label: 'Wrong Answer',
+                          label: tr(context, 'instr_wrongAnswer'),
                           value: '- ${_fmt(test.negativeMarks)} marks',
                           isDark: isDark,
                         ),
@@ -126,8 +127,8 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                       _markingRow(
                         icon: Icons.radio_button_unchecked,
                         color: Colors.grey,
-                        label: 'Not Attempted',
-                        value: '0 marks',
+                        label: tr(context, 'instr_notAttempted'),
+                        value: tr(context, 'instr_zeroMarks'),
                         isDark: isDark,
                       ),
                     ],
@@ -138,7 +139,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                   // ===== Question palette legend =====
                   _sectionCard(
                     isDark: isDark,
-                    title: 'Question Palette',
+                    title: tr(context, 'instr_questionPalette'),
                     icon: Icons.grid_view_rounded,
                     iconColor: AppTheme.accentColor,
                     children: [
@@ -146,12 +147,12 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                         spacing: AppTheme.spaceLg,
                         runSpacing: AppTheme.spaceSm,
                         children: [
-                          _paletteLegend(AppTheme.successColor, 'Answered', isDark),
-                          _paletteLegend(AppTheme.errorColor, 'Not Answered', isDark),
+                          _paletteLegend(AppTheme.successColor, tr(context, 'test_answered'), isDark),
+                          _paletteLegend(AppTheme.errorColor, tr(context, 'test_notAnswered'), isDark),
                           _paletteLegend(
                               isDark ? Colors.white24 : Colors.grey.shade400,
-                              'Not Visited', isDark),
-                          _paletteLegend(Colors.purple, 'Marked for Review', isDark),
+                              tr(context, 'test_notVisited'), isDark),
+                          _paletteLegend(Colors.purple, tr(context, 'test_markReview'), isDark),
                         ],
                       ),
                     ],
@@ -162,28 +163,28 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                   // ===== General instructions =====
                   _sectionCard(
                     isDark: isDark,
-                    title: 'General Instructions',
+                    title: tr(context, 'instr_generalInstructions'),
                     icon: Icons.info_outline_rounded,
                     iconColor: Colors.blue,
                     children: [
                       _instructionItem(
                         Icons.timer_outlined,
-                        'The timer starts as soon as you tap "Agree & Start Test" below — the test auto-submits when time runs out.',
+                        tr(context, 'instr_timerWarning'),
                         isDark,
                       ),
                       _instructionItem(
                         Icons.touch_app_outlined,
-                        'Tap an option to select your answer. Tap it again to deselect / clear.',
+                        tr(context, 'instr_tapOption'),
                         isDark,
                       ),
                       _instructionItem(
                         Icons.swap_horiz_rounded,
-                        'Use Next / Previous or the question palette to move between questions freely.',
+                        tr(context, 'instr_navigate'),
                         isDark,
                       ),
                       _instructionItem(
                         Icons.wifi_off_rounded,
-                        'Make sure you have a stable internet connection before starting.',
+                        tr(context, 'instr_internet'),
                         isDark,
                       ),
                       if (test.instructions != null &&
@@ -236,7 +237,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                           ),
                           Expanded(
                             child: Text(
-                              'I have read and understood the instructions above.',
+                              tr(context, 'instr_agree'),
                               style: AppFonts.style(
                                 size: 13,
                                 weight: FontWeight.w500,
@@ -277,7 +278,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                           : null,
                       icon: const Icon(Icons.play_arrow_rounded),
                       label: Text(
-                        'Agree & Start Test',
+                        tr(context, 'instr_agreeStart'),
                         style: AppFonts.style(size: 16, weight: FontWeight.w700),
                       ),
                     ),
