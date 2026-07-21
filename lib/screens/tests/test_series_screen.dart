@@ -1,18 +1,116 @@
 // =============================================================================
 // ExamVault - Test Series Screen (All Tests)
 // =============================================================================
+// Bottom-nav "Tests" tab. Previously showed every published test/subject
+// across ALL categories regardless of what the user picked during
+// onboarding (Home screen category picker). Now filters down to the
+// user's selected categories, same as Home — falls back to showing
+// everything if nothing is selected/skipped.
+//
+// Also shows a "Completed · X%" badge on each test card using the user's
+// LATEST attempt for that test (see FirestoreService.getLatestResultsByTestId),
+// so users browsing a category with many tests can see at a glance which
+// ones they've already taken.
+// =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../models/subject_model.dart';
+import '../../models/test_result_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/category_preference_service.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../search/search_screen.dart';
+import '../onboarding/category_selection_screen.dart';
 import 'take_test_screen.dart';
 import '../home/subject_detail_screen.dart';
 
-class TestSeriesScreen extends StatelessWidget {
+class TestSeriesScreen extends StatefulWidget {
   const TestSeriesScreen({super.key});
+
+  @override
+  State<TestSeriesScreen> createState() => _TestSeriesScreenState();
+}
+
+class _TestSeriesScreenState extends State<TestSeriesScreen> {
+  List<String> _selectedCategoryIds = [];
+  // subjectId -> resolved categoryId (subject.categoryId may hold a name/slug
+  // instead of the real doc id — same resolution FirestoreService already
+  // uses elsewhere, see resolveCategoryId).
+  Map<String, String> _subjectCategoryMap = {};
+  Map<String, TestResultModel> _latestResults = {};
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final selectedIds =
+        await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+
+    // Build subjectId -> resolved categoryId map (only needed if the user
+    // actually has a category filter active — skip the extra reads otherwise).
+    Map<String, String> subjectCategoryMap = {};
+    if (selectedIds.isNotEmpty) {
+      final subjects = await FirestoreService.getSubjects();
+      final refs = subjects.map((s) => s.categoryId).toSet();
+      final resolved = <String, String>{};
+      await Future.wait(refs.map((ref) async {
+        final id = await FirestoreService.resolveCategoryId(ref);
+        if (id != null) resolved[ref] = id;
+      }));
+      for (final s in subjects) {
+        final resolvedId = resolved[s.categoryId];
+        if (resolvedId != null) subjectCategoryMap[s.id] = resolvedId;
+      }
+    }
+
+    Map<String, TestResultModel> latestResults = {};
+    if (auth.user != null) {
+      latestResults =
+          await FirestoreService.getLatestResultsByTestId(auth.user!.id);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _selectedCategoryIds = selectedIds;
+      _subjectCategoryMap = subjectCategoryMap;
+      _latestResults = latestResults;
+      _ready = true;
+    });
+  }
+
+  Future<void> _openManageCategories() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategorySelectionScreen(isOnboarding: false),
+      ),
+    );
+    if (changed == true) _load();
+  }
+
+  /// True when this test belongs to (or can't be matched against, in which
+  /// case we don't hide it) the user's selected categories.
+  bool _matchesFilter(TestModel test) {
+    if (_selectedCategoryIds.isEmpty) return true; // no filter active
+    final categoryId = _subjectCategoryMap[test.subjectId];
+    if (categoryId == null) return true; // unresolved — don't hide, be safe
+    return _selectedCategoryIds.contains(categoryId);
+  }
+
+  bool _subjectMatchesFilter(SubjectModel subject) {
+    if (_selectedCategoryIds.isEmpty) return true;
+    final categoryId = _subjectCategoryMap[subject.id];
+    if (categoryId == null) return true;
+    return _selectedCategoryIds.contains(categoryId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +120,13 @@ class TestSeriesScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Test Series'),
           actions: [
+            // Lets the user revisit/change which categories they're focused
+            // on, same picker used during onboarding and on Home.
+            IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: 'My Categories',
+              onPressed: _openManageCategories,
+            ),
             // Global search — available on every bottom-nav tab, not just Home.
             IconButton(
               icon: const Icon(Icons.search),
@@ -46,16 +151,18 @@ class TestSeriesScreen extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildTestList(context, null),
-            _buildTestList(context, TestType.mock),
-            _buildTestList(context, TestType.previousYear),
-            _buildTestList(context, TestType.dailyQuiz),
-            _buildTestList(context, TestType.practice),
-            _buildSubjectList(context),
-          ],
-        ),
+        body: !_ready
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                children: [
+                  _buildTestList(context, null),
+                  _buildTestList(context, TestType.mock),
+                  _buildTestList(context, TestType.previousYear),
+                  _buildTestList(context, TestType.dailyQuiz),
+                  _buildTestList(context, TestType.practice),
+                  _buildSubjectList(context),
+                ],
+              ),
       ),
     );
   }
@@ -79,11 +186,29 @@ class TestSeriesScreen extends StatelessWidget {
             ),
           );
         }
+        final tests = snapshot.data!.where(_matchesFilter).toList();
+        if (tests.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text('No tests in your selected categories'),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _openManageCategories,
+                  child: const Text('Edit My Categories'),
+                ),
+              ],
+            ),
+          );
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.length,
+          itemCount: tests.length,
           itemBuilder: (context, index) {
-            final test = snapshot.data![index];
+            final test = tests[index];
             return _buildTestCard(context, test);
           },
         );
@@ -92,6 +217,7 @@ class TestSeriesScreen extends StatelessWidget {
   }
 
   Widget _buildTestCard(BuildContext context, TestModel test) {
+    final latest = _latestResults[test.id];
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -117,7 +243,32 @@ class TestSeriesScreen extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                if (test.isPremium)
+                if (latest != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.check_circle,
+                            size: 12, color: Colors.green),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Completed · ${latest.percentage.round()}%',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (test.isPremium)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -183,8 +334,9 @@ class TestSeriesScreen extends StatelessWidget {
                     ),
                   );
                 },
-                icon: const Icon(Icons.play_arrow, size: 20),
-                label: const Text('Start Test'),
+                icon: Icon(latest != null ? Icons.refresh : Icons.play_arrow,
+                    size: 20),
+                label: Text(latest != null ? 'Retake Test' : 'Start Test'),
               ),
             ),
           ],
@@ -288,14 +440,32 @@ class TestSeriesScreen extends StatelessWidget {
             ),
           );
         }
-        // Sort by name for easy scanning.
+        // Sort by name for easy scanning, then apply the category filter.
         final subjects = List<SubjectModel>.from(snapshot.data!)
           ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        final filtered = subjects.where(_subjectMatchesFilter).toList();
+        if (filtered.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.menu_book, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                const Text('No subjects in your selected categories'),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _openManageCategories,
+                  child: const Text('Edit My Categories'),
+                ),
+              ],
+            ),
+          );
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: subjects.length,
+          itemCount: filtered.length,
           itemBuilder: (context, index) {
-            final subject = subjects[index];
+            final subject = filtered[index];
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(

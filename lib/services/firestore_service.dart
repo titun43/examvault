@@ -542,6 +542,20 @@ class FirestoreService {
   }
 
   // ==================== TEST RESULTS ====================
+  /// Reduces a user's results to the LATEST attempt per testId — used by
+  /// test-list screens to show a "Completed · 82%" badge so users can see
+  /// at a glance which tests (within a category that may have many) they've
+  /// already taken, without re-querying per card.
+  static Future<Map<String, TestResultModel>> getLatestResultsByTestId(
+      String userId) async {
+    final results = await getUserResults(userId); // already sorted desc by attemptedAt
+    final latest = <String, TestResultModel>{};
+    for (final r in results) {
+      latest.putIfAbsent(r.testId, () => r);
+    }
+    return latest;
+  }
+
   static Future<List<TestResultModel>> getUserResults(String userId) async {
     try {
       final snapshot = await _db.collection('results')
