@@ -489,7 +489,15 @@ class _TestListScreenState extends State<TestListScreen> {
 
               // ==================== CONTENT STATES ====================
               if (isLoading)
-                SliverToBoxAdapter(child: _buildShimmerList(isDark))
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spaceLg,
+                    AppTheme.spaceSm,
+                    AppTheme.spaceLg,
+                    AppTheme.spaceXl,
+                  ),
+                  sliver: _buildShimmerList(isDark),
+                )
               else if (hasError)
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -515,10 +523,23 @@ class _TestListScreenState extends State<TestListScreen> {
                     AppTheme.spaceLg,
                     AppTheme.spaceXl,
                   ),
-                  sliver: SliverList.builder(
-                    itemCount: tests.length,
-                    itemBuilder: (context, index) =>
-                        _buildTestCard(context, tests[index], index, isDark),
+                  sliver: SliverGrid(
+                    // Responsive grid: 2 columns on phone, 3+ on tablet.
+                    // Each card is a compact vertical "square-ish" card
+                    // (Testbook-style). maxCrossAxisExtent=190 keeps cards
+                    // readable on small screens (~165px wide on a 360px phone).
+                    gridDelegate:
+                        SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 190,
+                      mainAxisSpacing: AppTheme.spaceMd,
+                      crossAxisSpacing: AppTheme.spaceMd,
+                      childAspectRatio: 0.78,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) => _buildTestCard(
+                          context, tests[index], index, isDark),
+                      childCount: tests.length,
+                    ),
                   ),
                 ),
               ],
@@ -695,12 +716,18 @@ class _TestListScreenState extends State<TestListScreen> {
         ? Colors.white.withOpacity(0.14)
         : Colors.grey.shade100;
 
-    return Column(
-      children: List.generate(4, (index) {
-        return Container(
-          margin: const EdgeInsets.fromLTRB(
-              AppTheme.spaceLg, AppTheme.spaceSm, AppTheme.spaceLg, 0),
-          padding: const EdgeInsets.all(AppTheme.spaceLg),
+    // Grid shimmer matching the real SliverGrid (maxCrossAxisExtent:190,
+    // childAspectRatio:0.78). 6 cards = 3 rows on a phone, 2 on a tablet.
+    return SliverGrid(
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 190,
+        mainAxisSpacing: AppTheme.spaceMd,
+        crossAxisSpacing: AppTheme.spaceMd,
+        childAspectRatio: 0.78,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => Container(
+          padding: const EdgeInsets.all(AppTheme.spaceMd),
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -712,49 +739,43 @@ class _TestListScreenState extends State<TestListScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title + badge row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _skeletonBox(40, 40, AppTheme.radiusMd),
-                    const SizedBox(width: AppTheme.spaceMd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _skeletonBox(double.infinity, 14, AppTheme.radiusSm),
-                          const SizedBox(height: AppTheme.spaceSm),
-                          Row(
-                            children: [
-                              _skeletonBox(54, 16, AppTheme.radiusFull),
-                              const SizedBox(width: AppTheme.spaceXs + 2),
-                              _skeletonBox(54, 16, AppTheme.radiusFull),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppTheme.spaceMd),
-                // Meta row
+                // icon + badge row
                 Row(
                   children: [
-                    _skeletonBox(72, 10, AppTheme.radiusSm),
-                    const SizedBox(width: AppTheme.spaceMd),
-                    _skeletonBox(72, 10, AppTheme.radiusSm),
-                    const SizedBox(width: AppTheme.spaceMd),
-                    _skeletonBox(72, 10, AppTheme.radiusSm),
+                    _skeletonBox(36, 36, AppTheme.radiusMd),
+                    const Spacer(),
+                    _skeletonBox(40, 18, AppTheme.radiusFull),
                   ],
                 ),
-                const SizedBox(height: AppTheme.spaceMd),
-                // Button skeleton
-                _skeletonBox(double.infinity, 36, AppTheme.radiusMd),
+                const SizedBox(height: AppTheme.spaceSm),
+                // title (2 lines)
+                _skeletonBox(double.infinity, 12, AppTheme.radiusSm),
+                const SizedBox(height: 6),
+                _skeletonBox(80, 12, AppTheme.radiusSm),
+                const SizedBox(height: 4),
+                // type subtitle
+                _skeletonBox(60, 10, AppTheme.radiusSm),
+                const Spacer(),
+                // divider
+                _skeletonBox(double.infinity, 1, AppTheme.radiusFull),
+                const SizedBox(height: AppTheme.spaceSm),
+                // meta row
+                Row(
+                  children: [
+                    _skeletonBox(28, 10, AppTheme.radiusSm),
+                    const SizedBox(width: AppTheme.spaceSm),
+                    _skeletonBox(28, 10, AppTheme.radiusSm),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spaceSm),
+                // button
+                _skeletonBox(double.infinity, 38, AppTheme.radiusMd),
               ],
             ),
           ),
-        );
-      }),
+        ),
+        childCount: 6,
+      ),
     );
   }
 
@@ -1034,7 +1055,6 @@ class _TestListScreenState extends State<TestListScreen> {
         : Colors.black.withOpacity(0.05);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -1043,188 +1063,169 @@ class _TestListScreenState extends State<TestListScreen> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Colored left accent bar (category identity).
-            Container(width: 4, color: categoryColor),
-            // Card content.
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spaceLg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ===== Title row: icon tile + title + badges =====
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: categoryColor.withOpacity(0.12),
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusMd),
-                          ),
-                          child: Center(
-                            child: Text(
-                              _emojiForTestType(test.type),
-                              style: const TextStyle(fontSize: 20),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppTheme.spaceMd),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Test title — wrapped in Hero so it flies to
-                              // TakeTestScreen's AppBar on tap.
-                              Hero(
-                                tag: 'test-title-${test.id}',
-                                child: Material(
-                                  type: MaterialType.transparency,
-                                  child: Text(
-                                    lc(context, test.title, test.titleAs),
-                                    style: AppFonts.style(
-                                      size: 16,
-                                      weight: FontWeight.w700,
-                                      color: titleColor,
-                                      height: 1.25,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Wrap(
-                                spacing: AppTheme.spaceXs + 2,
-                                runSpacing: AppTheme.spaceXs,
-                                children: _buildBadges(
-                                  context: context,
-                                  test: test,
-                                  canBuyIndividually: canBuyIndividually,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: AppTheme.spaceMd),
-
-                    // ===== Meta row: duration / questions / marks / attempts =====
-                    Wrap(
-                      spacing: AppTheme.spaceMd,
-                      runSpacing: AppTheme.spaceXs,
-                      children: [
-                        _buildMetaItem(
-                          icon: Icons.timer_outlined,
-                          text:
-                              '${test.duration} ${tr(context, 'test_duration')}',
-                          color: subtleTextColor,
-                        ),
-                        _buildMetaItem(
-                          icon: Icons.help_outline_rounded,
-                          text:
-                              '${test.questionCount} ${tr(context, 'test_questions')}',
-                          color: subtleTextColor,
-                        ),
-                        _buildMetaItem(
-                          icon: Icons.star_outline_rounded,
-                          text:
-                              '${test.totalMarks} ${tr(context, 'test_marks')}',
-                          color: subtleTextColor,
-                        ),
-                        if (test.attemptCount > 0)
-                          _buildMetaItem(
-                            icon: Icons.trending_up_rounded,
-                            text:
-                                '${test.attemptCount} ${tr(context, 'test_attempts')}',
-                            color: subtleTextColor,
-                          ),
-                      ],
-                    ),
-
-                    // ===== Negative-marking warning =====
-                    if (test.negativeMarking) ...[
-                      const SizedBox(height: AppTheme.spaceSm),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            // Whole card is tappable — same logic as the action button.
+            // Testbook-style: tap anywhere on the card to start/buy.
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (needsPurchase) {
+                _showPurchaseSheet(context, test, user);
+              } else {
+                _startTest(context, test);
+              }
+            },
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spaceMd),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ===== Top row: icon tile + price badge =====
+                  Row(
+                    children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spaceSm + 2,
-                          vertical: AppTheme.spaceXs + 2,
-                        ),
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
-                          color: AppTheme.warningColor.withOpacity(0.1),
+                          color: categoryColor.withOpacity(0.12),
                           borderRadius:
-                              BorderRadius.circular(AppTheme.radiusSm),
-                          border: Border.all(
-                            color: AppTheme.warningColor.withOpacity(0.25),
-                            width: 0.8,
+                              BorderRadius.circular(AppTheme.radiusMd),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _emojiForTestType(test.type),
+                            style: const TextStyle(fontSize: 18),
                           ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.warning_amber_rounded,
-                              size: 14,
-                              color: AppTheme.warningColor,
-                            ),
-                            const SizedBox(width: 4),
-                            L10nText(
-                              'test_negativeMarking',
-                              style: AppFonts.style(
-                                size: 11,
-                                weight: FontWeight.w700,
-                                color: AppTheme.warningColor,
-                              ),
-                            ),
-                          ],
-                        ),
+                      ),
+                      const Spacer(),
+                      _buildCardBadge(
+                        context: context,
+                        test: test,
+                        canBuyIndividually: canBuyIndividually,
                       ),
                     ],
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
 
-                    const SizedBox(height: AppTheme.spaceMd),
-
-                    // ===== Action button (Start / Unlock Premium / Buy Now) =====
-                    _buildActionButton(
-                      context: context,
-                      test: test,
-                      user: user,
-                      needsPurchase: needsPurchase,
-                      isPremiumOnly: isPremiumOnly,
-                      price: test.price,
-                    ),
-
-                    // ===== Hint text for paid tests =====
-                    if (needsPurchase) ...[
-                      const SizedBox(height: AppTheme.spaceSm),
-                      L10nText(
-                        isPremiumOnly
-                            ? 'test_premiumOnlyHint'
-                            : 'test_paidHint',
+                  // ===== Title (Hero, up to 3 lines) =====
+                  Hero(
+                    tag: 'test-title-${test.id}',
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: Text(
+                        lc(context, test.title, test.titleAs),
                         style: AppFonts.style(
-                          size: 11,
-                          color: Colors.grey[600],
-                          height: 1.4,
+                          size: 14,
+                          weight: FontWeight.w700,
+                          color: titleColor,
+                          height: 1.25,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  // ===== Type . Year subtitle (compact) =====
+                  Text(
+                    _buildTypeYearLabel(context, test),
+                    style: AppFonts.style(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: categoryColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  // ===== Completed % (if attempted) =====
+                  if (_latestResults[test.id] != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Completed \u00b7 ${_latestResults[test.id]!.percentage.round()}%',
+                      style: AppFonts.style(
+                        size: 10,
+                        weight: FontWeight.w700,
+                        color: AppTheme.successColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+
+                  // Push meta + button to the bottom.
+                  const Spacer(),
+
+                  // ===== Divider =====
+                  Divider(
+                    height: 1,
+                    thickness: 0.5,
+                    color: borderColor,
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
+
+                  // ===== Meta row (compact: questions + duration) =====
+                  Row(
+                    children: [
+                      Icon(Icons.help_outline_rounded,
+                          size: 12, color: subtleTextColor),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          '${test.questionCount}Q',
+                          style: AppFonts.style(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: subtleTextColor),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: AppTheme.spaceSm),
+                      Icon(Icons.timer_outlined,
+                          size: 12, color: subtleTextColor),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          '${test.duration}m',
+                          style: AppFonts.style(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: subtleTextColor),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (test.negativeMarking) ...[
+                        const SizedBox(width: AppTheme.spaceSm),
+                        Icon(Icons.warning_amber_rounded,
+                            size: 12, color: AppTheme.warningColor),
+                      ],
                     ],
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: AppTheme.spaceSm),
+
+                  // ===== Action button (Start / Unlock Premium / Buy Now) =====
+                  _buildActionButton(
+                    context: context,
+                    test: test,
+                    user: user,
+                    needsPurchase: needsPurchase,
+                    isPremiumOnly: isPremiumOnly,
+                    price: test.price,
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     )
         .animate()
-        .fadeIn(delay: (index * 60).ms, duration: 450.ms)
-        .slideY(begin: 0.08);
+        .fadeIn(delay: (index * 50).ms, duration: 400.ms)
+        .slideY(begin: 0.06);
   }
 
   String _emojiForTestType(TestType type) {
@@ -1242,122 +1243,44 @@ class _TestListScreenState extends State<TestListScreen> {
     }
   }
 
-  /// Visual-hierarchy badges. FREE → green pill (filled), Premium-only →
-  /// amber gradient pill, Paid → amber solid pill (₹X), plus optional
-  /// outlined type/year pills. NOT a flat wrap of identically-styled pills.
-  List<Widget> _buildBadges({
+  // ===========================================================================
+  // SQUARE-CARD HELPERS (Testbook-style compact card)
+  // ===========================================================================
+
+  /// Compact corner badge for the test card's top-right corner.
+  /// Shows only the MOST important access/price signal: FREE, Premium, or ₹X.
+  Widget _buildCardBadge({
     required BuildContext context,
     required TestModel test,
     required bool canBuyIndividually,
   }) {
-    final badges = <Widget>[];
-
-    // "Completed · X%" — shown first so it's the most visible signal when
-    // scanning a category with many tests. Uses the LATEST attempt's score.
-    final latest = _latestResults[test.id];
-    if (latest != null) {
-      badges.add(_pill(
-        context: context,
-        label: 'Completed · ${latest.percentage.round()}%',
-        color: AppTheme.successColor,
-        outlined: true,
-      ));
-    }
-
     if (!test.isPaid) {
-      // FREE — most prominent (green filled pill).
-      badges.add(_pill(
-        context: context,
-        label: tr(context, 'free'),
-        color: AppTheme.successColor,
-      ));
+      return _cardCornerBadge(tr(context, 'free'), AppTheme.successColor);
     } else if (test.isPremium && !canBuyIndividually) {
-      // Premium-only — amber gradient pill.
-      badges.add(_pill(
-        context: context,
-        label: tr(context, 'premium'),
-        gradientColors: AppTheme.accentGradientColors,
+      return _cardCornerBadge(
+        tr(context, 'premium'),
+        AppTheme.accentColor,
         isGradient: true,
-      ));
+      );
     } else if (canBuyIndividually) {
-      // Paid — amber solid pill with ₹X.
-      badges.add(_pill(
-        context: context,
-        label: '₹${test.price}',
-        color: AppTheme.accentColor,
-      ));
-      if (test.isPremium) {
-        // ALSO premium — show secondary Premium outline.
-        badges.add(_pill(
-          context: context,
-          label: tr(context, 'premium'),
-          color: AppTheme.accentColor,
-          outlined: true,
-        ));
-      }
+      return _cardCornerBadge('₹${test.price}', AppTheme.accentColor);
     }
-
-    // Test-type pill (outlined primary).
-    if (test.type == TestType.mock) {
-      badges.add(_pill(
-        context: context,
-        label: tr(context, 'test_mock'),
-        color: AppTheme.primaryColor,
-        outlined: true,
-      ));
-    } else if (test.type == TestType.previousYear) {
-      badges.add(_pill(
-        context: context,
-        label: tr(context, 'test_previousYear'),
-        color: AppTheme.primaryColor,
-        outlined: true,
-      ));
-    }
-
-    // Year pill (outlined primary).
-    if (test.year != null && test.year! > 0) {
-      badges.add(_pill(
-        context: context,
-        label: '${test.year}',
-        color: AppTheme.primaryColor,
-        outlined: true,
-      ));
-    }
-
-    return badges;
+    return const SizedBox.shrink();
   }
 
-  Widget _pill({
-    required BuildContext context,
-    required String label,
-    Color? color,
-    List<Color>? gradientColors,
-    bool isGradient = false,
-    bool outlined = false,
-  }) {
-    final LinearGradient? gradientBg = isGradient
-        ? LinearGradient(
-            colors: gradientColors!,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-        : null;
-    final Color? solidBg = isGradient
-        ? null
-        : (outlined ? color!.withOpacity(0.1) : color!.withOpacity(0.15));
-
+  Widget _cardCornerBadge(String label, Color color, {bool isGradient = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceSm,
-        vertical: AppTheme.spaceXs,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        gradient: gradientBg,
-        color: solidBg,
-        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-        border: outlined
-            ? Border.all(color: color!.withOpacity(0.4), width: 0.8)
+        gradient: isGradient
+            ? LinearGradient(
+                colors: AppTheme.accentGradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              )
             : null,
+        color: isGradient ? null : color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
       ),
       child: Text(
         label,
@@ -1365,32 +1288,36 @@ class _TestListScreenState extends State<TestListScreen> {
           size: 10,
           weight: FontWeight.w800,
           color: isGradient ? Colors.white : color,
-          letterSpacing: 0.4,
+          letterSpacing: 0.3,
         ),
       ),
     );
   }
 
-  Widget _buildMetaItem({
-    required IconData icon,
-    required String text,
-    required Color color,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: AppFonts.style(
-            size: 12,
-            weight: FontWeight.w500,
-            color: color,
-          ),
-        ),
-      ],
-    );
+  /// "Type · Year" compact subtitle for the card (e.g. "Mock · 2024").
+  String _buildTypeYearLabel(BuildContext context, TestModel test) {
+    final parts = <String>[];
+    switch (test.type) {
+      case TestType.mock:
+        parts.add(tr(context, 'test_mock'));
+        break;
+      case TestType.previousYear:
+        parts.add(tr(context, 'test_previousYear'));
+        break;
+      case TestType.dailyQuiz:
+        parts.add(tr(context, 'daily_quiz_title'));
+        break;
+      case TestType.practice:
+        parts.add(tr(context, 'test_mock'));
+        break;
+      case TestType.subjectwise:
+        parts.add(tr(context, 'test_mock'));
+        break;
+    }
+    if (test.year != null && test.year! > 0) {
+      parts.add('${test.year}');
+    }
+    return parts.join(' · ');
   }
 
   Widget _buildActionButton({
@@ -1403,7 +1330,7 @@ class _TestListScreenState extends State<TestListScreen> {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 44,
+      height: 38,
       child: !needsPurchase
           ? ElevatedButton.icon(
               onPressed: () => _startTest(context, test),
