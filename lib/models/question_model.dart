@@ -9,6 +9,12 @@ class QuestionModel {
   final String id;
   final String testId;
   final String question;
+  // Bilingual Assamese content fields. `questionAs`/`explanationAs` are
+  // nullable strings; `optionsAs` is a list (kept parallel to `options` but
+  // defensively length-checked at display time via localized_content.dart).
+  final String? questionAs;
+  final List<String> optionsAs;
+  final String? explanationAs;
   final List<String> options;
   final int correctAnswerIndex;
   final String? explanation;
@@ -24,6 +30,9 @@ class QuestionModel {
     required this.testId,
     required this.question,
     required this.options,
+    this.questionAs,
+    this.optionsAs = const [],
+    this.explanationAs,
     required this.correctAnswerIndex,
     this.explanation,
     this.subjectTopic,
@@ -54,10 +63,16 @@ class QuestionModel {
       id: doc.id,
       testId: (data['testId'] ?? '').toString(),
       question: (data['question'] ?? '').toString(),
+      questionAs: data['questionAs']?.toString(),
       options: data['options'] is List
           ? List<String>.from(
               (data['options'] as List).map((e) => e.toString()))
           : const [],
+      optionsAs: data['optionsAs'] is List
+          ? List<String>.from(
+              (data['optionsAs'] as List).map((e) => e.toString()))
+          : const [],
+      explanationAs: data['explanationAs']?.toString(),
       correctAnswerIndex: _toInt(data['correctAnswerIndex'], 0),
       explanation: data['explanation']?.toString(),
       subjectTopic: data['subjectTopic']?.toString(),
@@ -82,9 +97,12 @@ class QuestionModel {
     return {
       'testId': testId,
       'question': question,
+      'questionAs': questionAs,
       'options': options,
+      'optionsAs': optionsAs,
       'correctAnswerIndex': correctAnswerIndex,
       'explanation': explanation,
+      'explanationAs': explanationAs,
       'subjectTopic': subjectTopic,
       'marks': marks,
       'isPremium': isPremium,

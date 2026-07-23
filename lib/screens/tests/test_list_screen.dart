@@ -120,6 +120,7 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/localized_content.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import 'test_instructions_screen.dart';
@@ -435,7 +436,9 @@ class _TestListScreenState extends State<TestListScreen> {
     // all resolve to the ADRE palette. Unknown ids fall back to brand emerald.
     final categoryName = subject?.categoryId;
     final heroGradient = AppTheme.gradientFor(categoryName);
-    final heroTitle = subject?.name ?? tr(context, 'subject_tests');
+    final heroTitle = subject != null
+        ? lc(context, subject.name, subject.nameAs)
+        : tr(context, 'subject_tests');
     final heroIcon = subject?.icon ?? '📝';
 
     // Subject-pack banner visibility — same condition as v1, computed up
@@ -1083,7 +1086,7 @@ class _TestListScreenState extends State<TestListScreen> {
                                 child: Material(
                                   type: MaterialType.transparency,
                                   child: Text(
-                                    test.title,
+                                    lc(context, test.title, test.titleAs),
                                     style: AppFonts.style(
                                       size: 16,
                                       weight: FontWeight.w700,
@@ -1631,7 +1634,7 @@ class _TestListScreenState extends State<TestListScreen> {
                 ),
                 Text(
                   tr(context, 'test_unlockTest')
-                      .replaceAll('{title}', test.title),
+                      .replaceAll('{title}', lc(context, test.title, test.titleAs)),
                   style: AppFonts.style(
                     size: 16,
                     weight: FontWeight.w700,
@@ -1818,7 +1821,7 @@ class _TestListScreenState extends State<TestListScreen> {
       userEmail: user.email ?? 'user@examvault.com',
       userPhone: user.phoneNumber ?? '9999999999',
       testId: test.id,
-      testTitle: test.title,
+      testTitle: lc(context, test.title, test.titleAs),
       amount: test.price,
       subjectId:
           test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
@@ -1882,7 +1885,7 @@ class _TestListScreenState extends State<TestListScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: test.title,
+          itemName: lc(context, test.title, test.titleAs),
           amount: test.price,
           actionLabel: tr(context, 'test_openTest'),
           paymentId: response.paymentId,
@@ -1955,7 +1958,7 @@ class _TestListScreenState extends State<TestListScreen> {
               children: [
                 Text(
                   tr(context, 'test_unlockSubject')
-                      .replaceAll('{subject}', subject.name),
+                      .replaceAll('{subject}', lc(context, subject.name, subject.nameAs)),
                   style: AppFonts.style(
                     size: 14,
                     weight: FontWeight.w700,
@@ -2056,7 +2059,7 @@ class _TestListScreenState extends State<TestListScreen> {
       userEmail: user.email ?? 'user@examvault.com',
       userPhone: user.phoneNumber ?? '9999999999',
       subjectId: subject.id,
-      subjectName: subject.name,
+      subjectName: lc(context, subject.name, subject.nameAs),
       amount: subject.premiumPrice,
       categoryId: effectiveCategoryId,
       onPreparing: () {
@@ -2100,7 +2103,7 @@ class _TestListScreenState extends State<TestListScreen> {
         PaymentSuccessDialog.show(
           context,
           itemName:
-              '${tr(context, 'test_subjectPackPrefix')}${subject.name}',
+              '${tr(context, 'test_subjectPackPrefix')}${lc(context, subject.name, subject.nameAs)}',
           amount: subject.premiumPrice,
           actionLabel: tr(context, 'done'),
           paymentId: response.paymentId,

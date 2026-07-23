@@ -39,6 +39,7 @@ import '../../models/test_model.dart';
 import '../../services/admob_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
+import '../../utils/localized_content.dart';
 
 class ResultScreen extends StatefulWidget {
   final TestResultModel result;
@@ -622,7 +623,8 @@ class _ResultScreenState extends State<ResultScreen> {
                     // Question text (AppFonts.style for Assamese fallback)
                     Expanded(
                       child: Text(
-                        question.question,
+                        lc(
+                            context, question.question, question.questionAs),
                         style: AppFonts.style(
                           size: 14,
                           weight: FontWeight.w500,
@@ -695,6 +697,10 @@ class _ResultScreenState extends State<ResultScreen> {
         isDark ? Colors.grey.shade600 : Colors.grey.shade200;
     final Color optionTextColor =
         isDark ? Colors.grey.shade50 : Colors.black87;
+    // Resolve the localized option list ONCE per review-card build so we
+    // don't re-query LanguageProvider on every option render below.
+    final localizedOptions =
+        lcList(context, question.options, question.optionsAs);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,7 +759,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 // Option text uses AppFonts.style for Assamese fallback
                 Expanded(
                   child: Text(
-                    question.options[i],
+                    localizedOptions[i],
                     style: AppFonts.style(
                       size: 13,
                       color: optionTextColor,
@@ -805,7 +811,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 const SizedBox(height: AppTheme.spaceSm),
                 // Explanation text uses AppFonts.style for Assamese fallback
                 Text(
-                  question.explanation!,
+                  lc(context, question.explanation!, question.explanationAs),
                   style: AppFonts.style(
                     size: 13,
                     height: 1.5,

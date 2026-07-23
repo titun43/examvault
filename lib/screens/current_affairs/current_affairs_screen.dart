@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../models/current_affair_model.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/localized_content.dart';
 import '../../utils/share_helper.dart';
 
 class CurrentAffairsScreen extends StatefulWidget {
@@ -19,13 +21,18 @@ class CurrentAffairsScreen extends StatefulWidget {
 
 class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
   DateTime? _selectedDate;
-  String _selectedCategory = 'All';
+  // Empty string is the "All Categories" sentinel — see `ca_all_categories`.
+  String _selectedCategory = '';
+  // Most recent list of affairs emitted by the stream. Cached here so the
+  // category filter button (which lives outside the StreamBuilder) can read
+  // the unique categories to populate the picker modal.
+  List<CurrentAffairModel> _latestAffairs = const [];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Current Affairs'),
+        title: Text(tr(context, 'ca_title')),
       ),
       body: Column(
         children: [
@@ -39,13 +46,15 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                     onPressed: () async {
                       final date = await showDatePicker(
                         context: context,
-                        initialDate: DateTime.now(),
+                        initialDate: _selectedDate ?? DateTime.now(),
                         firstDate: DateTime(2020),
                         lastDate: DateTime.now(),
                       );
-                      setState(() {
-                        _selectedDate = date;
-                      });
+                      if (date != null) {
+                        setState(() {
+                          _selectedDate = date;
+                        });
+                      }
                     },
                     icon: const Icon(Icons.calendar_today, size: 16),
                     label: Text(
@@ -55,14 +64,29 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                     ),
                   ),
                 ),
+                if (_selectedDate != null) ...[
+                  IconButton(
+                    tooltip: tr(context, 'ca_clear_date'),
+                    onPressed: () {
+                      setState(() {
+                        _selectedDate = null;
+                      });
+                    },
+                    icon: const Icon(Icons.close, size: 18),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
                 const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // Show category filter
-                    },
+                    onPressed: _showCategoryPicker,
                     icon: const Icon(Icons.filter_list, size: 16),
-                    label: Text(_selectedCategory),
+                    label: Text(
+                      _selectedCategory.isEmpty
+                          ? tr(context, 'ca_all_categories')
+                          : _selectedCategory,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ],
@@ -88,11 +112,38 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                     ),
                   );
                 }
+                // Cache the latest snapshot so the category picker (which
+                // lives outside this builder) can read the unique categories.
+                _latestAffairs = snapshot.data!;
+                // Apply local filters (Critical #8 + #9). The Firestore stream
+                // is not parameterised by category/date, so we filter the full
+                // list in-place here.
+                final filtered = snapshot.data!.where((affair) {
+                  final matchesCategory =
+                      _selectedCategory.isEmpty ||
+                          affair.category == _selectedCategory;
+                  final matchesDate = _selectedDate == null ||
+                      DateUtils.isSameDay(affair.date, _selectedDate!);
+                  return matchesCategory && matchesDate;
+                }).toList();
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.filter_alt_off,
+                            size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        Text(tr(context, 'ca_no_results')),
+                      ],
+                    ),
+                  );
+                }
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: snapshot.data!.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final affair = snapshot.data![index];
+                    final affair = filtered[index];
                     return _buildAffairCard(affair);
                   },
                 );
@@ -174,7 +225,7 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    affair.title,
+                    lc(context, affair.title, affair.titleAs),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -182,7 +233,7 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    affair.summary,
+                    lc(context, affair.summary, affair.summaryAs),
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey.shade700,
@@ -233,6 +284,82 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
     );
   }
 
+  // Shows a modal bottom sheet listing every unique category present in the
+  // currently loaded current-affairs, plus an "All Categories" option at the
+  // top that clears the filter. (Critical #8 fix.)
+  void _showCategoryPicker() {
+    final categories = <String>{};
+    for (final a in _latestAffairs) {
+      if (a.category.isNotEmpty) categories.add(a.category);
+    }
+    final sorted = categories.toList()..sort();
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    tr(context, 'ca_select_category'),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.list),
+                title: Text(tr(context, 'ca_all_categories')),
+                trailing: _selectedCategory.isEmpty
+                    ? const Icon(Icons.check, color: AppTheme.primaryColor)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    _selectedCategory = '';
+                  });
+                  Navigator.of(sheetContext).pop();
+                },
+              ),
+              if (sorted.isEmpty)
+                ListTile(
+                  leading: const Icon(Icons.inbox, color: Colors.grey),
+                  title: Text(
+                    tr(context, 'ca_no_results'),
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                )
+              else
+                ...sorted.map(
+                  (c) => ListTile(
+                    leading: const Icon(Icons.label_outline),
+                    title: Text(c),
+                    trailing: _selectedCategory == c
+                        ? const Icon(Icons.check,
+                            color: AppTheme.primaryColor)
+                        : null,
+                    onTap: () {
+                      setState(() {
+                        _selectedCategory = c;
+                      });
+                      Navigator.of(sheetContext).pop();
+                    },
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showDetail(CurrentAffairModel affair) {
     showModalBottomSheet(
       context: context,
@@ -263,7 +390,7 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        affair.title,
+                        lc(context, affair.title, affair.titleAs),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,

@@ -47,6 +47,7 @@ import '../../models/subject_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
+import '../../utils/localized_content.dart';
 import '../../widgets/connectivity_banner.dart';
 import '../../widgets/offline_aware_stream_builder.dart';
 import '../tests/test_list_screen.dart';
@@ -59,12 +60,17 @@ class SubjectDetailScreen extends StatefulWidget {
   // subject's possibly-name/slug categoryId.
   final String? categoryId;
   final String? categoryName;
+  // Bilingual Assamese form of [categoryName] — passed by the caller so the
+  // hero header's category chip can be localized via lc(). The English
+  // [categoryName] is still used for AppTheme.gradientFor() lookups.
+  final String? categoryNameAs;
 
   const SubjectDetailScreen({
     super.key,
     required this.subject,
     this.categoryId,
     this.categoryName,
+    this.categoryNameAs,
   });
 
   @override
@@ -77,6 +83,14 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     final subject = widget.subject;
     // Per-category gradient — gives each exam its own signature look.
     final categoryGradient = AppTheme.gradientFor(widget.categoryName);
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedName = lc(context, subject.name, subject.nameAs);
+    final localizedDescription =
+        lc(context, subject.description ?? '', subject.descriptionAs);
+    final localizedCategoryName = widget.categoryName == null
+        ? null
+        : lc(context, widget.categoryName!, widget.categoryNameAs);
 
     return Scaffold(
       body: CustomScrollView(
@@ -118,7 +132,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                   color: Colors.white.withOpacity(0.25), width: 1),
                             ),
                             child: Text(
-                              widget.categoryName!.toUpperCase(),
+                              localizedCategoryName!.toUpperCase(),
                               style: AppFonts.style(
                                 size: 10,
                                 weight: FontWeight.w700,
@@ -158,7 +172,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                             const SizedBox(width: AppTheme.spaceMd),
                             Expanded(
                               child: Text(
-                                subject.name,
+                                localizedName,
                                 style: AppFonts.style(
                                   size: 26,
                                   weight: FontWeight.w700,
@@ -180,7 +194,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                             subject.description!.isNotEmpty) ...[
                           const SizedBox(height: AppTheme.spaceMd),
                           Text(
-                            subject.description!,
+                            localizedDescription,
                             style: AppFonts.style(
                                 size: 13, color: Colors.white.withOpacity(0.92), height: 1.4),
                             maxLines: 2,

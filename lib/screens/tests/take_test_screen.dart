@@ -29,12 +29,15 @@
 // =============================================================================
 
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/test_model.dart';
 import '../../models/question_model.dart';
+import '../../utils/localized_content.dart';
 import '../../models/test_result_model.dart';
 import '../../services/access_service.dart';
 import '../../services/admob_service.dart';
@@ -65,7 +68,8 @@ class TakeTestScreen extends StatefulWidget {
   State<TakeTestScreen> createState() => _TakeTestScreenState();
 }
 
-class _TakeTestScreenState extends State<TakeTestScreen> {
+class _TakeTestScreenState extends State<TakeTestScreen>
+    with WidgetsBindingObserver {
   List<QuestionModel> _questions = [];
   List<int> _userAnswers = [];
   int _currentQuestionIndex = 0;
@@ -81,10 +85,14 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   // True if the access-check endpoint 404'd (backend not built yet). In that
   // case we fall back to the legacy local check (user.isPremium || hasTest).
   bool _accessCheckUnavailable = false;
+  // Anti-cheat / resume flag: set true when the app is backgrounded so we
+  // can show a one-time SnackBar warning when the user returns.
+  bool _wasBackgrounded = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkAccessAndLoad();
     _timeRemaining = widget.test.duration * 60;
 
@@ -263,7 +271,213 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // ===========================================================================
+  // Test resumption (Critical #4) — SharedPreferences persistence +
+  // WidgetsBindingObserver anti-cheat. The test state (answers, current
+  // question index, time remaining) is persisted to SharedPreferences on
+  // every answer change / navigation and periodically during the timer tick,
+  // so an OS-kill mid-test no longer silently loses progress. On re-open, if
+  // a saved state exists for this testId with a valid (positive) timer and a
+  // matching answer-count, the user is prompted to resume or start fresh.
+  //
+  // App-lifecycle anti-cheat: when the app is backgrounded the Timer is
+  // explicitly canceled (so the clock stops while the user is away) and the
+  // state is persisted. On resume the Timer is restarted from the saved
+  // _timeRemaining and a one-time SnackBar warns the user that the test was
+  // paused. This prevents the cheat where users background the app to look
+  // up answers without the clock ticking — they can no longer do so silently.
+  // ===========================================================================
+
+  /// SharedPreferences storage key for this test's resumable state.
+  /// Pattern: `take_test_state_<testId>`.
+  String get _takeTestStorageKey => 'take_test_state_${widget.test.id}';
+
+  /// Persist the current test state (answers, current index, time remaining)
+  /// to SharedPreferences as a JSON map. Best-effort — swallows errors so
+  /// the test continues even if persistence fails. Fire-and-forget; never
+  /// blocks the UI thread.
+  void _persistState() {
+    if (_questions.isEmpty) return;
+    if (_userAnswers.length != _questions.length) return;
+    final Map<String, dynamic> state = {
+      'testId': widget.test.id,
+      'answers': _userAnswers,
+      'current': _currentQuestionIndex,
+      'timeRemaining': _timeRemaining,
+      'savedAt': DateTime.now().millisecondsSinceEpoch,
+    };
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString(_takeTestStorageKey, jsonEncode(state));
+    }).catchError((Object _) {
+      // Swallow — persistence is best-effort; the test must continue.
+    });
+  }
+
+  /// Load the saved test state from SharedPreferences. Returns null if no
+  /// state exists or if decoding fails.
+  Future<Map<String, dynamic>?> _loadSavedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_takeTestStorageKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+      return decoded;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Clear the saved test state. Called on successful submit so the next
+  /// open of this testId starts fresh.
+  Future<void> _clearSavedState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_takeTestStorageKey);
+    } catch (_) {
+      // Swallow — best-effort.
+    }
+  }
+
+  /// After questions load, check for a saved state and prompt the user to
+  /// resume or start fresh. Only fires if the saved state is valid (positive
+  /// timer, answer count matches current question count). Defaults to resume
+  /// if the user dismisses the dialog via the back button (safer — never
+  /// lose progress).
+  Future<void> _maybePromptResume() async {
+    if (_questions.isEmpty) return;
+    final saved = await _loadSavedState();
+    if (!mounted) return;
+    if (saved == null) return; // No saved state — start fresh silently.
+
+    final savedAnswers = saved['answers'];
+    final savedCurrent = saved['current'];
+    final savedTime = saved['timeRemaining'];
+    if (savedAnswers is! List) return;
+    if (savedCurrent is! int) return;
+    if (savedTime is! int) return;
+    if (savedTime <= 0) {
+      // Saved timer already expired — clear stale state, start fresh.
+      _clearSavedState();
+      return;
+    }
+    final answers = List<int>.from(savedAnswers);
+    if (answers.length != _questions.length) {
+      // Stale state (admin edited the test) — clear and start fresh.
+      _clearSavedState();
+      return;
+    }
+
+    // Pause the timer while the resume dialog is showing so the user's
+    // clock doesn't tick down while they decide.
+    _timer?.cancel();
+    _timer = null;
+
+    final shouldResume = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true, // back button dismisses → default to resume
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          ),
+          title: Row(
+            children: [
+              const Icon(Icons.history_rounded,
+                  color: AppTheme.primaryColor),
+              const SizedBox(width: AppTheme.spaceSm),
+              L10nText('test_resume_title',
+                  style:
+                      AppFonts.style(size: 18, weight: FontWeight.w700)),
+            ],
+          ),
+          content: L10nText('test_resume_msg',
+              style: AppFonts.style(size: 14, height: 1.5)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: L10nText('test_restart_button'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: L10nText('test_resume_button'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (shouldResume == false) {
+      // Start fresh — clear saved state and reset to defaults.
+      _clearSavedState();
+      setState(() {
+        _userAnswers = List<int>.filled(_questions.length, -1);
+        _currentQuestionIndex = 0;
+        _timeRemaining = widget.test.duration * 60;
+      });
+      _persistState();
+    } else {
+      // Resume (explicit true OR dismissed via back button → null).
+      // Defaulting to resume is safer — never lose user progress.
+      setState(() {
+        _userAnswers = answers;
+        _currentQuestionIndex = savedCurrent.clamp(0, _questions.length - 1);
+        _timeRemaining = savedTime;
+      });
+      _persistState(); // refresh savedAt timestamp
+    }
+
+    // Restart the timer with the (possibly restored) _timeRemaining.
+    // Skip if the user managed to submit during the dialog (edge case).
+    if (!_isSubmitting) {
+      _startTimer();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      // App going to background — cancel the timer (anti-cheat: the test
+      // clock stops while the user is away) and persist state so an OS-kill
+      // doesn't lose progress. _wasBackgrounded triggers a one-time SnackBar
+      // warning on resume.
+      _timer?.cancel();
+      _timer = null;
+      _wasBackgrounded = true;
+      _persistState();
+    } else if (state == AppLifecycleState.resumed) {
+      // App returning to foreground — restart the timer from the saved
+      // _timeRemaining (the clock was paused, NOT running, while the user
+      // was away — so they can't "save up" ticking time by backgrounding
+      // to look up answers). Show a one-time SnackBar warning so the user
+      // knows the test was paused.
+      if (!_wasBackgrounded) return;
+      _wasBackgrounded = false;
+      if (!_accessGranted || _questions.isEmpty || _isSubmitting) return;
+      if (!mounted) return;
+      _startTimer();
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      if (messenger != null) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(tr(context, 'test_paused_msg')),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   void _loadQuestions() async {
@@ -275,6 +489,10 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
         _userAnswers = List.filled(questions.length, -1);
         _isLoading = false;
       });
+
+      // Check for a saved test state and prompt the user to resume or start
+      // fresh. Only fires if a valid saved state exists for this testId.
+      _maybePromptResume();
 
       // Preload the interstitial ad AFTER the first frame with real content
       // is rendered. Doing it in initState (previous code) could trigger a
@@ -314,6 +532,13 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
           _submitTest();
         }
       });
+      // Periodically persist state so an OS-kill mid-test doesn't lose
+      // more than ~15s of progress. Per-tick persistence would be wasteful;
+      // every 15s is a reasonable trade-off (answers are persisted
+      // immediately on change in _selectAnswer / navigation methods).
+      if (_timeRemaining > 0 && _timeRemaining % 15 == 0) {
+        _persistState();
+      }
     });
   }
 
@@ -321,6 +546,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     setState(() {
       _userAnswers[_currentQuestionIndex] = optionIndex;
     });
+    _persistState();
   }
 
   void _nextQuestion() {
@@ -328,6 +554,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       setState(() {
         _currentQuestionIndex++;
       });
+      _persistState();
     }
   }
 
@@ -336,6 +563,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
       setState(() {
         _currentQuestionIndex--;
       });
+      _persistState();
     }
   }
 
@@ -343,6 +571,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     setState(() {
       _currentQuestionIndex = index;
     });
+    _persistState();
     Navigator.pop(context);
   }
 
@@ -432,6 +661,11 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
     } catch (e) {
       print('saveResult error (non-fatal): $e');
     }
+
+    // 1a. Clear the saved resumption state — the test is finished, so the
+    //     next open of this testId should start fresh (not resume a finished
+    //     test). Best-effort fire-and-forget; never blocks navigation.
+    _clearSavedState();
 
     // 1b. Atomically increment the test's attemptCount so the "N attempts"
     //     counter on test cards (test list, test series, daily quiz) reflects
@@ -1003,6 +1237,13 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final question = _questions[_currentQuestionIndex];
+    // Localized options — computed once per build, then indexed. Falls back
+    // to English if the Assamese list is missing or length-mismatched
+    // (defensive against partial admin translations).
+    final localizedOptions =
+        lcList(context, question.options, question.optionsAs);
+    final localizedQuestion =
+        lc(context, question.question, question.questionAs);
     final minutes = _timeRemaining ~/ 60;
     final seconds = _timeRemaining % 60;
 
@@ -1156,7 +1397,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                         boxShadow: AppTheme.softShadow1,
                       ),
                       child: Text(
-                        question.question,
+                        localizedQuestion,
                         style: AppFonts.style(
                           size: 16,
                           weight: FontWeight.w500,
@@ -1167,7 +1408,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                     ).animate(key: ValueKey(_currentQuestionIndex)).fadeIn(
                         duration: 300.ms).slideY(begin: 0.06),
                     // Options
-                    ...List.generate(question.options.length, (index) {
+                    ...List.generate(localizedOptions.length, (index) {
                       final isSelected =
                           _userAnswers[_currentQuestionIndex] == index;
                       return Container(
@@ -1232,7 +1473,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                                   const SizedBox(width: AppTheme.spaceMd),
                                   Expanded(
                                     child: Text(
-                                      question.options[index],
+                                      localizedOptions[index],
                                       style: AppFonts.style(
                                         size: 14,
                                         height: 1.4,
@@ -1334,7 +1575,7 @@ class _TakeTestScreenState extends State<TakeTestScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      question.question,
+                      lc(context, question.question, question.questionAs),
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: AppFonts.style(

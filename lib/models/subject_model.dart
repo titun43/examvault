@@ -12,6 +12,10 @@ class SubjectModel {
   final String slug;
   final String? icon;
   final String? description;
+  // Bilingual Assamese content fields (admin writes these alongside the
+  // English fields; the user-app resolves which to show via localized_content.dart).
+  final String? nameAs;
+  final String? descriptionAs;
   final int order;
   final int testCount;
   /// Price in INR to unlock this subject as a standalone "Subject Pack"
@@ -30,6 +34,8 @@ class SubjectModel {
     required this.slug,
     this.icon,
     this.description,
+    this.nameAs,
+    this.descriptionAs,
     this.order = 0,
     this.testCount = 0,
     this.premiumPrice = 0,
@@ -59,6 +65,8 @@ class SubjectModel {
       slug: (data['slug'] ?? '').toString(),
       icon: data['icon']?.toString(),
       description: data['description']?.toString(),
+      nameAs: data['nameAs']?.toString(),
+      descriptionAs: data['descriptionAs']?.toString(),
       order: _toInt(data['order'], 0),
       testCount: _toInt(data['testCount'], 0),
       premiumPrice: _toInt(data['premiumPrice'], 0),
@@ -83,6 +91,8 @@ class SubjectModel {
       'slug': slug,
       'icon': icon,
       'description': description,
+      'nameAs': nameAs,
+      'descriptionAs': descriptionAs,
       'order': order,
       'testCount': testCount,
       'premiumPrice': premiumPrice,
@@ -97,6 +107,8 @@ class SubjectModel {
     String? slug,
     String? icon,
     String? description,
+    String? nameAs,
+    String? descriptionAs,
     int? order,
     int? testCount,
     int? premiumPrice,
@@ -109,6 +121,8 @@ class SubjectModel {
       slug: slug ?? this.slug,
       icon: icon ?? this.icon,
       description: description ?? this.description,
+      nameAs: nameAs ?? this.nameAs,
+      descriptionAs: descriptionAs ?? this.descriptionAs,
       order: order ?? this.order,
       testCount: testCount ?? this.testCount,
       premiumPrice: premiumPrice ?? this.premiumPrice,

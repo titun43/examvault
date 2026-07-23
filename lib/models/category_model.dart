@@ -11,6 +11,10 @@ class CategoryModel {
   final String slug;
   final String? icon;
   final String? description;
+  // Bilingual Assamese content fields (admin writes these alongside the
+  // English fields; the user-app resolves which to show via localized_content.dart).
+  final String? nameAs;
+  final String? descriptionAs;
   final String? image;
   final String? color;
   final int order;
@@ -30,6 +34,8 @@ class CategoryModel {
     required this.slug,
     this.icon,
     this.description,
+    this.nameAs,
+    this.descriptionAs,
     this.image,
     this.color,
     this.order = 0,
@@ -61,6 +67,8 @@ class CategoryModel {
       slug: (data['slug'] ?? '').toString(),
       icon: data['icon']?.toString(),
       description: data['description']?.toString(),
+      nameAs: data['nameAs']?.toString(),
+      descriptionAs: data['descriptionAs']?.toString(),
       image: data['image']?.toString(),
       color: data['color']?.toString(),
       order: _toInt(data['order'], 0),
@@ -88,6 +96,8 @@ class CategoryModel {
       'slug': slug,
       'icon': icon,
       'description': description,
+      'nameAs': nameAs,
+      'descriptionAs': descriptionAs,
       'image': image,
       'color': color,
       'order': order,
@@ -116,6 +126,8 @@ class CategoryModel {
     String? slug,
     String? icon,
     String? description,
+    String? nameAs,
+    String? descriptionAs,
     String? image,
     String? color,
     int? order,
@@ -131,6 +143,8 @@ class CategoryModel {
       slug: slug ?? this.slug,
       icon: icon ?? this.icon,
       description: description ?? this.description,
+      nameAs: nameAs ?? this.nameAs,
+      descriptionAs: descriptionAs ?? this.descriptionAs,
       image: image ?? this.image,
       color: color ?? this.color,
       order: order ?? this.order,

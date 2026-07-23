@@ -15,6 +15,7 @@ import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/category_preference_service.dart';
+import '../../utils/localized_content.dart';
 import '../tests/test_list_screen.dart';
 
 class AllSubjectsScreen extends StatefulWidget {
@@ -229,7 +230,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                       scrollDirection: Axis.horizontal,
                       children: [
                         _buildCategoryChip(null, 'All'),
-                        ..._categories.map((c) => _buildCategoryChip(c.id, c.name)),
+                        ..._categories.map((c) => _buildCategoryChip(c.id, lc(context, c.name, c.nameAs))),
                       ],
                     ),
                   ),
@@ -302,6 +303,11 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
   }
 
   Widget _buildSubjectCard(SubjectModel subject) {
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedName = lc(context, subject.name, subject.nameAs);
+    final localizedDescription =
+        lc(context, subject.description ?? '', subject.descriptionAs);
     // FIXED: resolve the authoritative Firestore category id from the loaded
     // _categories list. subject.categoryId may hold a slug/name due to
     // getSubjectsStream fallback matching — using that slug as categoryId
@@ -371,7 +377,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  subject.name,
+                  localizedName,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -384,7 +390,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                     subject.description!.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    subject.description!,
+                    localizedDescription,
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 11,

@@ -27,6 +27,7 @@ import '../../services/razorpay_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../theme/app_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/localized_content.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -285,7 +286,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: _liveCategory.name,
+          itemName: lc(context, _liveCategory.name, _liveCategory.nameAs),
           amount: _liveCategory.premiumPrice,
           actionLabel: tr(context, 'cat_openExam'),
           paymentId: response.paymentId,
@@ -314,9 +315,17 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups across this build).
+    final localizedName = lc(context, _liveCategory.name, _liveCategory.nameAs);
+    final localizedDescription = lc(
+      context,
+      _liveCategory.description ?? '',
+      _liveCategory.descriptionAs,
+    );
     return Scaffold(
       appBar: AppBar(
-        title: Text(_liveCategory.name),
+        title: Text(localizedName),
       ),
       body: Column(
         children: [
@@ -389,7 +398,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _liveCategory.name,
+                            localizedName,
                             style: AppFonts.style(
                               size: 24,
                               weight: FontWeight.w700,
@@ -416,7 +425,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     _liveCategory.description!.isNotEmpty) ...[
                   const SizedBox(height: AppTheme.spaceMd),
                   Text(
-                    _liveCategory.description!,
+                    localizedDescription,
                     style: AppFonts.style(
                       size: 13,
                       color: Colors.white.withOpacity(0.92),
@@ -499,6 +508,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final isGuest = auth.isGuest;
     final canBuyExamPack = _liveCategory.premiumPrice > 0;
+    final localizedName = lc(context, _liveCategory.name, _liveCategory.nameAs);
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
@@ -521,10 +531,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         const SizedBox(height: 8),
         Text(
           isGuest
-              ? tr(context, 'cat_signInToUnlock').replaceAll('{name}', _liveCategory.name)
+              ? tr(context, 'cat_signInToUnlock').replaceAll('{name}', localizedName)
               : canBuyExamPack
-                  ? tr(context, 'cat_unlockFor').replaceAll('{name}', _liveCategory.name).replaceAll('{price}', '${_liveCategory.premiumPrice}')
-                  : tr(context, 'cat_subscribeToUnlock').replaceAll('{name}', _liveCategory.name),
+                  ? tr(context, 'cat_unlockFor').replaceAll('{name}', localizedName).replaceAll('{price}', '${_liveCategory.premiumPrice}')
+                  : tr(context, 'cat_subscribeToUnlock').replaceAll('{name}', localizedName),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -605,6 +615,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   }
 
   Widget _buildRollingOutState() {
+    final localizedName = lc(context, _liveCategory.name, _liveCategory.nameAs);
     return ListView(
       padding: const EdgeInsets.all(32),
       children: [
@@ -618,7 +629,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          tr(context, 'cat_updateApp').replaceAll('{name}', _liveCategory.name),
+          tr(context, 'cat_updateApp').replaceAll('{name}', localizedName),
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
         ),
@@ -719,6 +730,11 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   Widget _buildSubjectCard(BuildContext context, SubjectModel subject) {
     final categoryColor = AppTheme.colorFor(_liveCategory.name);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedName = lc(context, subject.name, subject.nameAs);
+    final localizedDescription =
+        lc(context, subject.description ?? '', subject.descriptionAs);
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
       child: Material(
@@ -747,6 +763,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   subject: subject,
                   categoryId: _liveCategory.id,
                   categoryName: _liveCategory.name,
+                  categoryNameAs: _liveCategory.nameAs,
                 ),
               ),
             );
@@ -792,7 +809,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          subject.name,
+                          localizedName,
                           style: AppFonts.style(
                             size: 16,
                             weight: FontWeight.w700,
@@ -805,7 +822,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                             subject.description!.isNotEmpty) ...[
                           const SizedBox(height: 2),
                           Text(
-                            subject.description!,
+                            localizedDescription,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppFonts.style(size: 12, color: Colors.grey[600]),

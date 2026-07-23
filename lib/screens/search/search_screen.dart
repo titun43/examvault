@@ -21,6 +21,7 @@ import '../home/category_detail_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../tests/test_instructions_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
+import '../../utils/localized_content.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -360,7 +361,7 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Text(c.icon ?? '📚', style: const TextStyle(fontSize: 18)),
       ),
       title: Text(
-        c.name,
+        lc(context, c.name, c.nameAs),
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: c.description != null && c.description!.isNotEmpty
@@ -394,7 +395,7 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Text(s.icon ?? '📘', style: const TextStyle(fontSize: 18)),
       ),
       title: Text(
-        s.name,
+        lc(context, s.name, s.nameAs),
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
       subtitle: Text(
@@ -422,7 +423,7 @@ class _SearchScreenState extends State<SearchScreen> {
         child: const Icon(Icons.assignment, color: AppTheme.accentColor),
       ),
       title: Text(
-        t.title,
+        lc(context, t.title, t.titleAs),
         style: const TextStyle(fontWeight: FontWeight.w600),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -453,7 +454,7 @@ class _SearchScreenState extends State<SearchScreen> {
         child: const Icon(Icons.newspaper, color: AppTheme.successColor),
       ),
       title: Text(
-        a.title,
+        lc(context, a.title, a.titleAs),
         style: const TextStyle(fontWeight: FontWeight.w600),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,

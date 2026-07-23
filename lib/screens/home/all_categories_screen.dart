@@ -16,6 +16,7 @@ import '../../services/access_service.dart';
 import '../../services/firestore_service.dart';
 import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/localized_content.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
@@ -128,7 +129,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          category.name,
+          lc(context, category.name, category.nameAs),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 15,
@@ -280,6 +281,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
     final user = auth.user;
     final isGuest = auth.isGuest;
     final canBuyExamPack = category.premiumPrice > 0;
+    final localizedName = lc(context, category.name, category.nameAs);
     showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -305,10 +307,10 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
               const SizedBox(height: 8),
               Text(
                 isGuest
-                    ? 'Sign in to unlock "${category.name}" and all its tests.'
+                    ? 'Sign in to unlock "$localizedName" and all its tests.'
                     : canBuyExamPack
-                        ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
-                        : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
+                        ? 'Unlock "$localizedName" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
+                        : 'Subscribe to Premium to unlock "$localizedName" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
               ),
@@ -495,7 +497,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: category.name,
+          itemName: lc(context, category.name, category.nameAs),
           amount: category.premiumPrice,
           actionLabel: 'Open Exam',
           paymentId: response.paymentId,

@@ -22,6 +22,7 @@ import '../../services/firestore_service.dart';
 import '../../services/category_preference_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/localized_content.dart';
 import '../search/search_screen.dart';
 import '../onboarding/category_selection_screen.dart';
 import 'test_instructions_screen.dart';
@@ -295,7 +296,7 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              test.title,
+              lc(context, test.title, test.titleAs),
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -477,12 +478,12 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                   ),
                 ),
                 title: Text(
-                  subject.name,
+                  lc(context, subject.name, subject.nameAs),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
                   '${subject.testCount} ${subject.testCount == 1 ? 'Test' : 'Tests'}'
-                  '${subject.description != null && subject.description!.isNotEmpty ? ' · ${subject.description}' : ''}',
+                  '${subject.description != null && subject.description!.isNotEmpty ? ' · ${lc(context, subject.description!, subject.descriptionAs)}' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

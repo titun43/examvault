@@ -12,6 +12,8 @@ import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
+import '../../utils/localized_content.dart';
+import '../../l10n/app_localizations.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/weekly_streak_indicator.dart';
 import 'test_instructions_screen.dart';
@@ -23,7 +25,7 @@ class DailyQuizScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily Quiz')),
+      appBar: AppBar(title: L10nText('daily_quiz_title')),
       body: StreamBuilder<List<TestModel>>(
         stream: FirestoreService.getTestsStream(
           type: TestType.dailyQuiz,
@@ -41,8 +43,19 @@ class DailyQuizScreen extends StatelessWidget {
             return _buildEmptyState(context, isDark);
           }
 
-          final today = quizzes.first; // getTestsStream sorts by createdAt desc
-          final previous = quizzes.skip(1).toList();
+          // Only quizzes created TODAY are eligible for the "Today's Quiz"
+          // section. Older quizzes go into "Previous Quizzes". This prevents
+          // a stale Monday quiz from being labelled "Today's Quiz" on Friday
+          // (Critical #7 fix).
+          final now = DateTime.now();
+          bool isSameDay(DateTime a, DateTime b) =>
+              a.year == b.year && a.month == b.month && a.day == b.day;
+          final todayQuizzes =
+              quizzes.where((q) => isSameDay(q.createdAt, now)).toList();
+          final previousQuizzes =
+              quizzes.where((q) => !isSameDay(q.createdAt, now)).toList();
+          final today =
+              todayQuizzes.isNotEmpty ? todayQuizzes.first : null;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -56,7 +69,7 @@ class DailyQuizScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 // Today's Quiz
                 Text(
-                  "Today's Quiz",
+                  tr(context, 'daily_quiz_today'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -64,11 +77,14 @@ class DailyQuizScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _DailyQuizCard(test: today, isFeatured: true),
-                if (previous.isNotEmpty) ...[
+                if (today != null)
+                  _DailyQuizCard(test: today, isFeatured: true)
+                else
+                  _buildNoTodayCard(context, isDark),
+                if (previousQuizzes.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   Text(
-                    'Previous Quizzes',
+                    tr(context, 'daily_quiz_previous'),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -76,7 +92,7 @@ class DailyQuizScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...previous.map(
+                  ...previousQuizzes.map(
                     (q) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _DailyQuizCard(test: q, isFeatured: false),
@@ -133,11 +149,11 @@ class DailyQuizScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
                           child: Text(
-                            'day streak',
-                            style: TextStyle(
+                            tr(context, 'daily_quiz_streak'),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -171,6 +187,40 @@ class DailyQuizScreen extends StatelessWidget {
             dotSize: 30,
           ),
         ],
+      ),
+    );
+  }
+
+  /// Empty-state card shown in place of "Today's Quiz" when no quiz was
+  /// created today. Distinct from [_buildEmptyState] which handles the
+  /// "no quizzes at all" case.
+  Widget _buildNoTodayCard(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
+    final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const Icon(Icons.event_busy, size: 36, color: AppTheme.accentColor),
+            const SizedBox(height: 12),
+            L10nText(
+              'daily_quiz_no_today',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            L10nText(
+              'daily_quiz_check_later',
+              style: TextStyle(fontSize: 13, color: mutedColor),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -231,7 +281,9 @@ class _DailyQuizCard extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    test.title,
+                    // Bilingual title — honors the user's LanguageMode
+                    // (english / assamese / both) via localized_content.dart.
+                    lc(context, test.title, test.titleAs),
                     style: TextStyle(
                       fontSize: isFeatured ? 16 : 15,
                       fontWeight: FontWeight.w600,
@@ -247,14 +299,15 @@ class _DailyQuizCard extends StatelessWidget {
                       color: AppTheme.accentColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.star, size: 12, color: AppTheme.accentColor),
-                        SizedBox(width: 2),
+                        const Icon(Icons.star,
+                            size: 12, color: AppTheme.accentColor),
+                        const SizedBox(width: 2),
                         Text(
-                          'PREMIUM',
-                          style: TextStyle(
+                          tr(context, 'daily_quiz_premium_badge'),
+                          style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.accentColor,
@@ -308,7 +361,14 @@ class _DailyQuizCard extends StatelessWidget {
                   backgroundColor:
                       isFeatured ? AppTheme.accentColor : AppTheme.primaryColor,
                 ),
-                child: Text(isFeatured ? 'Start Quiz' : 'Start'),
+                child: Text(
+                  tr(
+                    context,
+                    isFeatured
+                        ? 'daily_quiz_start'
+                        : 'daily_quiz_start_short',
+                  ),
+                ),
               ),
             ),
           ],

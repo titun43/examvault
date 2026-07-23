@@ -28,6 +28,7 @@ import '../../services/firestore_service.dart';
 import '../../services/access_service.dart';
 import '../../models/action_button.dart';
 import '../../utils/in_app_navigator.dart';
+import '../../utils/localized_content.dart';
 import '../../services/razorpay_service.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
@@ -936,7 +937,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: AppTheme.spaceSm + 2),
                 Expanded(
                   child: _MarqueeText(
-                    texts: list.map((a) => a.title).toList(),
+                    texts: list
+                        .map((a) => lc(context, a.title, a.titleAs))
+                        .toList(),
                   ),
                 ),
                 const Icon(Icons.chevron_right_rounded,
@@ -1156,7 +1159,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 32,
                       child: Center(
                         child: Text(
-                          category.name,
+                          lc(context, category.name, category.nameAs),
                           style: AppFonts.style(
                             size: 12,
                             weight: FontWeight.w600,
@@ -1259,6 +1262,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = auth.user;
     final isGuest = auth.isGuest;
     final canBuyExamPack = category.premiumPrice > 0;
+    final localizedName = lc(context, category.name, category.nameAs);
     showDialog<void>(
       context: context,
       builder: (ctx) {
@@ -1290,10 +1294,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 8),
               Text(
                 isGuest
-                    ? 'Sign in to unlock "${category.name}" and all its tests.'
+                    ? 'Sign in to unlock "$localizedName" and all its tests.'
                     : canBuyExamPack
-                        ? 'Unlock "${category.name}" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
-                        : 'Subscribe to Premium to unlock "${category.name}" and all its tests.',
+                        ? 'Unlock "$localizedName" and all its tests for ₹${category.premiumPrice}, or upgrade to Premium for unlimited access.'
+                        : 'Subscribe to Premium to unlock "$localizedName" and all its tests.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
@@ -1493,7 +1497,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: category.name,
+          itemName: lc(context, category.name, category.nameAs),
           amount: category.premiumPrice,
           actionLabel: 'Open Exam',
           paymentId: response.paymentId,
@@ -1627,6 +1631,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final gradient = matchedCategory.id.isNotEmpty
         ? AppTheme.gradientFor(matchedCategory.name)
         : AppTheme.brandGradient;
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedName = lc(context, subject.name, subject.nameAs);
+    final localizedDescription =
+        lc(context, subject.description ?? '', subject.descriptionAs);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -1699,7 +1708,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  subject.name,
+                  localizedName,
                   style: AppFonts.style(
                     color: Colors.white,
                     size: 16,
@@ -1711,7 +1720,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: AppTheme.spaceXs),
                 Text(
-                  subject.description ?? '',
+                  localizedDescription,
                   style: AppFonts.style(
                     color: Colors.white.withOpacity(0.9),
                     size: 11,
@@ -1836,6 +1845,11 @@ class _HomeScreenState extends State<HomeScreen> {
         : days <= 30
             ? AppTheme.errorColor
             : AppTheme.primaryColor;
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedName = lc(context, e.name, e.nameAs);
+    final localizedOrganization =
+        lc(context, e.organization ?? '', e.organizationAs);
     // Tapping a mini exam card now opens that specific exam's detail page
     // (UpcomingExamDetailScreen) instead of the full "Upcoming Exams" list —
     // so each card is independently clickable. The "View All" header button
@@ -1906,7 +1920,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        e.name,
+                        localizedName,
                         style: AppFonts.style(
                             size: 13,
                             weight: FontWeight.w600,
@@ -1918,7 +1932,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 2),
                       Text(
                         e.organization != null && e.organization!.isNotEmpty
-                            ? e.organization!
+                            ? localizedOrganization
                             : '${e.examDate.day}/${e.examDate.month}/${e.examDate.year}',
                         style: AppFonts.style(
                             size: 11,
@@ -2081,6 +2095,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accent =
         affair.isImportant ? AppTheme.accentColor : AppTheme.primaryColor;
+    // Localized display strings (computed once to avoid repeated Provider
+    // lookups inside this build).
+    final localizedTitle = lc(context, affair.title, affair.titleAs);
+    final localizedSummary = lc(context, affair.summary, affair.summaryAs);
     // Tapping a current-affair card now opens that specific affair's detail
     // page (CurrentAffairDetailScreen) instead of the full list — so each card
     // is independently clickable. "View All" header button still opens the
@@ -2171,7 +2189,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: AppTheme.spaceSm),
             Text(
-              affair.title,
+              localizedTitle,
               style: AppFonts.style(
                 size: 14,
                 weight: FontWeight.w600,
@@ -2181,7 +2199,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: AppTheme.spaceXs),
             Text(
-              affair.summary,
+              localizedSummary,
               style: AppFonts.style(
                 size: 12,
                 color: Colors.grey.shade600,

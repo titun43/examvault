@@ -17,6 +17,8 @@ import 'package:provider/provider.dart';
 import 'package:pinput/pinput.dart';
 import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
+import '../../l10n/app_localizations.dart';
 import '../home/main_navigation.dart';
 import '../../admin/admin_login_screen.dart';
 import '../../admin/admin_dashboard.dart';
@@ -66,6 +68,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
   bool _isSignUp = false;
+  // True while a password-reset email is being sent (shows inline spinner on
+  // the "Forgot Password?" link and disables further taps).
+  bool _isResetting = false;
 
   @override
   void dispose() {
@@ -590,6 +595,31 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
+        // "Forgot Password?" link — only shown in the Sign-In section (NOT
+        // sign-up). Right-aligned below the password field. Tapping it sends
+        // a Firebase password-reset email to whatever is in the email field.
+        if (!_isSignUp)
+          Align(
+            alignment: Alignment.centerRight,
+            child: _isResetting
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 6),
+                    child: SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : TextButton(
+                    onPressed: _resetPassword,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: const Size(0, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(tr(context, 'auth_forgot_password')),
+                  ),
+          ),
         const SizedBox(height: 16),
         Consumer<AuthProvider>(
           builder: (context, auth, _) {
@@ -809,6 +839,43 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   // ==================== EMAIL AUTH METHODS ====================
+
+  /// Sends a Firebase password-reset email to the address currently in the
+  /// email field. Shown only in the Sign-In section via the "Forgot
+  /// Password?" link. If the email field is empty, we ask the user to fill it
+  /// first instead of letting Firebase throw a generic error.
+  void _resetPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(tr(context, 'auth_enter_email_first'))),
+      );
+      return;
+    }
+    setState(() => _isResetting = true);
+    try {
+      await AuthService.resetPassword(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(tr(context, 'auth_reset_email_sent'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr(context, 'auth_reset_failed')}: $e'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isResetting = false);
+      }
+    }
+  }
+
   void _emailAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;

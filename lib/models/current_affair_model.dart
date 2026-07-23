@@ -11,6 +11,11 @@ class CurrentAffairModel {
   final String title;
   final String content;
   final String summary;
+  // Bilingual Assamese content fields (admin writes these alongside the
+  // English fields; resolved at display time via localized_content.dart).
+  final String? titleAs;
+  final String? summaryAs;
+  final String? contentAs;
   final String? pdfUrl;
   final String? imageUrl;
   final String source;
@@ -27,6 +32,9 @@ class CurrentAffairModel {
     required this.title,
     required this.content,
     required this.summary,
+    this.titleAs,
+    this.summaryAs,
+    this.contentAs,
     this.pdfUrl,
     this.imageUrl,
     this.source = '',
@@ -60,6 +68,9 @@ class CurrentAffairModel {
       title: (data['title'] ?? '').toString(),
       content: (data['content'] ?? '').toString(),
       summary: (data['summary'] ?? '').toString(),
+      titleAs: data['titleAs']?.toString(),
+      summaryAs: data['summaryAs']?.toString(),
+      contentAs: data['contentAs']?.toString(),
       pdfUrl: data['pdfUrl']?.toString(),
       imageUrl: data['imageUrl']?.toString(),
       source: (data['source'] ?? '').toString(),
@@ -81,6 +92,9 @@ class CurrentAffairModel {
       'title': title,
       'content': content,
       'summary': summary,
+      'titleAs': titleAs,
+      'summaryAs': summaryAs,
+      'contentAs': contentAs,
       'pdfUrl': pdfUrl,
       'imageUrl': imageUrl,
       'source': source,

@@ -13,6 +13,13 @@ class TestModel {
   final String subjectId;
   final String title;
   final String slug;
+  // Bilingual Assamese content fields. Note: the English `description` is not
+  // modeled here yet (admin may still write `descriptionAs` to Firestore for
+  // future expansion); `titleAs` and `instructionsAs` mirror existing English
+  // fields. Resolved at display time via localized_content.dart.
+  final String? titleAs;
+  final String? descriptionAs;
+  final String? instructionsAs;
   final TestType type;
   final int duration; // minutes
   final int totalMarks;
@@ -36,6 +43,9 @@ class TestModel {
     required this.subjectId,
     required this.title,
     required this.slug,
+    this.titleAs,
+    this.descriptionAs,
+    this.instructionsAs,
     this.type = TestType.mock,
     required this.duration,
     required this.totalMarks,
@@ -81,6 +91,9 @@ class TestModel {
       subjectId: (data['subjectId'] ?? '').toString(),
       title: (data['title'] ?? '').toString(),
       slug: (data['slug'] ?? '').toString(),
+      titleAs: data['titleAs']?.toString(),
+      descriptionAs: data['descriptionAs']?.toString(),
+      instructionsAs: data['instructionsAs']?.toString(),
       type: _parseTestType(data['type']?.toString()),
       duration: _toInt(data['duration'], 60),
       totalMarks: _toInt(data['totalMarks'], 100),
@@ -124,6 +137,9 @@ class TestModel {
       'subjectId': subjectId,
       'title': title,
       'slug': slug,
+      'titleAs': titleAs,
+      'descriptionAs': descriptionAs,
+      'instructionsAs': instructionsAs,
       'type': type.name,
       'duration': duration,
       'totalMarks': totalMarks,
@@ -166,6 +182,9 @@ class TestModel {
     String? subjectId,
     String? title,
     String? slug,
+    String? titleAs,
+    String? descriptionAs,
+    String? instructionsAs,
     TestType? type,
     int? duration,
     int? totalMarks,
@@ -188,6 +207,9 @@ class TestModel {
       subjectId: subjectId ?? this.subjectId,
       title: title ?? this.title,
       slug: slug ?? this.slug,
+      titleAs: titleAs ?? this.titleAs,
+      descriptionAs: descriptionAs ?? this.descriptionAs,
+      instructionsAs: instructionsAs ?? this.instructionsAs,
       type: type ?? this.type,
       duration: duration ?? this.duration,
       totalMarks: totalMarks ?? this.totalMarks,

@@ -20,7 +20,10 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/auth_service.dart';
 import '../../config/app_config.dart';
+import '../auth/login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -33,10 +36,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _appVersion = '';
   String _appBuild = '';
 
+  // ─── Delete Account flow state ───
+  // Controller for the type-to-confirm dialog (user must type "DELETE").
+  // _isDeleting gates the dialog's Confirm button + shows a spinner while
+  // AuthService.deleteAccount() is in-flight.
+  final TextEditingController _deleteConfirmController =
+      TextEditingController();
+  bool _isDeleting = false;
+
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
+  }
+
+  @override
+  void dispose() {
+    _deleteConfirmController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPackageInfo() async {
@@ -74,6 +91,179 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
+  }
+
+  // ==================== DELETE ACCOUNT FLOW (Critical #5) ====================
+  // Google Play's Data Deletion policy (effective Jan 2024) requires an
+  // in-app account-deletion option. AuthService.deleteAccount() existed
+  // but was never wired to any UI. This two-step confirmation flow guards
+  // against accidental deletion: (1) warning dialog, (2) type-"DELETE"
+  // confirmation. Only if the user types DELETE exactly (case-sensitive)
+  // do we call the destructive API.
+
+  /// Step 1: warning dialog listing what gets deleted, with a Cancel button.
+  void _showDeleteAccountWarningDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded,
+            color: AppTheme.errorColor, size: 48),
+        title: L10nText('settings_delete_account_confirm_title'),
+        content: L10nText(
+          'settings_delete_account_confirm_msg',
+          style: AppFonts.style(
+              size: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: L10nText('settings_delete_account_cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _showTypeToDeleteDialog();
+            },
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: L10nText('settings_delete_account'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Step 2: type-"DELETE" confirmation dialog. The Confirm button is
+  /// disabled until the TextField contains exactly "DELETE" (case-
+  /// sensitive). While the deletion API call is in-flight, both buttons
+  /// are disabled and a CircularProgressIndicator replaces the icon.
+  void _showTypeToDeleteDialog() {
+    _deleteConfirmController.clear();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: !_isDeleting,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final typed = _deleteConfirmController.text.trim();
+          final canConfirm = !_isDeleting && typed == 'DELETE';
+          return PopScope(
+            canPop: !_isDeleting,
+            child: AlertDialog(
+              title: L10nText('settings_delete_account_confirm_title'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  L10nText(
+                    'settings_delete_account_confirm_msg',
+                    style: AppFonts.style(
+                        size: 13,
+                        color: Theme.of(ctx)
+                            .colorScheme
+                            .onSurfaceVariant),
+                  ),
+                  const SizedBox(height: AppTheme.spaceMd),
+                  Text(
+                    tr(ctx, 'settings_delete_account_type_to_confirm'),
+                    style: AppFonts.style(
+                        size: 13, weight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: AppTheme.spaceXs),
+                  TextField(
+                    controller: _deleteConfirmController,
+                    enabled: !_isDeleting,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.characters,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: InputDecoration(
+                      hintText: 'DELETE',
+                      border: const OutlineInputBorder(),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide:
+                            BorderSide(color: AppTheme.errorColor),
+                      ),
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: _isDeleting
+                      ? null
+                      : () => Navigator.of(ctx).pop(),
+                  child: L10nText('settings_delete_account_cancel'),
+                ),
+                FilledButton.icon(
+                  onPressed: canConfirm
+                      ? () async {
+                          setDialogState(() => _isDeleting = true);
+                          await _performDeleteAccount(ctx);
+                        }
+                      : null,
+                  icon: _isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.delete_forever_rounded),
+                  label: L10nText('settings_delete_account_final_button'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.errorColor,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        AppTheme.errorColor.withOpacity(0.5),
+                    disabledForegroundColor: Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Step 3: actually call AuthService.deleteAccount(). On success, sign
+  /// the user out (deleteAccount() deletes the Auth user but does NOT call
+  /// AuthService.logout(), so we explicitly clear the local AuthProvider
+  /// state and its Firestore user-doc subscription), then navigate to the
+  /// Login screen. On failure, reset the loading flag and surface the
+  /// error via a SnackBar.
+  Future<void> _performDeleteAccount(BuildContext dialogCtx) async {
+    try {
+      await AuthService.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(dialogCtx).pop(); // close the type-to-confirm dialog
+      _showToast(tr(context, 'settings_delete_account_success'));
+      // deleteAccount() removes the Auth user but does not call signOut(),
+      // so the AuthProvider still holds a stale UserModel + an active
+      // user-doc subscription. Explicitly logout() to clean both up.
+      try {
+        await Provider.of<AuthProvider>(context, listen: false).logout();
+      } catch (_) {
+        // Safe to swallow — _auth.signOut() on a just-deleted user is a
+        // no-op; the Auth state listener fires with null regardless.
+      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Dialog may still be open — close it so the user can retry.
+      Navigator.of(dialogCtx).maybePop();
+      setState(() => _isDeleting = false);
+      _showToast('${tr(context, 'settings_delete_account_failed')}: $e');
+    }
   }
 
   @override
@@ -173,6 +363,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               },
             ),
           ).animate().fadeIn(delay: 80.ms, duration: 350.ms).slideY(begin: 0.05),
+
+          const SizedBox(height: AppTheme.spaceXxl),
+
+          // ==================== ACCOUNT (DELETE ACCOUNT — Critical #5) ====================
+          // Google Play Data Deletion policy (Jan 2024) requires an in-app
+          // account-deletion option. Tapping the tile triggers a two-step
+          // confirmation flow (warning dialog → type-"DELETE" dialog).
+          _SectionHeader(labelKey: 'settings_account'),
+          const SizedBox(height: AppTheme.spaceSm),
+          _SettingsCard(
+            color: cardColor,
+            child: _AboutTile(
+              icon: Icons.delete_forever_rounded,
+              iconColor: AppTheme.errorColor,
+              title: tr(context, 'settings_delete_account'),
+              onTap: _isDeleting ? null : _showDeleteAccountWarningDialog,
+            ),
+          ).animate().fadeIn(delay: 240.ms, duration: 350.ms).slideY(begin: 0.05),
 
           const SizedBox(height: AppTheme.spaceXxl),
 

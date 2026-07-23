@@ -23,6 +23,10 @@ class AnnouncementModel {
   final String id;
   final String title;
   final String message;
+  // Bilingual Assamese content fields (admin writes these alongside the
+  // English fields; resolved at display time via localized_content.dart).
+  final String? titleAs;
+  final String? messageAs;
   final AnnouncementType type;
   final String? imageUrl;
 
@@ -45,6 +49,8 @@ class AnnouncementModel {
     required this.id,
     required this.title,
     required this.message,
+    this.titleAs,
+    this.messageAs,
     this.type = AnnouncementType.info,
     this.imageUrl,
     this.link,
@@ -99,6 +105,8 @@ class AnnouncementModel {
       id: doc.id,
       title: (data['title'] ?? '').toString(),
       message: (data['message'] ?? '').toString(),
+      titleAs: data['titleAs']?.toString(),
+      messageAs: data['messageAs']?.toString(),
       type: _parseType(data['type']?.toString()),
       imageUrl: data['imageUrl']?.toString(),
       link: legacyLink,
@@ -127,6 +135,8 @@ class AnnouncementModel {
     return {
       'title': title,
       'message': message,
+      'titleAs': titleAs,
+      'messageAs': messageAs,
       'type': type.name,
       'imageUrl': imageUrl,
       // Keep writing the legacy fields too so older app builds still see a

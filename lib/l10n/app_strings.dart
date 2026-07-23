@@ -185,6 +185,14 @@ class AppStrings {
         'Bookmark error: permission denied. Admin must deploy Firestore rules.',
     'test_bookmarkAddTooltip': 'Bookmark this test',
     'test_bookmarkRemoveTooltip': 'Remove bookmark',
+    // Take Test — resumption + lifecycle anti-cheat (Critical #4)
+    'test_resume_title': 'Resume Test?',
+    'test_resume_msg':
+        'You have an unfinished test. Would you like to resume from where you left off?',
+    'test_resume_button': 'Resume',
+    'test_restart_button': 'Start Fresh',
+    'test_paused_msg':
+        'Test was paused while you were away. Timer resumed.',
 
     // Result
     'result_score': 'Your Score',
@@ -237,6 +245,21 @@ class AppStrings {
     'settings_dark': 'Dark',
     'settings_system': 'System',
     'settings_notifications': 'Notifications',
+
+    // Account / Delete Account (Google Play Data Deletion policy — Jan 2024)
+    'settings_account': 'Account',
+    'settings_delete_account': 'Delete Account',
+    'settings_delete_account_subtitle':
+        'Permanently delete your account and data',
+    'settings_delete_account_confirm_title': 'Delete Account?',
+    'settings_delete_account_confirm_msg':
+        'This will permanently delete your account, test history, bookmarks, and purchases. This action cannot be undone.',
+    'settings_delete_account_type_to_confirm': 'Type DELETE to confirm',
+    'settings_delete_account_final_button': 'Yes, Delete My Account',
+    'settings_delete_account_cancel': 'Cancel',
+    'settings_delete_account_success':
+        'Account deleted. You have been signed out.',
+    'settings_delete_account_failed': 'Could not delete account',
 
     // About / Legal
     'about': 'About',
@@ -296,6 +319,23 @@ class AppStrings {
     'dailyQuiz_emptyDesc': 'Check back soon for new quizzes!',
     'dailyQuiz_errorTitle': 'Could not load daily quizzes',
     'dailyQuiz_errorDesc': 'Please try again later.',
+    // Daily Quiz Screen — labels & buttons (Critical #7 fix)
+    'daily_quiz_title': 'Daily Quiz',
+    'daily_quiz_today': "Today's Quiz",
+    'daily_quiz_previous': 'Previous Quizzes',
+    'daily_quiz_streak': 'day streak',
+    'daily_quiz_premium_badge': 'PREMIUM',
+    'daily_quiz_start': 'Start Quiz',
+    'daily_quiz_start_short': 'Start',
+    'daily_quiz_no_today': 'No quiz for today yet',
+    'daily_quiz_check_later': 'Check back later!',
+
+    // Current Affairs Screen (Critical #8 + #9 fix)
+    'ca_title': 'Current Affairs',
+    'ca_all_categories': 'All Categories',
+    'ca_select_category': 'Select Category',
+    'ca_clear_date': 'Clear Date',
+    'ca_no_results': 'No current affairs match your filters',
 
     // Test Instructions Screen
     'instr_title': 'Test Instructions',
@@ -333,6 +373,12 @@ class AppStrings {
     'cat_paymentTakingLong': 'Payment is taking longer than expected. Check "My Purchases" to see if it succeeded.',
     'cat_checkPurchases': 'Check My Purchases',
     'cat_paymentFailed': 'Payment failed. Please try again.',
+
+    // Auth — Forgot Password flow (login_screen.dart)
+    'auth_forgot_password': 'Forgot Password?',
+    'auth_enter_email_first': 'Please enter your email first',
+    'auth_reset_email_sent': 'Password reset email sent — check your inbox',
+    'auth_reset_failed': 'Could not send reset email',
   };
 
   static const Map<String, String> assamese = {
@@ -505,6 +551,14 @@ class AppStrings {
         'বুকমাৰ্ক ত্ৰুটি: অনুমতি নাই। এডমিনে Firestore rules ডিপ্লয় কৰিব লাগিব।',
     'test_bookmarkAddTooltip': 'এই পৰীক্ষা বুকমাৰ্ক কৰক',
     'test_bookmarkRemoveTooltip': 'বুকমাৰ্ক আঁতাওক',
+    // Take Test — resumption + lifecycle anti-cheat (Critical #4)
+    'test_resume_title': 'পৰীক্ষা পুনৰ আৰম্ভ কৰিব নেকি?',
+    'test_resume_msg':
+        'আপোনাৰ এটা অসম্পূৰ্ণ পৰীক্ষা আছে। আপুনি য’ত এৰিছিল তাৰ পৰা পুনৰ আৰম্ভ কৰিব বিচাৰে নেকি?',
+    'test_resume_button': 'পুনৰ আৰম্ভ কৰক',
+    'test_restart_button': 'নতুনকৈ আৰম্ভ কৰক',
+    'test_paused_msg':
+        'আপুনি নাছিল সময়ত পৰীক্ষা বিৰতি লৈছিল। টাইমাৰ পুনৰ আৰম্ভ কৰা হ’ল।',
 
     // Result
     'result_score': 'আপোনাৰ নম্বৰ',
@@ -557,6 +611,21 @@ class AppStrings {
     'settings_dark': 'আন্ধাৰ',
     'settings_system': 'চিস্টেম',
     'settings_notifications': 'জাননী',
+
+    // Account / Delete Account (Google Play Data Deletion policy — Jan 2024)
+    'settings_account': 'একাউণ্ট',
+    'settings_delete_account': 'একাউণ্ট ডিলিট কৰক',
+    'settings_delete_account_subtitle':
+        'আপোনাৰ একাউণ্ট আৰু ডাটা স্থায়ীভাৱে ডিলিট কৰক',
+    'settings_delete_account_confirm_title': 'একাউণ্ট ডিলিট কৰিব নেকি?',
+    'settings_delete_account_confirm_msg':
+        'ইয়াৰ ফলত আপোনাৰ একাউণ্ট, পৰীক্ষাৰ ইতিহাস, বুকমাৰ্ক আৰু ক্ৰয় স্থায়ীভাৱে ডিলিট হ\'ব। এই কাৰ্য পূৰণ কৰিব নোৱাৰি।',
+    'settings_delete_account_type_to_confirm': 'নিশ্চিত কৰিবলৈ DELETE লিখক',
+    'settings_delete_account_final_button': 'হয়, মোৰ একাউণ্ট ডিলিট কৰক',
+    'settings_delete_account_cancel': 'বাতিল কৰক',
+    'settings_delete_account_success':
+        'একাউণ্ট ডিলিট কৰা হ\'ল। আপুনি ছাইন আউট হৈছে।',
+    'settings_delete_account_failed': 'একাউণ্ট ডিলিট কৰিব পৰা নগ\'ল',
 
     // About / Legal
     'about': 'বিষয়ে',
@@ -617,6 +686,23 @@ class AppStrings {
     'dailyQuiz_emptyDesc': 'নতুন কুইজৰ বাবে শীঘ্ৰে আকৌ আহক!',
     'dailyQuiz_errorTitle': 'দৈনিক কুইজ লোড কৰিব পৰা নগ\'ল',
     'dailyQuiz_errorDesc': 'অনুগ্ৰহ কৰি পিছত পুনৰ চেষ্টা কৰক।',
+    // Daily Quiz Screen — labels & buttons (Critical #7 fix)
+    'daily_quiz_title': 'দৈনিক কুইজ',
+    'daily_quiz_today': 'আজিৰ কুইজ',
+    'daily_quiz_previous': 'পূৰ্বৰ কুইজবোৰ',
+    'daily_quiz_streak': 'দিনৰ ধাৰা',
+    'daily_quiz_premium_badge': 'প্ৰিমিয়াম',
+    'daily_quiz_start': 'কুইজ আৰম্ভ কৰক',
+    'daily_quiz_start_short': 'আৰম্ভ',
+    'daily_quiz_no_today': 'আজিৰ বাবে এতিয়াও কুইজ নাই',
+    'daily_quiz_check_later': 'পিছত আকৌ চাওক!',
+
+    // Current Affairs Screen (Critical #8 + #9 fix)
+    'ca_title': 'চলিত পৰিক্ৰমা',
+    'ca_all_categories': 'সকলো শ্ৰেণী',
+    'ca_select_category': 'শ্ৰেণী বাছনি কৰক',
+    'ca_clear_date': 'তাৰিখ আঁতৰাওক',
+    'ca_no_results': 'আপোনাৰ ফিল্টাৰৰ সৈতে কোনো চলিত পৰিক্ৰমা নাই',
 
     // Test Instructions Screen
     'instr_title': 'পৰীক্ষাৰ নিৰ্দেশনা',
@@ -654,5 +740,11 @@ class AppStrings {
     'cat_paymentTakingLong': 'পেমেণ্ট অপেক্ষাতকৈ বেছি সময় লাগিছে। ই সফল হৈছে নে নাই পৰীক্ষা কৰিবলৈ "মোৰ ক্ৰয়" চাওক।',
     'cat_checkPurchases': 'মোৰ ক্ৰয় চাওক',
     'cat_paymentFailed': 'পেমেণ্ট ব্যৰ্থ। অনুগ্ৰহ কৰি পুনৰ চেষ্টা কৰক।',
+
+    // Auth — Forgot Password flow (login_screen.dart)
+    'auth_forgot_password': 'পাছৱৰ্ড পাহৰিলে নেকি?',
+    'auth_enter_email_first': 'অনুগ্ৰহ কৰি প্ৰথমে আপোনাৰ ইমেইল লিখক',
+    'auth_reset_email_sent': 'পাছৱৰ্ড ৰিছেট ইমেইল পঠিওৱা হ\'ল — আপোনাৰ ইনবক্স চাওক',
+    'auth_reset_failed': 'ৰিছেট ইমেইল পঠিব পৰা নগ\'ল',
   };
 }

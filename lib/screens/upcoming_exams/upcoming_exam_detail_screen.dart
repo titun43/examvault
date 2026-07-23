@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/upcoming_exam_model.dart';
 import '../../utils/share_helper.dart';
+import '../../utils/localized_content.dart';
 
 class UpcomingExamDetailScreen extends StatelessWidget {
   final UpcomingExamModel exam;
@@ -180,7 +181,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                   // Name
                   Text(
-                    exam.name,
+                    lc(context, exam.name, exam.nameAs),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -191,7 +192,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
                       exam.organization!.isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
-                      exam.organization!,
+                      lc(context, exam.organization ?? '', exam.organizationAs),
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppTheme.primaryColor,
@@ -273,7 +274,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      exam.description,
+                      lc(context, exam.description, exam.descriptionAs),
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade700,

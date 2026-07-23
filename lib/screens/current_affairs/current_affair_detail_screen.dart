@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../models/current_affair_model.dart';
 import '../../utils/share_helper.dart';
+import '../../utils/localized_content.dart';
 
 class CurrentAffairDetailScreen extends StatelessWidget {
   final CurrentAffairModel affair;
@@ -210,7 +211,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
 
                   // Title
                   Text(
-                    affair.title,
+                    lc(context, affair.title, affair.titleAs),
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -276,7 +277,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            affair.summary,
+                            lc(context, affair.summary, affair.summaryAs),
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -300,7 +301,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      affair.content,
+                      lc(context, affair.content, affair.contentAs),
                       style: TextStyle(
                         fontSize: 15,
                         color: Colors.grey.shade800,

@@ -12,6 +12,11 @@ class UpcomingExamModel {
   final String id;
   final String name;
   final String? organization;       // e.g. "RRB", "SSC", "UPSC"
+  // Bilingual Assamese content fields (admin writes these alongside the
+  // English fields; resolved at display time via localized_content.dart).
+  final String? nameAs;
+  final String? organizationAs;
+  final String? descriptionAs;
   final String? categoryId;         // links to a Category (optional)
   final DateTime examDate;          // actual exam date
   final DateTime? applicationStartDate;
@@ -32,6 +37,9 @@ class UpcomingExamModel {
     required this.id,
     required this.name,
     this.organization,
+    this.nameAs,
+    this.organizationAs,
+    this.descriptionAs,
     this.categoryId,
     required this.examDate,
     this.applicationStartDate,
@@ -67,6 +75,9 @@ class UpcomingExamModel {
       id: doc.id,
       name: (data['name'] ?? '').toString(),
       organization: data['organization']?.toString(),
+      nameAs: data['nameAs']?.toString(),
+      organizationAs: data['organizationAs']?.toString(),
+      descriptionAs: data['descriptionAs']?.toString(),
       categoryId: data['categoryId']?.toString(),
       examDate: parseTimestamp(data['examDate']),
       applicationStartDate: parseTimestampNullable(data['applicationStartDate']),
@@ -101,6 +112,9 @@ class UpcomingExamModel {
     return {
       'name': name,
       'organization': organization,
+      'nameAs': nameAs,
+      'organizationAs': organizationAs,
+      'descriptionAs': descriptionAs,
       'categoryId': categoryId,
       'examDate': Timestamp.fromDate(examDate),
       'applicationStartDate': applicationStartDate != null

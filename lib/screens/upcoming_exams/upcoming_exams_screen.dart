@@ -13,6 +13,7 @@ import '../../services/firestore_service.dart';
 import '../../services/category_preference_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/share_helper.dart';
+import '../../utils/localized_content.dart';
 import '../onboarding/category_selection_screen.dart';
 
 class UpcomingExamsScreen extends StatefulWidget {
@@ -214,7 +215,7 @@ class _UpcomingExamCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        exam.name,
+                        lc(context, exam.name, exam.nameAs),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
@@ -223,7 +224,7 @@ class _UpcomingExamCard extends StatelessWidget {
                       if (exam.organization != null && exam.organization!.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          exam.organization!,
+                          lc(context, exam.organization ?? '', exam.organizationAs),
                           style: TextStyle(
                             fontSize: 12,
                             color: AppTheme.primaryColor,
@@ -275,7 +276,7 @@ class _UpcomingExamCard extends StatelessWidget {
             if (exam.description.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
-                exam.description,
+                lc(context, exam.description, exam.descriptionAs),
                 style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.4),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,

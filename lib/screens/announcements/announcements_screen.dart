@@ -10,6 +10,7 @@ import '../../models/announcement_model.dart';
 import '../../models/action_button.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/in_app_navigator.dart';
+import '../../utils/localized_content.dart';
 
 class AnnouncementsScreen extends StatelessWidget {
   const AnnouncementsScreen({super.key});
@@ -181,7 +182,7 @@ class _AnnouncementCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    a.title,
+                    lc(context, a.title, a.titleAs),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -242,7 +243,7 @@ class _AnnouncementCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              a.message,
+              lc(context, a.message, a.messageAs),
               style: TextStyle(
                 fontSize: 14,
                 color: subtitleColor,
