@@ -122,9 +122,4 @@ class FirebaseService {
       firestore.collection('upcoming_exams');
   static CollectionReference get bannersRef =>
       firestore.collection('banners');
-  // Study materials (v1.52.0) — admin-managed PDF content:
-  // Previous Year Papers, Study Notes, Syllabus. Flows to the user app as
-  // content-type cards on the Subject Detail screen.
-  static CollectionReference get studyMaterialsRef =>
-      firestore.collection('study_materials');
 }

@@ -11,18 +11,9 @@
 //   2. A prominent "Start a Mock Test" quick-start CTA — the most common
 //      action a student takes on this screen, now one tap away.
 //   3. A grid of CONTENT TYPE CARDS:
-//        📝 Tests             — always shown (navigates to TestListScreen)
-//        📄 Previous Papers   — shown ONLY if the admin has added ≥1 paper
-//        📖 Study Notes       — shown ONLY if the admin has added ≥1 note
-//        📋 Syllabus          — shown ONLY if the admin has added ≥1 syllabus
+//        📝 Tests — always shown (navigates to TestListScreen)
 //
-// REAL-TIME BEHAVIOR (the key feature):
-//   The study_materials collection is streamed in real-time. When the admin
-//   adds the first "Previous Paper" for this subject, the "📄 Previous Papers"
-//   card appears on the user's screen within 1-2 seconds — automatically,
-//   without any pull-to-refresh. When the admin deletes the last paper, the
-//   card disappears. Empty content types are simply not shown.
-//
+
 // v3 CHANGES (modernization):
 //   - Title is now the subject NAME (was wrongly hardcoded "Study Material").
 //   - Hero gradient is per-category via AppTheme.gradientFor() (was always
@@ -42,16 +33,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../l10n/app_localizations.dart';
-import '../../models/study_material_model.dart';
 import '../../models/subject_model.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import '../../utils/localized_content.dart';
 import '../../widgets/connectivity_banner.dart';
-import '../../widgets/offline_aware_stream_builder.dart';
 import '../tests/test_list_screen.dart';
-import '../study_materials/material_list_screen.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final SubjectModel subject;
@@ -382,10 +370,9 @@ class _QuickStartCta extends StatelessWidget {
 }
 
 // =============================================================================
-// CONTENT TYPE GRID — real-time stream of study materials
+// CONTENT TYPE GRID — Tests card
 // =============================================================================
-/// The real-time content-type grid. Subscribes to the study_materials stream
-/// for this subject and shows a card for each type that has content.
+/// The content-type grid. Shows a Tests card that navigates to the test list.
 class _ContentTypeGrid extends StatelessWidget {
   final SubjectModel subject;
   final String? categoryId;
@@ -399,97 +386,20 @@ class _ContentTypeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return OfflineAwareStreamBuilder<List<StudyMaterialModel>>(
-      stream: FirestoreService.getStudyMaterialsStream(subject.id),
-      loadingBuilder: (_) => _buildGrid(
-        context,
-        testCount: subject.testCount,
-        materialCounts: null,
-      ),
-      dataBuilder: (context, materials, isStale) {
-        final counts = <StudyMaterialType, int>{
-          StudyMaterialType.previousPaper: 0,
-          StudyMaterialType.notes: 0,
-          StudyMaterialType.syllabus: 0,
-        };
-        for (final m in materials) {
-          counts[m.type] = (counts[m.type] ?? 0) + 1;
-        }
-        return _buildGrid(
-          context,
-          testCount: subject.testCount,
-          materialCounts: counts,
-        );
-      },
-      offlineBuilder: (_, __) => _buildGrid(
-        context,
-        testCount: subject.testCount,
-        materialCounts: null,
-      ),
-      errorBuilder: (_, __, ___) => _buildGrid(
-        context,
-        testCount: subject.testCount,
-        materialCounts: null,
-      ),
-      emptyBuilder: (_, __) => _buildGrid(
-        context,
-        testCount: subject.testCount,
-        materialCounts: {},
-      ),
-    );
+    return _buildGrid(context);
   }
 
-  Widget _buildGrid(
-    BuildContext context, {
-    required int testCount,
-    Map<StudyMaterialType, int>? materialCounts,
-  }) {
+  Widget _buildGrid(BuildContext context) {
     final cards = <_ContentTypeCardData>[];
 
     // Tests card — ALWAYS shown (every subject has at least seeded tests).
     cards.add(_ContentTypeCardData(
       emoji: '📝',
       labelKey: 'subject_tests',
-      count: testCount,
+      count: subject.testCount,
       color: AppTheme.primaryColor,
       onTap: () => _navigateToTests(context),
     ));
-
-    // Previous Papers — only if count > 0. Violet (NOT blue).
-    final paperCount = materialCounts?[StudyMaterialType.previousPaper] ?? 0;
-    if (paperCount > 0) {
-      cards.add(_ContentTypeCardData(
-        emoji: '📄',
-        labelKey: 'subject_previousPapers',
-        count: paperCount,
-        color: const Color(0xFF7C3AED), // Violet 600
-        onTap: () => _navigateToMaterials(context, StudyMaterialType.previousPaper),
-      ));
-    }
-
-    // Study Notes — only if count > 0. Green from theme.
-    final noteCount = materialCounts?[StudyMaterialType.notes] ?? 0;
-    if (noteCount > 0) {
-      cards.add(_ContentTypeCardData(
-        emoji: '📖',
-        labelKey: 'subject_studyNotes',
-        count: noteCount,
-        color: AppTheme.successColor,
-        onTap: () => _navigateToMaterials(context, StudyMaterialType.notes),
-      ));
-    }
-
-    // Syllabus — only if count > 0. Amber from theme.
-    final syllabusCount = materialCounts?[StudyMaterialType.syllabus] ?? 0;
-    if (syllabusCount > 0) {
-      cards.add(_ContentTypeCardData(
-        emoji: '📋',
-        labelKey: 'subject_syllabus',
-        count: syllabusCount,
-        color: AppTheme.accentDarkColor,
-        onTap: () => _navigateToMaterials(context, StudyMaterialType.syllabus),
-      ));
-    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -583,22 +493,6 @@ class _ContentTypeGrid extends StatelessWidget {
     );
   }
 
-  void _navigateToMaterials(BuildContext context, StudyMaterialType type) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        // Issue #27: pass the resolved categoryName so MaterialListScreen's
-        // hero gradient matches the exam category (ADRE/APSC/...) instead of
-        // silently falling back to brand emerald because it was handed a
-        // Firestore doc id / slug.
-        builder: (_) => MaterialListScreen(
-          subject: subject,
-          type: type,
-          categoryName: categoryName,
-        ),
-      ),
-    );
-  }
 }
 
 /// Simple data holder for a content-type card.
