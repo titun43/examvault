@@ -342,12 +342,12 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 placeholder: (_, __) => Container(
                   color: (AppTheme.categoryColors[_liveCategory.name] ??
                           AppTheme.primaryColor)
-                      .withOpacity(0.3),
+                      .withValues(alpha: 0.3),
                 ),
                 errorWidget: (_, __, ___) => Container(
                   color: (AppTheme.categoryColors[_liveCategory.name] ??
                           AppTheme.primaryColor)
-                      .withOpacity(0.3),
+                      .withValues(alpha: 0.3),
                   child: const Center(
                     child: Icon(Icons.broken_image,
                         color: Colors.white, size: 40),
@@ -379,10 +379,10 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.25),
+                          color: Colors.white.withValues(alpha: 0.25),
                           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                           border: Border.all(
-                              color: Colors.white.withOpacity(0.35), width: 1.5),
+                              color: Colors.white.withValues(alpha: 0.35), width: 1.5),
                         ),
                         child: Center(
                           child: Text(
@@ -413,7 +413,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                             '${_liveCategory.subjectCount} ${tr(context, 'category_subjectsAvailable')}',
                             style: AppFonts.style(
                               size: 13,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                             ),
                           ),
                         ],
@@ -428,7 +428,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                     localizedDescription,
                     style: AppFonts.style(
                       size: 13,
-                      color: Colors.white.withOpacity(0.92),
+                      color: Colors.white.withValues(alpha: 0.92),
                       height: 1.4,
                     ),
                     maxLines: 2,
@@ -516,7 +516,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: AppTheme.accentColor.withOpacity(0.1),
+            color: AppTheme.accentColor.withValues(alpha: 0.1),
             shape: BoxShape.circle,
           ),
           child: const Icon(Icons.lock,
@@ -774,7 +774,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               boxShadow: AppTheme.softShadow1,
               border: Border.all(
-                color: categoryColor.withOpacity(0.08),
+                color: categoryColor.withValues(alpha: 0.08),
                 width: 1,
               ),
             ),
@@ -791,7 +791,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: categoryColor.withOpacity(0.12),
+                        color: categoryColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                       ),
                       child: Center(
@@ -837,7 +837,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                                   horizontal: AppTheme.spaceSm + 2,
                                   vertical: AppTheme.spaceXs),
                               decoration: BoxDecoration(
-                                color: categoryColor.withOpacity(0.1),
+                                color: categoryColor.withValues(alpha: 0.1),
                                 borderRadius:
                                     BorderRadius.circular(AppTheme.radiusFull),
                               ),
@@ -857,7 +857,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                                     horizontal: AppTheme.spaceSm + 2,
                                     vertical: AppTheme.spaceXs),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.accentColor.withOpacity(0.1),
+                                  color: AppTheme.accentColor.withValues(alpha: 0.1),
                                   borderRadius:
                                       BorderRadius.circular(AppTheme.radiusFull),
                                 ),

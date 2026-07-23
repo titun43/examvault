@@ -134,16 +134,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const Text(
-                'Welcome to ExamVault',
-                style: TextStyle(
+              Text(
+                tr(context, 'login_welcome_title'),
+                style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Sign in to continue your exam preparation',
+                tr(context, 'login_welcome_subtitle'),
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey.shade600,
@@ -155,11 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: _buildMethodTab('Mobile', 0, Icons.phone),
+                    child: _buildMethodTab(
+                        tr(context, 'login_method_mobile'), 0, Icons.phone),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _buildMethodTab('Email', 1, Icons.email),
+                    child: _buildMethodTab(
+                        tr(context, 'login_method_email'), 1, Icons.email),
                   ),
                 ],
               ),
@@ -187,30 +189,28 @@ class _LoginScreenState extends State<LoginScreen> {
     String subtitle;
     IconData icon;
     if (_otpWaitSeconds < 3) {
-      title = 'Sending OTP...';
-      subtitle = 'Please wait a moment';
+      title = tr(context, 'login_otp_sending');
+      subtitle = tr(context, 'login_otp_sending_subtitle');
       icon = Icons.send;
     } else if (_otpWaitSeconds < 8) {
-      title = 'Verifying...';
-      subtitle = 'Firebase is verifying your number. This may take a few seconds.';
+      title = tr(context, 'login_otp_verifying');
+      subtitle = tr(context, 'login_otp_verifying_subtitle');
       icon = Icons.verified_user;
     } else if (_otpWaitSeconds < 15) {
-      title = 'Still working...';
-      subtitle = 'Verification in progress. If a verification page opens, '
-          'please complete it — the OTP will arrive afterwards.';
+      title = tr(context, 'login_otp_still_working');
+      subtitle = tr(context, 'login_otp_still_working_subtitle');
       icon = Icons.hourglass_top;
     } else {
-      title = 'Taking longer than usual...';
-      subtitle = 'There may be a network issue. Please be patient, or try '
-          'again in a moment.';
+      title = tr(context, 'login_otp_taking_long');
+      subtitle = tr(context, 'login_otp_taking_long_subtitle');
       icon = Icons.signal_wifi_off;
     }
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.06),
+        color: AppTheme.primaryColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+        border: Border.all(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.12),
+                        color: AppTheme.primaryColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -336,9 +336,9 @@ class _LoginScreenState extends State<LoginScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppTheme.errorColor.withOpacity(0.08),
+              color: AppTheme.errorColor.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.errorColor.withOpacity(0.4)),
+              border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.4)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,7 +350,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Mobile OTP is currently unavailable',
+                        tr(context, 'login_otp_unavailable_title'),
                         style: TextStyle(
                           color: AppTheme.errorColor,
                           fontWeight: FontWeight.w700,
@@ -359,7 +359,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Please use Email sign-in — tap the "Email" tab above.',
+                        tr(context, 'login_otp_unavailable_msg'),
                         style: TextStyle(
                           color: AppTheme.errorColor,
                           fontSize: 12,
@@ -380,7 +380,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.errorColor.withOpacity(0.1),
+                            color: AppTheme.errorColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -408,7 +408,7 @@ class _LoginScreenState extends State<LoginScreen> {
           maxLength: 10,
           enabled: !_otpSent,
           decoration: InputDecoration(
-            labelText: 'Mobile Number',
+            labelText: tr(context, 'login_mobile_number'),
             hintText: '9876543210',
             prefixText: '+91 ',
             prefixIcon: const Icon(Icons.phone_outlined),
@@ -421,7 +421,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_otpSent) ...[
           const SizedBox(height: 16),
           Text(
-            'Enter OTP sent to +91 ${_phoneController.text}',
+            '${tr(context, 'login_enter_otp')} +91 ${_phoneController.text}',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -472,7 +472,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : Text(_otpSent ? 'Verify OTP & Login' : 'Send OTP'),
+                      : Text(_otpSent
+                          ? tr(context, 'login_verify_otp_login')
+                          : tr(context, 'login_send_otp')),
                 ),
                 // ─── Informative loading panel while sending OTP ───
                 // Firebase Phone Auth can take 2-20 seconds. Without this
@@ -496,7 +498,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _otpController.clear();
                                 _sendOtp(); // resend uses forceResendingToken
                               },
-                        child: const Text('Resend OTP'),
+                        child: Text(tr(context, 'login_resend_otp')),
                       ),
                       const Text('•', style: TextStyle(color: Colors.grey)),
                       TextButton(
@@ -510,7 +512,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             _verificationId = null;
                           });
                         },
-                        child: const Text('Change number'),
+                        child: Text(tr(context, 'login_change_number')),
                       ),
                     ],
                   ),
@@ -524,9 +526,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppTheme.errorColor.withOpacity(0.08),
+                      color: AppTheme.errorColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.errorColor.withOpacity(0.3)),
+                      border: Border.all(color: AppTheme.errorColor.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,7 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
           TextField(
             controller: _nameController,
             decoration: InputDecoration(
-              labelText: 'Full Name',
+              labelText: tr(context, 'login_full_name'),
               prefixIcon: const Icon(Icons.person_outline),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -576,7 +578,7 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(
-            labelText: 'Email',
+            labelText: tr(context, 'login_email'),
             prefixIcon: const Icon(Icons.email_outlined),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -588,7 +590,7 @@ class _LoginScreenState extends State<LoginScreen> {
           controller: _passwordController,
           obscureText: true,
           decoration: InputDecoration(
-            labelText: 'Password',
+            labelText: tr(context, 'login_password'),
             prefixIcon: const Icon(Icons.lock_outline),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -634,7 +636,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         strokeWidth: 2,
                       ),
                     )
-                  : Text(_isSignUp ? 'Sign Up' : 'Sign In'),
+                  : Text(_isSignUp
+                      ? tr(context, 'login_sign_up')
+                      : tr(context, 'login_sign_in')),
             );
           },
         ),
@@ -647,8 +651,8 @@ class _LoginScreenState extends State<LoginScreen> {
           },
           child: Text(
             _isSignUp
-                ? 'Already have an account? Sign In'
-                : 'Don\'t have an account? Sign Up',
+                ? tr(context, 'login_have_account_signin')
+                : tr(context, 'login_no_account_signup'),
           ),
         ),
       ],
@@ -666,7 +670,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final rawPhone = _phoneController.text.trim();
     if (rawPhone.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter phone number')),
+        SnackBar(content: Text(tr(context, 'login_enter_phone'))),
       );
       return;
     }
@@ -686,8 +690,8 @@ class _LoginScreenState extends State<LoginScreen> {
       fullPhone = '+$digits';
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Please enter a valid 10-digit mobile number')),
+        SnackBar(
+            content: Text(tr(context, 'login_invalid_phone'))),
       );
       return;
     }
@@ -719,7 +723,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _otpSent = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OTP sent to $fullPhone')),
+          SnackBar(
+              content:
+                  Text('${tr(context, 'login_otp_sent_to')} $fullPhone')),
         );
       },
       onError: (error) {
@@ -776,9 +782,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _otpController.clear();
         });
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text('OTP auto-verified! Logging you in...'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(tr(context, 'login_otp_auto_verified')),
+            duration: const Duration(seconds: 2),
           ),
         );
         // Ensure AuthProvider has loaded the user's Firestore doc before
@@ -809,13 +815,13 @@ class _LoginScreenState extends State<LoginScreen> {
   void _verifyOtp() async {
     if (_otpController.text.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the 6-digit OTP')),
+        SnackBar(content: Text(tr(context, 'login_enter_6_digit_otp'))),
       );
       return;
     }
     if (_verificationId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please request OTP first')),
+        SnackBar(content: Text(tr(context, 'login_request_otp_first'))),
       );
       return;
     }
@@ -882,25 +888,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all fields')),
+        SnackBar(content: Text(tr(context, 'login_fill_all_fields'))),
       );
       return;
     }
     if (!RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$').hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address')),
+        SnackBar(content: Text(tr(context, 'login_invalid_email'))),
       );
       return;
     }
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 6 characters')),
+        SnackBar(
+            content: Text(tr(context, 'login_password_too_short'))),
       );
       return;
     }
     if (_isSignUp && _nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name')),
+        SnackBar(content: Text(tr(context, 'login_enter_name'))),
       );
       return;
     }

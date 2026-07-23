@@ -20,7 +20,7 @@ import '../../services/firestore_service.dart';
 import '../home/category_detail_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../tests/test_instructions_screen.dart';
-import '../current_affairs/current_affairs_screen.dart';
+import '../current_affairs/current_affair_detail_screen.dart';
 import '../../utils/localized_content.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -180,8 +180,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 ),
                 filled: true,
                 fillColor: isDark
-                    ? Colors.white.withOpacity(0.05)
-                    : Colors.black.withOpacity(0.04),
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.04),
               ),
               onChanged: (value) {
                 setState(() => _query = value.trim());
@@ -357,7 +357,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final color = AppTheme.categoryColors[c.name] ?? AppTheme.primaryColor;
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.12),
+        backgroundColor: color.withValues(alpha: 0.12),
         child: Text(c.icon ?? '📚', style: const TextStyle(fontSize: 18)),
       ),
       title: Text(
@@ -391,7 +391,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppTheme.primaryColor.withOpacity(0.12),
+        backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
         child: Text(s.icon ?? '📘', style: const TextStyle(fontSize: 18)),
       ),
       title: Text(
@@ -419,7 +419,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppTheme.accentColor.withOpacity(0.12),
+        backgroundColor: AppTheme.accentColor.withValues(alpha: 0.12),
         child: const Icon(Icons.assignment, color: AppTheme.accentColor),
       ),
       title: Text(
@@ -450,7 +450,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: AppTheme.successColor.withOpacity(0.12),
+        backgroundColor: AppTheme.successColor.withValues(alpha: 0.12),
         child: const Icon(Icons.newspaper, color: AppTheme.successColor),
       ),
       title: Text(
@@ -469,9 +469,13 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 14),
       onTap: () {
+        // Issue #25: open the detail screen for the tapped affair instead
+        // of the Current Affairs list, so the user lands directly on the
+        // content they searched for.
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const CurrentAffairsScreen()),
+          MaterialPageRoute(
+              builder: (_) => CurrentAffairDetailScreen(affair: a)),
         );
       },
     );

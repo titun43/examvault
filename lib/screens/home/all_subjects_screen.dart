@@ -16,7 +16,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/category_preference_service.dart';
 import '../../utils/localized_content.dart';
-import '../tests/test_list_screen.dart';
+import 'subject_detail_screen.dart';
 
 class AllSubjectsScreen extends StatefulWidget {
   const AllSubjectsScreen({super.key});
@@ -212,8 +212,8 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                     ),
                     filled: true,
                     fillColor: isDark
-                        ? Colors.white.withOpacity(0.05)
-                        : Colors.black.withOpacity(0.04),
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.black.withValues(alpha: 0.04),
                   ),
                   onChanged: (v) {
                     setState(() {
@@ -328,9 +328,20 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => TestListScreen(
+            // Issue #24: navigate to SubjectDetailScreen (content hub)
+            // instead of TestListScreen, so users can access Previous Papers,
+            // Study Notes, and Syllabus in addition to Tests. Pass the
+            // resolved authoritative categoryId + matched category name so
+            // the hero gradient and exam-pack access check work correctly.
+            builder: (_) => SubjectDetailScreen(
               subject: subject,
               categoryId: authCategoryId,
+              categoryName: matchedCategory.id.isNotEmpty
+                  ? matchedCategory.name
+                  : null,
+              categoryNameAs: matchedCategory.id.isNotEmpty
+                  ? matchedCategory.nameAs
+                  : null,
             ),
           ),
         );
@@ -350,7 +361,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -363,7 +374,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -392,7 +403,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                   Text(
                     localizedDescription,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                       fontSize: 11,
                     ),
                     maxLines: 2,
@@ -405,7 +416,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(

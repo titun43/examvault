@@ -8,11 +8,17 @@
 // "rolling out" message is shown instead of crashing.
 // =============================================================================
 
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/access_service.dart';
 import '../../services/payment_api_service.dart';
@@ -39,6 +45,10 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
   bool _isLoading = true;
   bool _isCancelling = false;
   String? _error; // friendly message shown in the body
+
+  // Issue #22: guards the invoice download + open flow so a user can't tap
+  // multiple invoice buttons simultaneously and pile up concurrent fetches.
+  bool _isDownloadingInvoice = false;
 
   @override
   void initState() {
@@ -133,22 +143,119 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
   }
 
   Future<void> _openInvoice(String paymentId) async {
+    // Issue #22: the invoice endpoint requires a Bearer JWT — url_launcher
+    // can't attach auth headers, so the old approach 401'd. Now we fetch
+    // the PDF bytes with the user's Firebase ID token, write them to a
+    // temp file, and open the file:// URI via url_launcher (the system's
+    // native PDF viewer handles rendering). This is the robust option (a)
+    // from the task spec.
+    if (_isDownloadingInvoice) return;
+    setState(() => _isDownloadingInvoice = true);
+    final messenger = ScaffoldMessenger.of(context);
+    // Show a non-blocking loading SnackBar so the user knows something is
+    // happening (the download can take a few seconds on slow networks).
+    messenger.showSnackBar(
+      SnackBar(
+        content: L10nText('invoice_downloading'),
+        duration: const Duration(seconds: 30),
+      ),
+    );
     try {
       final url = await PaymentApiService.getInvoiceUrl(paymentId);
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: L10nText('invoice_download_failed'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+      final String token;
+      try {
+        token = await user.getIdToken();
+      } catch (_) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: L10nText('invoice_download_failed'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+
+      // Fetch the PDF bytes with the Bearer token attached.
+      final http.Response res = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $token'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (res.statusCode != 200 || res.bodyBytes.isEmpty) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(
+            content: L10nText('invoice_download_failed'),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+        return;
+      }
+
+      // Write the bytes to a temp file named by paymentId (deterministic —
+      // re-downloading the same invoice overwrites instead of piling up
+      // orphan files in the cache dir).
+      final Uint8List bytes = res.bodyBytes;
+      final dir = await getTemporaryDirectory();
+      final String filePath = '${dir.path}/invoice_$paymentId.pdf';
+      final File file = File(filePath);
+      await file.writeAsBytes(bytes, flush: true);
+
+      // Open the file:// URI via url_launcher. On Android 11+ this may
+      // require a <queries> element in AndroidManifest for canLaunchUrl to
+      // return true; we skip the canLaunchUrl check and just try launchUrl
+      // directly (it throws on failure, which we catch).
+      messenger.hideCurrentSnackBar();
+      final fileUri = Uri.file(filePath);
+      bool opened = false;
+      try {
+        opened = await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        opened = false;
+      }
+      if (!mounted) return;
+      if (opened) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: L10nText('invoice_download_success'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
       } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open invoice.')),
+        // The download succeeded but url_launcher couldn't hand off to a
+        // PDF viewer. Tell the user where the file is so they can open it
+        // from their Files app.
+        messenger.showSnackBar(
+          SnackBar(
+            content: L10nText('invoice_open_failed'),
+            backgroundColor: AppTheme.warningColor,
+            duration: const Duration(seconds: 8),
+          ),
         );
       }
     } catch (e) {
+      messenger.hideCurrentSnackBar();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open invoice.')),
+      messenger.showSnackBar(
+        SnackBar(
+          content: L10nText('invoice_download_failed'),
+          backgroundColor: AppTheme.errorColor,
+        ),
       );
+    } finally {
+      if (mounted) setState(() => _isDownloadingInvoice = false);
     }
   }
 
@@ -304,7 +411,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.12),
+                  color: statusColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(Icons.receipt_outlined, color: statusColor, size: 24),
@@ -319,7 +426,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
+                      color: statusColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(statusLabel,
@@ -578,7 +685,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withOpacity(0.12),
+                    color: AppTheme.accentColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.workspace_premium,
@@ -696,7 +803,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withOpacity(0.12),
+                color: AppTheme.successColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text('Active',
@@ -758,7 +865,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withOpacity(0.12),
+                color: AppTheme.successColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text('Active',
@@ -864,7 +971,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: statusColor.withOpacity(0.12),
+                color: statusColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(statusLabel,
@@ -893,7 +1000,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.1),
+            color: AppTheme.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text('$count',
@@ -910,7 +1017,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label,

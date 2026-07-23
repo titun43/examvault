@@ -278,6 +278,10 @@ class AppStrings {
     'error_generic': 'Something went wrong',
     'error_genericDesc': 'Please try again later.',
 
+    // Connectivity Banner (mounted globally in main_navigation.dart)
+    'connectivity_offline_title': 'You are offline',
+    'connectivity_offline_msg': 'Some content may be unavailable.',
+
     // Phase 3.2 — remaining screens (nav, leaderboard, splash, materials)
     'nav_ranks': 'Ranks',
     'exit_title': 'Exit App?',
@@ -329,6 +333,19 @@ class AppStrings {
     'daily_quiz_start_short': 'Start',
     'daily_quiz_no_today': 'No quiz for today yet',
     'daily_quiz_check_later': 'Check back later!',
+    // Daily Quiz — streak card motivational messages (Task ma l10n completion).
+    // Rendered on the daily quiz streak card via inline tr() lookup (the
+    // streak_helper.streakMessage() function returns English-only strings;
+    // daily_quiz_screen.dart inlines the same 4-way condition using these
+    // keys so the message honors the user's LanguageMode preference).
+    'daily_quiz_streak_msg_start_active':
+        'Great start! Take a quiz to begin a streak.',
+    'daily_quiz_streak_msg_start_inactive':
+        "Take today's quiz to start a new streak.",
+    'daily_quiz_streak_msg_active_fire':
+        "You're on fire! Come back tomorrow to extend it.",
+    'daily_quiz_streak_msg_keep_alive':
+        "Take today's quiz to keep your streak alive.",
 
     // Current Affairs Screen (Critical #8 + #9 fix)
     'ca_title': 'Current Affairs',
@@ -379,6 +396,159 @@ class AppStrings {
     'auth_enter_email_first': 'Please enter your email first',
     'auth_reset_email_sent': 'Password reset email sent — check your inbox',
     'auth_reset_failed': 'Could not send reset email',
+
+    // Login Screen (Critical #2)
+    'login_welcome_title': 'Welcome to ExamVault',
+    'login_welcome_subtitle': 'Sign in to continue your exam preparation',
+    'login_method_mobile': 'Mobile',
+    'login_method_email': 'Email',
+    'login_otp_sending': 'Sending OTP...',
+    'login_otp_sending_subtitle': 'Please wait a moment',
+    'login_otp_verifying': 'Verifying...',
+    'login_otp_verifying_subtitle':
+        'Firebase is verifying your number. This may take a few seconds.',
+    'login_otp_still_working': 'Still working...',
+    'login_otp_still_working_subtitle':
+        'Verification in progress. If a verification page opens, please complete it — the OTP will arrive afterwards.',
+    'login_otp_taking_long': 'Taking longer than usual...',
+    'login_otp_taking_long_subtitle':
+        'There may be a network issue. Please be patient, or try again in a moment.',
+    'login_otp_unavailable_title': 'Mobile OTP is currently unavailable',
+    'login_otp_unavailable_msg':
+        'Please use Email sign-in — tap the "Email" tab above.',
+    'login_mobile_number': 'Mobile Number',
+    'login_enter_otp': 'Enter OTP sent to',
+    'login_verify_otp_login': 'Verify OTP & Login',
+    'login_send_otp': 'Send OTP',
+    'login_resend_otp': 'Resend OTP',
+    'login_change_number': 'Change number',
+    'login_full_name': 'Full Name',
+    'login_email': 'Email',
+    'login_password': 'Password',
+    'login_sign_up': 'Sign Up',
+    'login_sign_in': 'Sign In',
+    'login_have_account_signin': 'Already have an account? Sign In',
+    'login_no_account_signup': "Don't have an account? Sign Up",
+    'login_enter_phone': 'Please enter phone number',
+    'login_invalid_phone': 'Please enter a valid 10-digit mobile number',
+    'login_otp_sent_to': 'OTP sent to',
+    'login_otp_auto_verified': 'OTP auto-verified! Logging you in...',
+    'login_enter_6_digit_otp': 'Please enter the 6-digit OTP',
+    'login_request_otp_first': 'Please request OTP first',
+    'login_fill_all_fields': 'Please fill all fields',
+    'login_invalid_email': 'Please enter a valid email address',
+    'login_password_too_short': 'Password must be at least 6 characters',
+    'login_enter_name': 'Please enter your name',
+
+    // Test Series Screen (Critical #3)
+    'test_series_title': 'Test Series',
+    'my_categories': 'My Categories',
+    'test_series_tab_practice': 'Practice',
+    'test_series_tab_subjectwise': 'Subject-wise',
+    'test_series_no_tests_in_categories':
+        'No tests in your selected categories',
+    'test_series_edit_categories': 'Edit My Categories',
+    'test_series_completed': 'Completed',
+    'test_series_qs_suffix': 'Qs',
+    'test_series_no_subjects': 'No subjects available',
+    'test_series_no_subjects_in_categories':
+        'No subjects in your selected categories',
+    'test_series_test_singular': 'Test',
+    'test_series_test_plural': 'Tests',
+    'test_type_mock': 'MOCK TEST',
+    'test_type_previous_year': 'PREVIOUS YEAR',
+    'test_type_daily_quiz': 'DAILY QUIZ',
+    'test_type_practice': 'PRACTICE',
+    'test_type_subjectwise': 'SUBJECT WISE',
+    'test_difficulty_easy': 'EASY',
+    'test_difficulty_medium': 'MEDIUM',
+    'test_difficulty_hard': 'HARD',
+
+    // Notifications Screen (Critical #5)
+    'notifications_title': 'Notifications',
+    'notifications_mark_all_read': 'Mark All Read',
+    'notifications_empty': 'No notifications yet',
+
+    // Announcements Screen (Critical #6)
+    'announcements_title': 'Announcements',
+    'announcements_empty': 'No announcements yet',
+    'announcements_live_badge': 'LIVE',
+    'announcements_pinned_badge': 'Pinned',
+    'announcements_min_ago': 'm ago',
+    'announcements_hour_ago': 'h ago',
+    'announcements_day_ago': 'd ago',
+
+    // Onboarding — Category Selection Screen (Critical #7)
+    'onboarding_welcome_title': 'Welcome to ExamVault!',
+    'onboarding_welcome_desc':
+        'Which exams are you preparing for? Pick as many as you like — your Home screen will focus on these.',
+    'onboarding_no_categories': 'No categories available yet.',
+    'onboarding_selected': 'selected',
+    'onboarding_skip_for_now': 'Skip for now',
+
+    // ─── Issue #19: Settings — Notifications + Logout ───
+    'settings_notif_push': 'Push notifications',
+    'settings_notif_push_subtitle': 'Master switch for all notifications',
+    'settings_notif_announcements': 'Exam announcements',
+    'settings_notif_announcements_subtitle':
+        'New exam notifications & updates',
+    'settings_notif_daily_quiz': 'Daily quiz reminders',
+    'settings_notif_daily_quiz_subtitle':
+        'Daily practice reminder notifications',
+    'settings_logout': 'Logout',
+    'settings_logout_confirm_title': 'Logout?',
+    'settings_logout_confirm_msg':
+        'You will be signed out of your account. You can sign back in anytime.',
+    'settings_logout_confirm_button': 'Logout',
+    'settings_cancel': 'Cancel',
+
+    // ─── Issue #18: PDF Viewer ───
+    'pdf_opening': 'Opening PDF...',
+    'pdf_open_failed': 'Could not open PDF',
+    'pdf_no_viewer': 'No PDF viewer app found on this device.',
+    'pdf_open_in_browser': 'Open in Browser',
+    'pdf_open_manually':
+        'If the PDF does not open automatically, tap the button below.',
+
+    // ─── Issue #20: Test History ───
+    'history_title': 'Test History',
+    'history_filter_all': 'All',
+    'history_filter_passed': 'Passed',
+    'history_filter_failed': 'Failed',
+    'history_empty_title': 'No test history yet',
+    'history_empty_msg': 'Take your first test to see your performance here.',
+    'history_reattempt': 'Re-attempt',
+    'history_rank': 'Rank',
+    'history_accuracy': 'Accuracy',
+    'history_time_taken': 'Time',
+    'history_score': 'Score',
+    'history_no_results': 'No results match this filter.',
+    'history_loading_test': 'Opening test…',
+    'history_test_not_found': 'Test not found. It may have been removed.',
+
+    // ─── Issue #22: Invoice download ───
+    'invoice_downloading': 'Downloading invoice...',
+    'invoice_download_success': 'Invoice downloaded. Opening...',
+    'invoice_download_failed':
+        'Could not download invoice. Check your connection and try again.',
+    'invoice_open_failed':
+        'Invoice downloaded but no PDF viewer is available. Open it from your Files app.',
+
+    // ─── Issue #23: Premium current-plan + Restore ───
+    'premium_current_plan': 'You\'re a Premium member',
+    'premium_current_plan_msg': 'Premium active until {date}',
+    'premium_current_plan_no_expiry': 'Premium is active on your account.',
+    'premium_manage': 'Manage Subscription',
+    'premium_manage_msg': 'Contact support to manage your subscription.',
+    'premium_restore': 'Restore Purchases',
+    'premium_restore_success': 'Premium restored successfully!',
+    'premium_restore_none': 'No active subscription found.',
+    'premium_restore_loading': 'Checking your subscription...',
+
+    // ─── Issue #30: Razorpay retry ───
+    'contact_support': 'Contact Support',
+    'payment_failed_retry_msg':
+        'Payment failed. Tap Retry to try again or Contact Support for help.',
   };
 
   static const Map<String, String> assamese = {
@@ -644,6 +814,10 @@ class AppStrings {
     'error_generic': 'কিবা ভুল হৈছে',
     'error_genericDesc': 'অনুগ্ৰহ কৰি পিছত পুনৰ চেষ্টা কৰক।',
 
+    // Connectivity Banner (mounted globally in main_navigation.dart)
+    'connectivity_offline_title': 'আপুনি অফলাইন',
+    'connectivity_offline_msg': 'কিছু কনটেন্ট অনুপলব্ধ হ\'ব পাৰে।',
+
     // Phase 3.2 — remaining screens (nav, leaderboard, splash, materials)
     'nav_ranks': 'স্থান',
     'exit_title': 'এপ্ বন্ধ কৰিব?',
@@ -696,6 +870,15 @@ class AppStrings {
     'daily_quiz_start_short': 'আৰম্ভ',
     'daily_quiz_no_today': 'আজিৰ বাবে এতিয়াও কুইজ নাই',
     'daily_quiz_check_later': 'পিছত আকৌ চাওক!',
+    // Daily Quiz — streak card motivational messages (Task ma l10n completion).
+    'daily_quiz_streak_msg_start_active':
+        'চমৎকাৰ আৰম্ভ! এটা ষ্ট্ৰিক আৰম্ভ কৰিবলৈ কুইজ দিয়ক।',
+    'daily_quiz_streak_msg_start_inactive':
+        'নতুন ষ্ট্ৰিক আৰম্ভ কৰিবলৈ আজিৰ কুইজ দিয়ক।',
+    'daily_quiz_streak_msg_active_fire':
+        'আপুনি দুৰন্ত! ইয়াক আগুৱাই নিবলৈ কাইলৈ উভতি আহক।',
+    'daily_quiz_streak_msg_keep_alive':
+        'আপোনাৰ ষ্ট্ৰিক জীয়াই ৰাখিবলৈ আজিৰ কুইজ দিয়ক।',
 
     // Current Affairs Screen (Critical #8 + #9 fix)
     'ca_title': 'চলিত পৰিক্ৰমা',
@@ -746,5 +929,162 @@ class AppStrings {
     'auth_enter_email_first': 'অনুগ্ৰহ কৰি প্ৰথমে আপোনাৰ ইমেইল লিখক',
     'auth_reset_email_sent': 'পাছৱৰ্ড ৰিছেট ইমেইল পঠিওৱা হ\'ল — আপোনাৰ ইনবক্স চাওক',
     'auth_reset_failed': 'ৰিছেট ইমেইল পঠিব পৰা নগ\'ল',
+
+    // Login Screen (Critical #2)
+    'login_welcome_title': 'ExamVault লৈ স্বাগতম',
+    'login_welcome_subtitle': 'পৰীক্ষাৰ প্ৰস্তুতি আগবঢ়াবলৈ চাইন ইন কৰক',
+    'login_method_mobile': 'মোবাইল',
+    'login_method_email': 'ইমেইল',
+    'login_otp_sending': 'OTP পঠিওৱা হৈছে...',
+    'login_otp_sending_subtitle': 'অনুগ্ৰহ কৰি এক মুহূৰ্ত অপেক্ষা কৰক',
+    'login_otp_verifying': 'প্ৰমাণ কৰি আছে...',
+    'login_otp_verifying_subtitle':
+        'Firebase আপোনাৰ নম্বৰ প্ৰমাণ কৰি আছে। কেইছেকেণ্ডমান সময় লাগিব পাৰে।',
+    'login_otp_still_working': 'এতিয়াও কাম কৰি আছে...',
+    'login_otp_still_working_subtitle':
+        'প্ৰমাণীকৰণ চলি আছে। যদি এটা প্ৰমাণীকৰণ পৃষ্ঠা খোলে, অনুগ্ৰহ কৰি সম্পূৰ্ণ কৰক — তাৰ পিছত OTP আহিব।',
+    'login_otp_taking_long': 'স্বাভাবিকতকৈ বেছি সময় লাগিছে...',
+    'login_otp_taking_long_subtitle':
+        'নেটৱৰ্কৰ সমস্যা হ\'ব পাৰে। অনুগ্ৰহ কৰি ধৈৰ্য্য ধৰক, বা এক মুহূৰ্ত পিছত পুনৰ চেষ্টা কৰক।',
+    'login_otp_unavailable_title': 'মোবাইল OTP বৰ্তমান উপলব্ধ নহয়',
+    'login_otp_unavailable_msg':
+        'অনুগ্ৰহ কৰি ইমেইল চাইন ইন ব্যৱহাৰ কৰক — ওপৰৰ "ইমেইল" টেব টিপক।',
+    'login_mobile_number': 'মোবাইল নম্বৰ',
+    'login_enter_otp': 'এই নম্বৰলৈ পঠিওৱা OTP লিখক',
+    'login_verify_otp_login': 'OTP প্ৰমাণ কৰি লগইন কৰক',
+    'login_send_otp': 'OTP পঠিয়াওক',
+    'login_resend_otp': 'OTP পুনৰ পঠিয়াওক',
+    'login_change_number': 'নম্বৰ সলনি কৰক',
+    'login_full_name': 'সম্পূৰ্ণ নাম',
+    'login_email': 'ইমেইল',
+    'login_password': 'পাছৱৰ্ড',
+    'login_sign_up': 'ছাইন আপ কৰক',
+    'login_sign_in': 'ছাইন ইন কৰক',
+    'login_have_account_signin': 'আগৰেই একাউণ্ট আছে নেকি? ছাইন ইন কৰক',
+    'login_no_account_signup': 'একাউণ্ট নাই নেকি? ছাইন আপ কৰক',
+    'login_enter_phone': 'অনুগ্ৰহ কৰি ফোন নম্বৰ লিখক',
+    'login_invalid_phone': 'অনুগ্ৰহ কৰি এটা বৈধ ১০-ডিজিটৰ মোবাইল নম্বৰ লিখক',
+    'login_otp_sent_to': 'OTP পঠিওৱা হ\'ল',
+    'login_otp_auto_verified': 'OTP স্বয়ংক্ৰিয়ভাৱে প্ৰমাণিত! আপোনাক লগইন কৰা হৈছে...',
+    'login_enter_6_digit_otp': 'অনুগ্ৰহ কৰি ৬-ডিজিটৰ OTP লিখক',
+    'login_request_otp_first': 'অনুগ্ৰহ কৰি প্ৰথমে OTP দাবি কৰক',
+    'login_fill_all_fields': 'অনুগ্ৰহ কৰি সকলো ক্ষেত্ৰ পূৰণ কৰক',
+    'login_invalid_email': 'অনুগ্ৰহ কৰি এটা বৈধ ইমেইল ঠিকনা লিখক',
+    'login_password_too_short': 'পাছৱৰ্ড কমেও ৬টা আখৰ হ\'ব লাগিব',
+    'login_enter_name': 'অনুগ্ৰহ কৰি আপোনাৰ নাম লিখক',
+
+    // Test Series Screen (Critical #3)
+    'test_series_title': 'টেষ্ট ছিৰিজ',
+    'my_categories': 'মোৰ শ্ৰেণীসমূহ',
+    'test_series_tab_practice': 'অনুশীলন',
+    'test_series_tab_subjectwise': 'বিষয় অনুযায়ী',
+    'test_series_no_tests_in_categories':
+        'আপোনাৰ বাছনি কৰা শ্ৰেণীত কোনো পৰীক্ষা নাই',
+    'test_series_edit_categories': 'মোৰ শ্ৰেণীসমূহ সম্পাদনা কৰক',
+    'test_series_completed': 'সম্পূৰ্ণ',
+    'test_series_qs_suffix': 'প্ৰশ্ন',
+    'test_series_no_subjects': 'কোনো বিষয় উপলব্ধ নহয়',
+    'test_series_no_subjects_in_categories':
+        'আপোনাৰ বাছনি কৰা শ্ৰেণীত কোনো বিষয় নাই',
+    'test_series_test_singular': 'পৰীক্ষা',
+    'test_series_test_plural': 'পৰীক্ষাসমূহ',
+    'test_type_mock': 'মক টেষ্ট',
+    'test_type_previous_year': 'পূৰ্বৰ বছৰ',
+    'test_type_daily_quiz': 'দৈনিক কুইজ',
+    'test_type_practice': 'অনুশীলন',
+    'test_type_subjectwise': 'বিষয় অনুযায়ী',
+    'test_difficulty_easy': 'সহজ',
+    'test_difficulty_medium': 'মধ্যম',
+    'test_difficulty_hard': 'কঠিন',
+
+    // Notifications Screen (Critical #5)
+    'notifications_title': 'জাননীসমূহ',
+    'notifications_mark_all_read': 'সকলো পঢ়া বুলি চিহ্নিত কৰক',
+    'notifications_empty': 'এতিয়ালৈকে কোনো জাননী নাই',
+
+    // Announcements Screen (Critical #6)
+    'announcements_title': 'ঘোষণাসমূহ',
+    'announcements_empty': 'এতিয়ালৈকে কোনো ঘোষণা নাই',
+    'announcements_live_badge': 'লাইভ',
+    'announcements_pinned_badge': 'পিন কৰা',
+    'announcements_min_ago': 'মিনিট আগতে',
+    'announcements_hour_ago': 'ঘণ্টা আগতে',
+    'announcements_day_ago': 'দিন আগতে',
+
+    // Onboarding — Category Selection Screen (Critical #7)
+    'onboarding_welcome_title': 'ExamVault লৈ স্বাগতম!',
+    'onboarding_welcome_desc':
+        'আপুনি কোনবোৰ পৰীক্ষাৰ বাবে প্ৰস্তুতি লৈ আছে? যিমান বিচাৰে বাছক — আপোনাৰ মূল পৃষ্ঠাই এইবোৰত গুৰুত্ব দিব।',
+    'onboarding_no_categories': 'এতিয়ালৈকে কোনো শ্ৰেণী উপলব্ধ নহয়।',
+    'onboarding_selected': 'বাছনি কৰা',
+    'onboarding_skip_for_now': 'এতিয়ালৈকে এৰক',
+
+    // ─── Issue #19: Settings — Notifications + Logout ───
+    'settings_notif_push': 'পুশ্ব জাননী',
+    'settings_notif_push_subtitle': 'সকলো জাননীৰ মূল চুইচ',
+    'settings_notif_announcements': 'পৰীক্ষাৰ ঘোষণা',
+    'settings_notif_announcements_subtitle':
+        'নতুন পৰীক্ষাৰ জাননী আৰু আপডেট',
+    'settings_notif_daily_quiz': 'দৈনিক কুইজ সোঁতৱ',
+    'settings_notif_daily_quiz_subtitle':
+        'দৈনিক অনুশীলনৰ সোঁতৱ জাননী',
+    'settings_logout': 'লগআউট',
+    'settings_logout_confirm_title': 'লগআউট কৰিব নেকি?',
+    'settings_logout_confirm_msg':
+        'আপুনি আপোনাৰ একাউণ্টৰ পৰা চাইন আউট হ\'ব। যিকোনো সময়ত পুনৰ চাইন ইন কৰিব পাৰিব।',
+    'settings_logout_confirm_button': 'লগআউট',
+    'settings_cancel': 'বাতিল',
+
+    // ─── Issue #18: PDF Viewer ───
+    'pdf_opening': 'PDF খোলা হৈছে...',
+    'pdf_open_failed': 'PDF খুলিব পৰা নগ\'ল',
+    'pdf_no_viewer': 'এই ডিভাইচত কোনো PDF দৰ্শক এপ্ নাই।',
+    'pdf_open_in_browser': 'ব্ৰাউজাৰত খোলক',
+    'pdf_open_manually':
+        'যদি PDF স্বয়ংক্ৰিয়ভাৱে নাখুলে, তলৰ বুটামটো টিপক।',
+
+    // ─── Issue #20: Test History ───
+    'history_title': 'পৰীক্ষাৰ ইতিহাস',
+    'history_filter_all': 'সকলো',
+    'history_filter_passed': 'উত্তীৰ্ণ',
+    'history_filter_failed': 'অনুত্তীৰ্ণ',
+    'history_empty_title': 'এতিয়ালৈকে কোনো পৰীক্ষাৰ ইতিহাস নাই',
+    'history_empty_msg':
+        'আপোনাৰ পৰীক্ষাৰ ফলাফল ইয়াত চাবলৈ প্ৰথম পৰীক্ষা দিয়ক।',
+    'history_reattempt': 'পুনৰ চেষ্টা',
+    'history_rank': 'স্থান',
+    'history_accuracy': 'নিৰ্ভুলতা',
+    'history_time_taken': 'সময়',
+    'history_score': 'নম্বৰ',
+    'history_no_results': 'এই ফিল্টাৰৰ সৈতে কোনো ফলাফল নাই।',
+    'history_loading_test': 'পৰীক্ষা খোলা হৈছে…',
+    'history_test_not_found':
+        'পৰীক্ষা পোৱা নগ\'ল। ইয়াক আঁতৰোৱা হ\'ব পাৰে।',
+
+    // ─── Issue #22: Invoice download ───
+    'invoice_downloading': 'ইনভয়ছ ডাউনলোড হৈছে...',
+    'invoice_download_success': 'ইনভয়ছ ডাউনলোড হ\'ল। খোলা হৈছে...',
+    'invoice_download_failed':
+        'ইনভয়ছ ডাউনলোড কৰিব পৰা নগ\'ল। সংযোগ পৰীক্ষা কৰি পুনৰ চেষ্টা কৰক।',
+    'invoice_open_failed':
+        'ইনভয়ছ ডাউনলোড হ\'ল কিন্তু কোনো PDF দৰ্শক উপলব্ধ নহয়। আপোনাৰ Files এপ্ৰ পৰা খোলক।',
+
+    // ─── Issue #23: Premium current-plan + Restore ───
+    'premium_current_plan': 'আপুনি প্ৰিমিয়াম সদস্য',
+    'premium_current_plan_msg': '{date} লৈকে প্ৰিমিয়াম সক্ৰিয়',
+    'premium_current_plan_no_expiry':
+        'আপোনাৰ একাউণ্টত প্ৰিমিয়াম সক্ৰিয় আছে।',
+    'premium_manage': 'সদস্যতা পৰিচালনা',
+    'premium_manage_msg':
+        'আপোনাৰ সদস্যতা পৰিচালনা কৰিবলৈ সমৰ্থনৰ সৈতে যোগাযোগ কৰক।',
+    'premium_restore': 'ক্ৰয় পুনৰুদ্ধাৰ',
+    'premium_restore_success': 'প্ৰিমিয়াম সফলভাৱে পুনৰুদ্ধাৰ হ\'ল!',
+    'premium_restore_none': 'কোনো সক্ৰিয় সদস্যতা পোৱা নগ\'ল।',
+    'premium_restore_loading': 'আপোনাৰ সদস্যতা পৰীক্ষা কৰা হৈছে...',
+
+    // ─── Issue #30: Razorpay retry ───
+    'contact_support': 'সমৰ্থনৰ সৈতে যোগাযোগ',
+    'payment_failed_retry_msg':
+        'পেমেণ্ট ব্যৰ্থ। পুনৰ চেষ্টা কৰিবলৈ Retry টিপক বা সহায়ৰ বাবে সমৰ্থনৰ সৈতে যোগাযোগ কৰক।',
   };
 }

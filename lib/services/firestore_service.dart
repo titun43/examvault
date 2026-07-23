@@ -1379,6 +1379,35 @@ class FirestoreService {
     }
   }
 
+  /// Removes multiple bookmarks in a SINGLE atomic WriteBatch (Issue #21).
+  ///
+  /// The old BookmarksScreen "clear all" looped `removeBookmark` per id —
+  /// N sequential network round-trips, non-atomic (a mid-loop failure left
+  /// half the bookmarks deleted). A WriteBatch commits all deletes in one
+  /// round-trip and is atomic: either all succeed or none do.
+  ///
+  /// Pass the list of testId strings (the bookmark doc IDs) to remove.
+  /// Returns the count actually deleted (best-effort — errors are swallowed
+  /// to match the existing non-throwing contract of getBookmarksOnce).
+  static Future<int> removeBookmarksBatch(
+      String uid, List<String> testIds) async {
+    if (testIds.isEmpty) return 0;
+    try {
+      final batch = _db.batch();
+      final colRef =
+          _db.collection('users').doc(uid).collection('bookmarks');
+      for (final id in testIds) {
+        if (id.isEmpty) continue;
+        batch.delete(colRef.doc(id));
+      }
+      await batch.commit();
+      return testIds.length;
+    } catch (e) {
+      devlog.log('removeBookmarksBatch error (non-fatal): $e');
+      return 0;
+    }
+  }
+
   // ==================== ANALYTICS (for Admin Dashboard) ====================
   static Future<Map<String, dynamic>> getDashboardStats() async {
     final usersCount = await _db.collection('users').count().get();

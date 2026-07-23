@@ -226,7 +226,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     style: AppFonts.style(
                       size: 16,
                       weight: FontWeight.w500,
-                      color: Colors.white.withOpacity(0.9),
+                      color: Colors.white.withValues(alpha: 0.9),
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -428,7 +428,7 @@ class _BookLogoState extends State<_BookLogo>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: Colors.black.withValues(alpha: 0.15),
                           blurRadius: 4,
                           offset: const Offset(-1, 0),
                         ),
@@ -460,7 +460,7 @@ class _BookLogoState extends State<_BookLogo>
                             begin: Alignment.centerLeft,
                             end: Alignment.centerRight,
                             colors: [
-                              Colors.black.withOpacity(0.35),
+                              Colors.black.withValues(alpha: 0.35),
                               Colors.transparent,
                             ],
                             stops: [0.0, 0.6],
@@ -503,12 +503,12 @@ class _BookLogoState extends State<_BookLogo>
         ),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: AppTheme.accentColor.withOpacity(0.5),
+          color: AppTheme.accentColor.withValues(alpha: 0.5),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -519,7 +519,7 @@ class _BookLogoState extends State<_BookLogo>
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(
-              color: AppTheme.accentColor.withOpacity(0.3),
+              color: AppTheme.accentColor.withValues(alpha: 0.3),
               width: 1,
             ),
             borderRadius: BorderRadius.circular(3),
@@ -533,7 +533,7 @@ class _BookLogoState extends State<_BookLogo>
                 height: 32,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withValues(alpha: 0.15),
                 ),
                 child: const Icon(
                   Icons.menu_book,
@@ -578,7 +578,7 @@ class _BookLogoState extends State<_BookLogo>
         borderRadius: BorderRadius.circular(4),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -595,7 +595,7 @@ class _BookLogoState extends State<_BookLogo>
               color: const Color(0xFFD6D3D1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
+                  color: Colors.black.withValues(alpha: 0.06),
                   blurRadius: 2,
                   offset: const Offset(1, 0),
                 ),
@@ -619,14 +619,14 @@ class _BookLogoState extends State<_BookLogo>
           Icon(
             Icons.school,
             size: 16,
-            color: AppTheme.primaryColor.withOpacity(0.4),
+            color: AppTheme.primaryColor.withValues(alpha: 0.4),
           ),
           const SizedBox(height: 3),
           Container(
             width: 20,
             height: 1.5,
             decoration: BoxDecoration(
-              color: AppTheme.accentColor.withOpacity(0.5),
+              color: AppTheme.accentColor.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -670,7 +670,7 @@ class _BookLogoState extends State<_BookLogo>
       width: width,
       height: 2,
       decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(opacity),
+        color: AppTheme.primaryColor.withValues(alpha: opacity),
         borderRadius: BorderRadius.circular(1),
       ),
     );

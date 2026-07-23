@@ -20,6 +20,8 @@ import '../../services/category_preference_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
+import '../../l10n/app_localizations.dart';
+import '../../utils/localized_content.dart';
 import '../home/main_navigation.dart';
 
 class CategorySelectionScreen extends StatefulWidget {
@@ -93,7 +95,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
           ? null
           : AppBar(
               title: Text(
-                'My Categories',
+                tr(context, 'my_categories'),
                 style: AppFonts.style(size: 18, weight: FontWeight.w700),
               ),
             ),
@@ -110,7 +112,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                       children: [
                         if (widget.isOnboarding)
                           Text(
-                            'Welcome to ExamVault!',
+                            tr(context, 'onboarding_welcome_title'),
                             style: AppFonts.style(
                               size: 24,
                               weight: FontWeight.w800,
@@ -119,14 +121,14 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                           ),
                         const SizedBox(height: AppTheme.spaceSm),
                         Text(
-                          'Which exams are you preparing for? Pick as many as you like — your Home screen will focus on these.',
+                          tr(context, 'onboarding_welcome_desc'),
                           style: AppFonts.style(
                             size: 14,
                             height: 1.4,
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withOpacity(0.65),
+                                .withValues(alpha: 0.65),
                           ),
                         ),
                       ],
@@ -137,13 +139,13 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                     child: _categories.isEmpty
                         ? Center(
                             child: Text(
-                              'No categories available yet.',
+                              tr(context, 'onboarding_no_categories'),
                               style: AppFonts.style(
                                 size: 14,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withOpacity(0.6),
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                           )
@@ -176,7 +178,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? color.withOpacity(isDark ? 0.28 : 0.14)
+                                          ? color.withValues(alpha: isDark ? 0.28 : 0.14)
                                           : (isDark
                                               ? AppTheme.darkSurfaceColor
                                               : Colors.white),
@@ -188,7 +190,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                             : Theme.of(context)
                                                 .colorScheme
                                                 .onSurface
-                                                .withOpacity(0.15),
+                                                .withValues(alpha: 0.15),
                                         width: isSelected ? 1.5 : 1,
                                       ),
                                     ),
@@ -199,7 +201,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                             style: const TextStyle(fontSize: 16)),
                                         const SizedBox(width: AppTheme.spaceSm),
                                         Text(
-                                          category.name,
+                                          lc(context, category.name, category.nameAs),
                                           style: AppFonts.style(
                                             size: 14,
                                             weight: isSelected
@@ -252,8 +254,8 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                   )
                                 : Text(
                                     widget.isOnboarding
-                                        ? 'Continue (${_selected.length} selected)'
-                                        : 'Save',
+                                        ? '${tr(context, 'continue')} (${_selected.length} ${tr(context, 'onboarding_selected')})'
+                                        : tr(context, 'save'),
                                     style: AppFonts.style(
                                         size: 16,
                                         weight: FontWeight.w700,
@@ -266,14 +268,14 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                           TextButton(
                             onPressed: _saving ? null : () => _save(skip: true),
                             child: Text(
-                              'Skip for now',
+                              tr(context, 'onboarding_skip_for_now'),
                               style: AppFonts.style(
                                 size: 14,
                                 weight: FontWeight.w600,
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withOpacity(0.6),
+                                    .withValues(alpha: 0.6),
                               ),
                             ),
                           ),

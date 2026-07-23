@@ -157,7 +157,7 @@ class ProfileScreen extends StatelessWidget {
                       width: 84,
                       height: 84,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(
@@ -180,7 +180,7 @@ class ProfileScreen extends StatelessWidget {
                       'You\'re browsing as a guest. Sign in to unlock premium tests, save your progress, and sync across devices.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.92),
+                        color: Colors.white.withValues(alpha: 0.92),
                         fontSize: 13,
                         height: 1.4,
                       ),
@@ -323,7 +323,7 @@ class ProfileScreen extends StatelessWidget {
               Text(
                 auth.user?.email ?? auth.user?.phoneNumber ?? '',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 13,
                 ),
               ),
@@ -334,7 +334,7 @@ class ProfileScreen extends StatelessWidget {
                 Text(
                   'Premium until ${_formatExpiry(auth.user!.subscriptionExpiry!)}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -565,7 +565,7 @@ class ProfileScreen extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             fontSize: 11,
           ),
         ),
@@ -579,7 +579,7 @@ class ProfileScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.12),
+        color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -593,7 +593,7 @@ class ProfileScreen extends StatelessWidget {
               Text(
                 'This Week',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),

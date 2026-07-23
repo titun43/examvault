@@ -51,6 +51,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
+import '../support/help_support_screen.dart';
 import 'result_screen.dart';
 
 class TakeTestScreen extends StatefulWidget {
@@ -774,7 +775,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 height: 96,
                 padding: const EdgeInsets.all(AppTheme.spaceXl),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentColor.withOpacity(0.12),
+                  color: AppTheme.accentColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child:
@@ -804,7 +805,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 Container(
                   padding: const EdgeInsets.all(AppTheme.spaceMd),
                   decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withOpacity(0.1),
+                    color: AppTheme.warningColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   ),
                   child: Row(
@@ -941,7 +942,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
       userId: user.id,
       userName: user.name,
       userEmail: user.email ?? 'user@examvault.com',
-      userPhone: user.phoneNumber ?? '9999999999',
+      userPhone: user.phoneNumber ?? '',
       testId: widget.test.id,
       testTitle: widget.test.title,
       amount: widget.test.price,
@@ -1020,11 +1021,44 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         // failed" message — they already know.
         if (cancelled) return;
         if (!mounted) return;
+        // Issue #30: add Retry + Contact Support actions to the failure
+        // SnackBar so the user has an actionable next step instead of just
+        // a generic "Payment failed" message. Retry re-triggers _buyTest
+        // (the method that initiates the per-test Razorpay purchase);
+        // Contact Support navigates to HelpSupportScreen.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(tr(context, 'payment_failed_retry_msg')),
+            backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 10),
+            action: SnackBarAction(
+              label: tr(context, 'retry'),
+              textColor: Colors.white,
+              onPressed: _buyTest,
+            ),
+          ),
+        );
+        // Follow-up SnackBar with the Contact Support action (a single
+        // SnackBar only supports one SnackBarAction cleanly).
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
                 '${tr(context, 'test_paymentFailedPrefix')} ${response.message ?? tr(context, 'test_paymentFailedGeneric')}'),
-            backgroundColor: AppTheme.errorColor,
+            backgroundColor: AppTheme.errorColor.withValues(alpha: 0.85),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: tr(context, 'contact_support'),
+              textColor: Colors.white,
+              onPressed: () {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const HelpSupportScreen()),
+                );
+              },
+            ),
           ),
         );
       },
@@ -1066,7 +1100,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: shimmerBox(
@@ -1196,7 +1230,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withOpacity(0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.inbox_outlined,
@@ -1249,7 +1283,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
           _showExitDialog();
         }
@@ -1282,7 +1316,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 decoration: BoxDecoration(
                   color: _timeRemaining < 300
                       ? AppTheme.errorColor
-                      : Colors.white.withOpacity(0.22),
+                      : Colors.white.withValues(alpha: 0.22),
                   borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                 ),
                 child: Row(
@@ -1293,7 +1327,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                       size: 14,
                       color: _timeRemaining < 300
                           ? Colors.white
-                          : Colors.white.withOpacity(0.9),
+                          : Colors.white.withValues(alpha: 0.9),
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -1354,7 +1388,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                         horizontal: AppTheme.spaceSm + 2,
                         vertical: AppTheme.spaceXs),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withOpacity(0.12),
+                      color: AppTheme.accentColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                     child: Text(
@@ -1424,7 +1458,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               padding: const EdgeInsets.all(AppTheme.spaceLg),
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppTheme.primaryColor.withOpacity(0.08)
+                                    ? AppTheme.primaryColor.withValues(alpha: 0.08)
                                     : (isDark
                                         ? AppTheme.darkCardColor
                                         : Colors.white),
@@ -1510,7 +1544,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 color: isDark ? AppTheme.darkSurfaceColor : Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, -2),
                   ),
@@ -1583,7 +1617,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                         color: Theme.of(context)
                             .colorScheme
                             .onSurface
-                            .withOpacity(0.6),
+                            .withValues(alpha: 0.6),
                       ),
                     ),
                     const SizedBox(height: AppTheme.spaceMd),
@@ -1598,7 +1632,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                         return ChoiceChip(
                           label: Text(r, style: const TextStyle(fontSize: 12)),
                           selected: selected,
-                          selectedColor: AppTheme.primaryColor.withOpacity(0.15),
+                          selectedColor: AppTheme.primaryColor.withValues(alpha: 0.15),
                           labelStyle: TextStyle(
                             color: selected ? AppTheme.primaryColor : null,
                             fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
@@ -1697,7 +1731,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                     _paletteLegend(
                         AppTheme.primaryColor, tr(context, 'test_answered')),
                     _paletteLegend(
-                        AppTheme.successColor.withOpacity(0.3),
+                        AppTheme.successColor.withValues(alpha: 0.3),
                         tr(context, 'test_notVisited')),
                   ],
                 ),
@@ -1723,7 +1757,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                             color: isCurrent
                                 ? AppTheme.primaryColor
                                 : isAnswered
-                                    ? AppTheme.successColor.withOpacity(0.2)
+                                    ? AppTheme.successColor.withValues(alpha: 0.2)
                                     : (isDark
                                         ? Colors.grey.shade700
                                         : Colors.grey.shade200),

@@ -24,8 +24,22 @@ class AppFonts {
   static const String display = 'Poppins';
 
   /// Fallback chain — tried in order for any glyph missing from Poppins.
-  /// 'NotoSansBengali' covers Assamese (অসমীয়া) + Bengali (বাংলা) script.
+  ///
+  /// IMPORTANT: This list MUST stay identical to `AppTheme.fontFallback`
+  /// (in app_theme.dart) so every text style — whether built via
+  /// `AppFonts.style(...)`, the legacy `AppTheme.heading1` / `bodyText2` /
+  /// `caption` constants, or the Material `TextTheme` — falls back through
+  /// the SAME Bengali-Assamese chain. Divergence here caused Assamese
+  /// glyphs (অসমীয়া) to render as tofu on some widgets.
+  ///
+  /// Order rationale:
+  ///   1. 'Poppins'           — Latin primary (already loaded via google_fonts).
+  ///   2. 'NotoSansBengali'   — Google Fonts family name (matches pubspec).
+  ///   3. 'Noto Sans Bengali' — Android system font name (Android 7+ ships it).
+  ///   4. 'HindSiliguri'      — Common Android system font for Assamese/Bengali.
+  ///   5. 'sans-serif'        — Generic platform fallback (last resort).
   static const List<String> fallback = [
+    'Poppins',
     'NotoSansBengali',
     'Noto Sans Bengali',
     'HindSiliguri',

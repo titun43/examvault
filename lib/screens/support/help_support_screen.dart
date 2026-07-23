@@ -67,7 +67,7 @@ class _TicketList extends StatelessWidget {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
-          color: AppTheme.primaryColor.withOpacity(0.08),
+          color: AppTheme.primaryColor.withValues(alpha: 0.08),
           child: Row(
             children: [
               Icon(Icons.headset_mic, color: AppTheme.primaryColor, size: 28),
@@ -356,8 +356,8 @@ class _TicketTile extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: isOpen
-                    ? Colors.orange.withOpacity(0.15)
-                    : Colors.green.withOpacity(0.15),
+                    ? Colors.orange.withValues(alpha: 0.15)
+                    : Colors.green.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -524,7 +524,7 @@ class _TicketChatScreenState extends State<_TicketChatScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 10),
-                color: AppTheme.primaryColor.withOpacity(0.06),
+                color: AppTheme.primaryColor.withValues(alpha: 0.06),
                 child: Row(
                   children: [
                     Expanded(
@@ -539,8 +539,8 @@ class _TicketChatScreenState extends State<_TicketChatScreen> {
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: isOpen
-                            ? Colors.orange.withOpacity(0.15)
-                            : Colors.green.withOpacity(0.15),
+                            ? Colors.orange.withValues(alpha: 0.15)
+                            : Colors.green.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
@@ -761,7 +761,7 @@ class _MessageBubble extends StatelessWidget {
               style: TextStyle(
                 fontSize: 10,
                 color: isUser
-                    ? Colors.white.withOpacity(0.7)
+                    ? Colors.white.withValues(alpha: 0.7)
                     : Colors.grey.shade600,
               ),
             ),

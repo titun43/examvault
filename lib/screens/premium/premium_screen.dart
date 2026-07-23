@@ -11,8 +11,10 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/access_service.dart';
@@ -22,6 +24,7 @@ import '../../models/premium_plan_model.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
+import '../support/help_support_screen.dart';
 
 class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key});
@@ -34,6 +37,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
   int _selectedPlanIndex = 1; // Default: Quarterly (popular)
   List<Map<String, dynamic>> _plans = const [];
   bool _isLoadingPlans = true;
+
+  // Issue #23: Restore Purchases in-flight flag. While true the Restore
+  // button shows a spinner and is disabled.
+  bool _isRestoring = false;
 
   @override
   void initState() {
@@ -88,11 +95,172 @@ class _PremiumScreenState extends State<PremiumScreen> {
     };
   }
 
+  // ==================== Issue #23: Restore Purchases + Manage Subscription ====================
+  // Razorpay webhooks can fail (misconfigured URL, Neon DB hiccup, etc.),
+  // leaving a user who ACTUALLY paid without premium in the local cache.
+  // "Restore Purchases" lets them force a re-fetch from the backend:
+  //   1. Clear the in-memory AccessService cache (so the next check hits
+  //      the network instead of returning a stale DENIED decision).
+  //   2. Reload the user's data from the backend (loadUserData syncs the
+  //      real-time premium status from Neon DB via the auth listener).
+  //   3. Hit AccessService.checkPremiumOnly() for an authoritative fresh
+  //      decision from /api/payments/access-check.
+  //   4. If allowed → "Premium restored" SnackBar; else "No active
+  //      subscription found".
+  Future<void> _restorePurchases() async {
+    if (_isRestoring) return;
+    setState(() => _isRestoring = true);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: L10nText('premium_restore_loading'),
+        duration: const Duration(seconds: 30),
+      ),
+    );
+    try {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      // 1. Invalidate the in-memory access cache for this user.
+      AccessService.clearCache();
+      // 2. Reload the user's data from the backend (Firestore + Neon sync).
+      await auth.loadUserData();
+      // 3. Authoritative premium check from the access-check endpoint.
+      bool restored = false;
+      try {
+        final decision = await AccessService.checkPremiumOnly();
+        restored = decision.allowed;
+      } catch (_) {
+        // 404 (backend not built) or network — fall back to the user-model
+        // flag set by loadUserData above.
+        restored = auth.isPremium;
+      }
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: L10nText(restored
+              ? 'premium_restore_success'
+              : 'premium_restore_none'),
+          backgroundColor: restored
+              ? AppTheme.successColor
+              : AppTheme.warningColor,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      messenger.hideCurrentSnackBar();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: L10nText('premium_restore_none'),
+          backgroundColor: AppTheme.warningColor,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isRestoring = false);
+    }
+  }
+
+  /// "Manage Subscription" — for now just shows a SnackBar directing the user
+  /// to support. A full implementation would deep-link to a subscription-
+  /// management page (Play Console / Razorpay hosted page).
+  void _manageSubscription() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: L10nText('premium_manage_msg'),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  /// Builds the "You're a Premium member" banner shown above the plans list
+  /// when the user is already premium (Issue #23). Shows the expiry date if
+  /// available, plus a "Manage Subscription" text button.
+  Widget _buildCurrentPlanBanner(bool isPremium, DateTime? expiry) {
+    if (!isPremium) return const SizedBox.shrink();
+    final String msg = expiry != null
+        ? tr(context, 'premium_current_plan_msg')
+            .replaceAll('{date}', DateFormat('dd MMM yyyy').format(expiry))
+        : tr(context, 'premium_current_plan_no_expiry');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.successColor,
+            AppTheme.successColor.withValues(alpha: 0.85),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.successColor.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.verified_rounded,
+                  color: Colors.white, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: L10nText(
+                  'premium_current_plan',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            msg,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          // Manage link — text button aligned to the start.
+          TextButton.icon(
+            onPressed: _manageSubscription,
+            icon: const Icon(Icons.settings_rounded,
+                color: Colors.white, size: 16),
+            label: L10nText('premium_manage',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                )),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              alignment: Alignment.centerLeft,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Watch auth so the UI rebuilds when the user signs in/out. Guests see
     // a "Sign In to Continue" prompt instead of the Subscribe button.
     final auth = context.watch<AuthProvider>();
+    // Issue #23: capture the premium status + expiry for the banner + the
+    // Subscribe-button gating.
+    final bool isAlreadyPremium = auth.isPremium;
+    final DateTime? premiumExpiry = auth.user?.subscriptionExpiry;
     return Scaffold(
       appBar: AppBar(
         title: const Text('ExamVault Premium'),
@@ -166,6 +334,11 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            // Issue #23: "Current Plan" banner — shown only when the user is
+            // already premium. Sits above the plans list so the user sees
+            // their active status first, before being tempted to re-subscribe
+            // (which would be a double-charge).
+            _buildCurrentPlanBanner(isAlreadyPremium, premiumExpiry),
             if (_isLoadingPlans)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
@@ -219,10 +392,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withOpacity(0.10),
+                    color: AppTheme.warningColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppTheme.warningColor.withOpacity(0.45)),
+                        color: AppTheme.warningColor.withValues(alpha: 0.45)),
                   ),
                   child: Row(
                     children: [
@@ -256,7 +429,31 @@ class _PremiumScreenState extends State<PremiumScreen> {
                     ),
                   ),
                 ),
-              ] else
+              ] else if (isAlreadyPremium)
+                // Issue #23: user is already premium — DISABLE the Subscribe
+                // button to prevent a double-charge. Show a "Current Plan"
+                // label instead of the Subscribe CTA.
+                ElevatedButton(
+                  onPressed: null,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: AppTheme.successColor.withValues(alpha: 0.15),
+                    foregroundColor: AppTheme.successColor,
+                    disabledBackgroundColor:
+                        AppTheme.successColor.withValues(alpha: 0.15),
+                    disabledForegroundColor: AppTheme.successColor,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.check_circle_rounded, size: 20),
+                      const SizedBox(width: 8),
+                      L10nText('premium_current_plan'),
+                    ],
+                  ),
+                )
+              else
                 ElevatedButton(
                   onPressed: _startPayment,
                   style: ElevatedButton.styleFrom(
@@ -297,6 +494,31 @@ class _PremiumScreenState extends State<PremiumScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 24),
+            // Issue #23: Restore Purchases — lets users re-fetch their active
+            // subscription from the backend if a webhook failed / they
+            // reinstalled the app. Always shown (not gated on isPremium)
+            // because a user with a lapsed cache who IS premium needs this
+            // to recover.
+            OutlinedButton.icon(
+              onPressed: _isRestoring ? null : _restorePurchases,
+              icon: _isRestoring
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.restore_rounded),
+              label: L10nText('premium_restore'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: Colors.grey.shade400),
+                foregroundColor: Colors.grey.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -319,7 +541,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryColor.withOpacity(0.05)
+              ? AppTheme.primaryColor.withValues(alpha: 0.05)
               : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -508,7 +730,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
       userId: auth.user!.id,
       userName: auth.user!.name,
       userEmail: auth.user!.email ?? 'user@examvault.com',
-      userPhone: auth.user?.phoneNumber ?? '9999999999',
+      userPhone: auth.user?.phoneNumber ?? '',
       amount: selectedPlan['price'] as int,
       planId: selectedPlan['planId'] as String,
       planName: selectedPlan['name'] as String,
@@ -594,10 +816,45 @@ class _PremiumScreenState extends State<PremiumScreen> {
         // failed" message — they already know.
         if (cancelled) return;
         if (!mounted) return;
+        // Issue #30: add Retry + Contact Support actions to the failure
+        // SnackBar so the user has an actionable next step instead of just
+        // a generic "Payment failed" message. Retry re-triggers the
+        // payment flow; Contact Support navigates to HelpSupportScreen.
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: ${response.message ?? 'Please try again.'}'),
+            content: Text(tr(context, 'payment_failed_retry_msg')),
             backgroundColor: AppTheme.errorColor,
+            duration: const Duration(seconds: 10),
+            action: SnackBarAction(
+              label: tr(context, 'retry'),
+              textColor: Colors.white,
+              onPressed: _startPayment,
+            ),
+          ),
+        );
+        // Show a second, shorter-lived SnackBar with the Contact Support
+        // action so both actions are reachable (a single SnackBar only
+        // supports one SnackBarAction cleanly). Using a follow-up SnackBar
+        // is the simplest pattern that doesn't require a custom widget.
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr(context, 'test_paymentFailedPrefix')} '
+                '${response.message ?? tr(context, 'test_paymentFailedGeneric')}'),
+            backgroundColor: AppTheme.errorColor.withValues(alpha: 0.85),
+            duration: const Duration(seconds: 8),
+            action: SnackBarAction(
+              label: tr(context, 'contact_support'),
+              textColor: Colors.white,
+              onPressed: () {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const HelpSupportScreen()),
+                );
+              },
+            ),
           ),
         );
       },

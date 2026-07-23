@@ -171,7 +171,7 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withOpacity(0.7),
+                                  Colors.black.withValues(alpha: 0.7),
                                 ],
                               ),
                             ),
@@ -193,15 +193,15 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                               padding: const EdgeInsets.fromLTRB(
                                   20, 18, 20, 20),
                               decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.55),
+                                color: Colors.black.withValues(alpha: 0.55),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
-                                  color: Colors.amber.withOpacity(0.35),
+                                  color: Colors.amber.withValues(alpha: 0.35),
                                   width: 1,
                                 ),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.35),
+                                    color: Colors.black.withValues(alpha: 0.35),
                                     blurRadius: 16,
                                     offset: const Offset(0, 4),
                                   ),
@@ -246,7 +246,7 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                                       banner.subtitle!,
                                       style: TextStyle(
                                         color:
-                                            Colors.white.withOpacity(0.95),
+                                            Colors.white.withValues(alpha: 0.95),
                                         fontSize: 15,
                                         height: 1.35,
                                         shadows: [
@@ -275,7 +275,7 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                                         boxShadow: [
                                           BoxShadow(
                                             color: Colors.orange
-                                                .withOpacity(0.45),
+                                                .withValues(alpha: 0.45),
                                             blurRadius: 12,
                                             offset: const Offset(0, 4),
                                           ),
@@ -331,7 +331,7 @@ class _AppOpenBannerDialogState extends State<AppOpenBannerDialog>
                       height: 48,
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
+                        color: Colors.black.withValues(alpha: 0.45),
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(

@@ -126,42 +126,36 @@ class AuthService {
   static String _friendlyPhoneError(FirebaseAuthException e) {
     // Log the raw code + message for developer debugging.
     print('PhoneAuth error code: ${e.code}, message: ${e.message}');
-    // TEMPORARY DIAGNOSTIC (Jul 4, 2026): append the raw Firebase error code
-    // to every message so it's visible on-screen without needing device
-    // logs. Remove the "(code: ...)" suffix once OTP is confirmed working.
-    final suffix = ' (code: ${e.code})';
-    // For configuration errors, append the raw code so the app admin can
-    // diagnose (e.g. add the signing SHA-1 to the Firebase Console). Regular
-    // users still see a friendly lead-in; the code in parentheses is the only
-    // technical bit and helps the admin act without us dumping raw Firebase
-    // Console instructions on the end user.
+    // Map each known error code to a friendly, actionable message. End users
+    // never see raw Firebase codes or console jargon — the technical context
+    // stays in the print() log above for debugging.
     switch (e.code) {
       case 'invalid-phone-number':
-        return 'Phone number is invalid. Enter a valid 10-digit mobile number.$suffix';
+        return 'Phone number is invalid. Enter a valid 10-digit mobile number.';
       case 'too-many-requests':
-        return 'Too many OTP requests from this number. Please wait a few minutes and try again.$suffix';
+        return 'Too many OTP requests from this number. Please wait a few minutes and try again.';
       case 'quota-exceeded':
-        return 'Daily SMS quota exceeded. Please try again tomorrow.$suffix';
+        return 'Daily SMS quota exceeded. Please try again tomorrow.';
       case 'network-request-failed':
-        return 'Network error. Check your internet connection and try again.$suffix';
+        return 'Network error. Check your internet connection and try again.';
       case 'operation-not-allowed':
         // Real cause: Phone Auth not enabled in Firebase Console.
         // This is an ADMIN configuration issue — the end user can't fix it.
         // We tell them to use Email sign-in instead (which always works).
         return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
+            'Please use Email sign-in instead — tap the "Email" tab above.';
       case 'app-not-authorized':
         // Real cause: app signing key (SHA-1) not registered in Firebase Console.
         return 'Mobile OTP login is temporarily unavailable. '
-            'Please use Email sign-in instead — tap the "Email" tab above.$suffix';
+            'Please use Email sign-in instead — tap the "Email" tab above.';
       case 'captcha-check-failed':
-        return 'Verification failed. Check your network and try again.$suffix';
+        return 'Verification failed. Check your network and try again.';
       case 'invalid-verification-code':
-        return 'Incorrect OTP. Please check and re-enter the 6-digit code.$suffix';
+        return 'Incorrect OTP. Please check and re-enter the 6-digit code.';
       case 'session-expired':
-        return 'OTP session expired. Please request a new OTP.$suffix';
+        return 'OTP session expired. Please request a new OTP.';
       case 'credential-already-in-use':
-        return 'This phone number is already linked to another account.$suffix';
+        return 'This phone number is already linked to another account.';
       case 'missing-client-identifier':
         // Play Integrity could not verify the app. This typically means the
         // app was installed as a direct APK (Play Integrity requires a Play
@@ -169,7 +163,7 @@ class AuthService {
         // Firebase Console.
         return 'OTP login needs the Play Store version of the app. '
             'Please install/update ExamVault from Google Play Store, '
-            'then try again. (code: ${e.code})';
+            'then try again.';
       default:
         // Generic fallback. If the raw Firebase message mentions integrity /
         // verification, give the same actionable hint as above.
@@ -179,10 +173,10 @@ class AuthService {
             rawMsg.contains('verification')) {
           return 'OTP login needs the Play Store version of the app. '
               'Please install/update ExamVault from Google Play Store, '
-              'then try again. (code: ${e.code})';
+              'then try again.';
         }
         return 'Unable to send OTP right now. Please try again, or use '
-            'Email sign-in — tap the "Email" tab above. (code: ${e.code})';
+            'Email sign-in — tap the "Email" tab above.';
     }
   }
 

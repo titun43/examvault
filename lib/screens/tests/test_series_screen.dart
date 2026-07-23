@@ -23,10 +23,10 @@ import '../../services/category_preference_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/localized_content.dart';
+import '../../l10n/app_localizations.dart';
 import '../search/search_screen.dart';
 import '../onboarding/category_selection_screen.dart';
 import 'test_instructions_screen.dart';
-import '../home/subject_detail_screen.dart';
 
 class TestSeriesScreen extends StatefulWidget {
   const TestSeriesScreen({super.key});
@@ -106,32 +106,30 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
     return _selectedCategoryIds.contains(categoryId);
   }
 
-  bool _subjectMatchesFilter(SubjectModel subject) {
-    if (_selectedCategoryIds.isEmpty) return true;
-    final categoryId = _subjectCategoryMap[subject.id];
-    if (categoryId == null) return true;
-    return _selectedCategoryIds.contains(categoryId);
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Consolidated from 6 tabs to 4 (Issue #15):
+    //  - "All"          → all tests
+    //  - "Mock"         → mock + practice (practice is a subset of mock-style tests)
+    //  - "Previous Year"→ previousYear only
+    //  - "Subject-wise" → subjectwise + dailyQuiz (daily quizzes are subject-tagged)
     return DefaultTabController(
-      length: 6,
+      length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Test Series'),
+          title: Text(tr(context, 'test_series_title')),
           actions: [
             // Lets the user revisit/change which categories they're focused
             // on, same picker used during onboarding and on Home.
             IconButton(
               icon: const Icon(Icons.tune),
-              tooltip: 'My Categories',
+              tooltip: tr(context, 'my_categories'),
               onPressed: _openManageCategories,
             ),
             // Global search — available on every bottom-nav tab, not just Home.
             IconButton(
               icon: const Icon(Icons.search),
-              tooltip: 'Search',
+              tooltip: tr(context, 'search'),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -140,15 +138,13 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
               },
             ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             isScrollable: true,
             tabs: [
-              Tab(text: 'All'),
-              Tab(text: 'Mock'),
-              Tab(text: 'Previous Year'),
-              Tab(text: 'Daily Quiz'),
-              Tab(text: 'Practice'),
-              Tab(text: 'Subject-wise'),
+              Tab(text: tr(context, 'test_all')),
+              Tab(text: tr(context, 'test_mock')),
+              Tab(text: tr(context, 'test_previousYear')),
+              Tab(text: tr(context, 'test_series_tab_subjectwise')),
             ],
           ),
         ),
@@ -157,37 +153,48 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
             : TabBarView(
                 children: [
                   _buildTestList(context, null),
-                  _buildTestList(context, TestType.mock),
-                  _buildTestList(context, TestType.previousYear),
-                  _buildTestList(context, TestType.dailyQuiz),
-                  _buildTestList(context, TestType.practice),
-                  _buildSubjectList(context),
+                  _buildTestList(context, const [TestType.mock, TestType.practice]),
+                  _buildTestList(context, const [TestType.previousYear]),
+                  _buildTestList(context, const [TestType.subjectwise, TestType.dailyQuiz]),
                 ],
               ),
       ),
     );
   }
 
-  Widget _buildTestList(BuildContext context, TestType? type) {
+  Widget _buildTestList(BuildContext context, List<TestType>? types) {
+    // Optimization: when only one type is requested, push the filter down to
+    // Firestore (single-field `type ==` query — no composite index needed).
+    // When 2+ types are requested (Mock, Subject-wise consolidation) we
+    // fetch all published tests and filter client-side, because
+    // FirestoreService.getTestsStream only supports a single `type` and we
+    // deliberately avoid composite indexes.
+    final TestType? firestoreType =
+        (types != null && types.length == 1) ? types.first : null;
     return StreamBuilder<List<TestModel>>(
-      stream: FirestoreService.getTestsStream(type: type, isPublished: true),
+      stream: FirestoreService.getTestsStream(
+          type: firestoreType, isPublished: true),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No tests available'),
+                const Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text(tr(context, 'test_noTests')),
               ],
             ),
           );
         }
-        final tests = snapshot.data!.where(_matchesFilter).toList();
+        final tests = snapshot.data!
+            .where((t) =>
+                _matchesFilter(t) &&
+                (types == null || types.contains(t.type)))
+            .toList();
         if (tests.isEmpty) {
           return Center(
             child: Column(
@@ -195,11 +202,11 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
               children: [
                 const Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
                 const SizedBox(height: 16),
-                const Text('No tests in your selected categories'),
+                Text(tr(context, 'test_series_no_tests_in_categories')),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: _openManageCategories,
-                  child: const Text('Edit My Categories'),
+                  child: Text(tr(context, 'test_series_edit_categories')),
                 ),
               ],
             ),
@@ -231,11 +238,11 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getTypeColor(test.type).withOpacity(0.1),
+                    color: _getTypeColor(test.type).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    _getTypeName(test.type),
+                    _getTypeName(context, test.type),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
@@ -249,21 +256,21 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
+                      color: AppTheme.successColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.check_circle,
-                            size: 12, color: Colors.green),
+                            size: 12, color: AppTheme.successColor),
                         const SizedBox(width: 4),
                         Text(
-                          'Completed · ${latest.percentage.round()}%',
+                          '${tr(context, 'test_series_completed')} · ${latest.percentage.round()}%',
                           style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: Colors.green,
+                            color: AppTheme.successColor,
                           ),
                         ),
                       ],
@@ -273,17 +280,17 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withOpacity(0.1),
+                      color: AppTheme.accentColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.workspace_premium, size: 12, color: AppTheme.accentColor),
-                        SizedBox(width: 4),
+                        const Icon(Icons.workspace_premium, size: 12, color: AppTheme.accentColor),
+                        const SizedBox(width: 4),
                         Text(
-                          'Premium',
-                          style: TextStyle(
+                          tr(context, 'premium'),
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.accentColor,
@@ -309,11 +316,14 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
               spacing: 12,
               runSpacing: 8,
               children: [
-                _buildInfoChip(Icons.help_outline, '${test.questionCount} Qs'),
-                _buildInfoChip(Icons.timer_outlined, '${test.duration} min'),
-                _buildInfoChip(Icons.star_outline, '${test.totalMarks} marks'),
-                _buildInfoChip(
-                    Icons.trending_up, '${test.attemptCount} attempts'),
+                _buildInfoChip(Icons.help_outline,
+                    '${test.questionCount} ${tr(context, 'test_series_qs_suffix')}'),
+                _buildInfoChip(Icons.timer_outlined,
+                    '${test.duration} ${tr(context, 'test_duration')}'),
+                _buildInfoChip(Icons.star_outline,
+                    '${test.totalMarks} ${tr(context, 'test_marks')}'),
+                _buildInfoChip(Icons.trending_up,
+                    '${test.attemptCount} ${tr(context, 'test_attempts')}'),
                 _buildDifficultyChip(test.difficulty),
               ],
             ),
@@ -337,7 +347,9 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
                 },
                 icon: Icon(latest != null ? Icons.refresh : Icons.play_arrow,
                     size: 20),
-                label: Text(latest != null ? 'Retake Test' : 'Start Test'),
+                label: Text(latest != null
+                    ? tr(context, 'result_retake')
+                    : tr(context, 'test_startTest')),
               ),
             ),
           ],
@@ -365,18 +377,18 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
 
   Widget _buildDifficultyChip(TestDifficulty difficulty) {
     final color = difficulty == TestDifficulty.easy
-        ? Colors.green
+        ? AppTheme.successColor
         : difficulty == TestDifficulty.medium
-            ? Colors.orange
-            : Colors.red;
+            ? AppTheme.warningColor
+            : AppTheme.errorColor;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        difficulty.name.toUpperCase(),
+        _difficultyLabel(context, difficulty),
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
@@ -389,131 +401,41 @@ class _TestSeriesScreenState extends State<TestSeriesScreen> {
   Color _getTypeColor(TestType type) {
     switch (type) {
       case TestType.mock:
-        return AppTheme.primaryColor;
+        return AppTheme.typeMock;
       case TestType.previousYear:
-        return AppTheme.accentColor;
+        return AppTheme.typePreviousYear;
       case TestType.dailyQuiz:
-        return Colors.purple;
+        return AppTheme.typeDailyQuiz;
       case TestType.practice:
-        return Colors.green;
+        return AppTheme.typePractice;
       case TestType.subjectwise:
-        return Colors.teal;
+        return AppTheme.typeSubjectwise;
     }
   }
 
-  String _getTypeName(TestType type) {
+  String _getTypeName(BuildContext context, TestType type) {
     switch (type) {
       case TestType.mock:
-        return 'MOCK TEST';
+        return tr(context, 'test_type_mock');
       case TestType.previousYear:
-        return 'PREVIOUS YEAR';
+        return tr(context, 'test_type_previous_year');
       case TestType.dailyQuiz:
-        return 'DAILY QUIZ';
+        return tr(context, 'test_type_daily_quiz');
       case TestType.practice:
-        return 'PRACTICE';
+        return tr(context, 'test_type_practice');
       case TestType.subjectwise:
-        return 'SUBJECT WISE';
+        return tr(context, 'test_type_subjectwise');
     }
   }
 
-  /// Subject-wise tab: shows ALL subjects (not tests of type=subjectwise).
-  /// Tapping a subject opens its test list. This makes the tab genuinely
-  /// "subject-wise" browsing and ensures it's never empty as long as
-  /// subjects exist. The previous implementation filtered tests by
-  /// type=='subjectwise' which no test ever had (seed uses mock/practice),
-  /// so the tab always showed "No tests available".
-  Widget _buildSubjectList(BuildContext context) {
-    return StreamBuilder<List<SubjectModel>>(
-      stream: FirestoreService.getSubjectsStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.menu_book, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No subjects available'),
-              ],
-            ),
-          );
-        }
-        // Sort by name for easy scanning, then apply the category filter.
-        final subjects = List<SubjectModel>.from(snapshot.data!)
-          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-        final filtered = subjects.where(_subjectMatchesFilter).toList();
-        if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.menu_book, size: 64, color: Colors.grey),
-                const SizedBox(height: 16),
-                const Text('No subjects in your selected categories'),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _openManageCategories,
-                  child: const Text('Edit My Categories'),
-                ),
-              ],
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: filtered.length,
-          itemBuilder: (context, index) {
-            final subject = filtered[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                  child: Text(
-                    subject.icon ?? '📘',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ),
-                title: Text(
-                  lc(context, subject.name, subject.nameAs),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(
-                  '${subject.testCount} ${subject.testCount == 1 ? 'Test' : 'Tests'}'
-                  '${subject.description != null && subject.description!.isNotEmpty ? ' · ${lc(context, subject.description!, subject.descriptionAs)}' : ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      // Navigate to SubjectDetailScreen (content hub) so
-                      // the user can choose between Tests, Papers, Notes,
-                      // Syllabus. The subject's categoryId is used as the
-                      // authoritative category id (may be name/slug in edge
-                      // cases — acceptable here since this tab is not the
-                      // primary exam-pack purchase entry point).
-                      builder: (_) => SubjectDetailScreen(
-                        subject: subject,
-                        categoryId: subject.categoryId,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
+  String _difficultyLabel(BuildContext context, TestDifficulty difficulty) {
+    switch (difficulty) {
+      case TestDifficulty.easy:
+        return tr(context, 'test_difficulty_easy');
+      case TestDifficulty.medium:
+        return tr(context, 'test_difficulty_medium');
+      case TestDifficulty.hard:
+        return tr(context, 'test_difficulty_hard');
+    }
   }
 }

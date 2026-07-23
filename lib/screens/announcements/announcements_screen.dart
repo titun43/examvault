@@ -11,6 +11,7 @@ import '../../models/action_button.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/in_app_navigator.dart';
 import '../../utils/localized_content.dart';
+import '../../l10n/app_localizations.dart';
 
 class AnnouncementsScreen extends StatelessWidget {
   const AnnouncementsScreen({super.key});
@@ -18,7 +19,7 @@ class AnnouncementsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Announcements')),
+      appBar: AppBar(title: Text(tr(context, 'announcements_title'))),
       body: StreamBuilder<List<AnnouncementModel>>(
         stream: FirestoreService.getAnnouncementsStream(),
         builder: (context, snapshot) {
@@ -32,7 +33,7 @@ class AnnouncementsScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.campaign_outlined, size: 64, color: Colors.grey.shade400),
                   const SizedBox(height: 12),
-                  Text('No announcements yet',
+                  Text(tr(context, 'announcements_empty'),
                       style: TextStyle(color: Colors.grey.shade600)),
                 ],
               ),
@@ -60,9 +61,9 @@ class _AnnouncementCard extends StatelessWidget {
 
   Color get _typeColor {
     switch (announcement.type) {
-      case AnnouncementType.success: return Colors.green;
-      case AnnouncementType.warning: return Colors.orange;
-      case AnnouncementType.error: return Colors.red;
+      case AnnouncementType.success: return AppTheme.successColor;
+      case AnnouncementType.warning: return AppTheme.warningColor;
+      case AnnouncementType.error: return AppTheme.errorColor;
       case AnnouncementType.promo: return AppTheme.accentColor;
       default: return AppTheme.primaryColor;
     }
@@ -78,11 +79,17 @@ class _AnnouncementCard extends StatelessWidget {
     }
   }
 
-  String _timeAgo(DateTime d) {
+  String _timeAgo(BuildContext context, DateTime d) {
     final diff = DateTime.now().difference(d);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 30) return '${diff.inDays}d ago';
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} ${tr(context, 'announcements_min_ago')}';
+    }
+    if (diff.inHours < 24) {
+      return '${diff.inHours} ${tr(context, 'announcements_hour_ago')}';
+    }
+    if (diff.inDays < 30) {
+      return '${diff.inDays} ${tr(context, 'announcements_day_ago')}';
+    }
     return '${d.day}/${d.month}/${d.year}';
   }
 
@@ -104,7 +111,7 @@ class _AnnouncementCard extends StatelessWidget {
         label: Text(button.label),
         style: TextButton.styleFrom(
           foregroundColor: _typeColor,
-          backgroundColor: _typeColor.withOpacity(0.1),
+          backgroundColor: _typeColor.withValues(alpha: 0.1),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           minimumSize: const Size(0, 32),
         ),
@@ -140,7 +147,7 @@ class _AnnouncementCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -190,52 +197,69 @@ class _AnnouncementCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                // LIVE pulsing badge — shows on every active announcement so
-                // users see the same "LIVE" indicator the admin preview has.
-                Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.red.withOpacity(0.4),
-                        blurRadius: 4,
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.circle, size: 6, color: Colors.white),
-                      SizedBox(width: 3),
-                      Text(
-                        'LIVE',
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (a.isPinned)
+                // Issue #26: the LIVE pulsing badge used to show on EVERY
+                // announcement regardless of age. Now it only shows for
+                // recent announcements (created within the last 24h). For
+                // older pinned announcements, show a static non-pulsing grey
+                // "PINNED" badge instead — older announcements don't need to
+                // shout "LIVE" at the user.
+                if (a.createdAt
+                    .isAfter(DateTime.now().subtract(const Duration(hours: 24))))
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    margin: const EdgeInsets.only(right: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.15),
+                      color: AppTheme.errorColor,
                       borderRadius: BorderRadius.circular(4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.errorColor.withValues(alpha: 0.4),
+                          blurRadius: 4,
+                          spreadRadius: 0,
+                        ),
+                      ],
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.push_pin, size: 10, color: Colors.orange),
-                        SizedBox(width: 2),
-                        Text('Pinned', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.w600)),
+                        const Icon(Icons.circle, size: 6, color: Colors.white),
+                        const SizedBox(width: 3),
+                        Text(
+                          tr(context, 'announcements_live_badge'),
+                          style: const TextStyle(
+                            fontSize: 9,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (a.isPinned)
+                  Container(
+                    margin: const EdgeInsets.only(right: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade600.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.push_pin,
+                            size: 10, color: Colors.grey.shade600),
+                        const SizedBox(width: 2),
+                        Text(
+                          tr(context, 'announcements_pinned_badge'),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -254,7 +278,7 @@ class _AnnouncementCard extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  _timeAgo(a.createdAt),
+                  _timeAgo(context, a.createdAt),
                   style: TextStyle(fontSize: 11, color: mutedColor),
                 ),
                 const Spacer(),

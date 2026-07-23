@@ -14,7 +14,7 @@
 //     (English / অসমীয়া / Both). Wrapped the bottomNavigationBar in a
 //     Consumer<LanguageProvider> so labels rebuild immediately when the user
 //     changes language in Settings.
-//   - Bottom-nav shadow swapped from inline Colors.black.withOpacity(0.05) to
+//   - Bottom-nav shadow swapped from inline Colors.black at 0.05 alpha to
 //     the AppTheme.softShadow1 design token (preserving the upward direction
 //     so the shadow reads correctly above the nav bar).
 //   - Exit confirmation dialog modernized: AppTheme.radiusLg corners, AppFonts
@@ -86,7 +86,7 @@ class _MainNavigationState extends State<MainNavigation> {
             style: AppFonts.style(
               size: 14,
               height: 1.5,
-              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
             ),
           ),
           actions: [

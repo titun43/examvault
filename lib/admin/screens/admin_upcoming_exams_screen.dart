@@ -52,7 +52,7 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                             ? Colors.red
                             : days < 90
                                 ? Colors.orange
-                                : AppTheme.primaryColor).withOpacity(0.15),
+                                : AppTheme.primaryColor).withValues(alpha: 0.15),
                     child: Icon(Icons.event, color: days < 0 ? Colors.grey : AppTheme.primaryColor),
                   ),
                   title: Row(

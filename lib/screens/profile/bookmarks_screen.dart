@@ -101,7 +101,7 @@ class BookmarksScreen extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withOpacity(0.12),
+            color: AppTheme.primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(Icons.bookmark, color: AppTheme.primaryColor),
@@ -177,7 +177,7 @@ class BookmarksScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.08),
+                color: AppTheme.primaryColor.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.bookmark_border,
@@ -210,7 +210,7 @@ class BookmarksScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.08),
+                color: AppTheme.primaryColor.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.bookmark_border,
@@ -269,15 +269,29 @@ class BookmarksScreen extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) {
-      // Get current bookmarks from stream is difficult without a state var.
-      // Use a direct Firestore read instead.
-      try {
-        final snap = await FirestoreService.getBookmarksOnce(uid);
-        for (final id in snap) {
-          await FirestoreService.removeBookmark(uid, id);
-        }
-      } catch (_) {}
+    if (confirmed != true) return;
+    // Issue #21: use a single atomic WriteBatch instead of an N+1 sequential
+    // delete loop. The old loop (`for (final id in snap) await
+    // removeBookmark(uid, id)`) was slow (N round-trips) and non-atomic
+    // (a mid-loop failure left half the bookmarks deleted). The batch
+    // commits all deletes in one round-trip and is atomic.
+    try {
+      final snap = await FirestoreService.getBookmarksOnce(uid);
+      if (snap.isEmpty) return;
+      final removed = await FirestoreService.removeBookmarksBatch(uid, snap);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(removed > 0
+              ? 'Cleared $removed bookmark${removed == 1 ? '' : 's'}.'
+              : 'Could not clear bookmarks. Try again.'),
+          backgroundColor:
+              removed > 0 ? AppTheme.successColor : AppTheme.errorColor,
+        ),
+      );
+    } catch (_) {
+      // Swallow — the batch itself swallows errors internally, but guard
+      // anyway in case getBookmarksOnce ever throws.
     }
   }
 }

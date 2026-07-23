@@ -1,21 +1,43 @@
 // =============================================================================
-// ExamVault - PDF Viewer Screen
+// ExamVault - PDF Viewer Screen (Issue #18 pragmatic fix)
 // =============================================================================
-// Opens a study material PDF using the system's native PDF viewer (Chrome,
-// Adobe Reader, etc.) via url_launcher. This approach was chosen after
-// flutter_pdfview failed with a Gradle compatibility issue ("Could not get
-// unknown property 'android' for project ':flutter_pdfview'") on Flutter
-// 3.24.5 + recent AGP. Using url_launcher (already in pubspec) avoids all
-// dependency/Gradle risk and works on every device — the system always has
-// at least one app that can render a PDF (browser fallback).
+// PRAGMATIC FIX NOTE (Issue #18):
+// The original audit wanted a full in-app PDF viewer (zoom, search, jump-to-
+// page, thumbnails, offline download, annotation). The `flutter_pdfview`
+// package was tried in this project before but FAILED with a Gradle
+// compatibility issue ("Could not get unknown property 'android' for project
+// ':flutter_pdfview'") on Flutter 3.24.5 + recent AGP — see the explanatory
+// comment in pubspec.yaml's PDF section. Re-adding it now is risky and could
+// break the build for every other agent working in this repo.
 //
-// This screen shows a brief "Opening PDF..." loading state while the URL
-// launcher resolves, then auto-pops back to the material list. If the launch
-// fails (no PDF viewer installed), an error with a retry button is shown.
+// Per the task's explicit fallback instruction ("If adding a package is
+// risky (build issues), a SIMPLER alternative: keep the url_launcher approach
+// but ADD a proper loading state, error handling, and an 'Open in external
+// app' button. Document this as a partial fix."), this screen keeps the
+// url_launcher approach but enhances it with:
+//   1. A proper loading state while url_launcher resolves (already existed).
+//   2. Robust error handling with a retry button (already existed, now also
+//      offers a manual "Open in Browser" button so the user always has a
+//      way out).
+//   3. An "Open in Browser" AppBar action that is ALWAYS available, so even
+//      if the auto-launch silently fails the user can tap it to manually
+//      trigger the system PDF viewer.
+//   4. Localized strings (was hardcoded English before).
+//   5. A clearer "did it not open?" hint on the error screen pointing the
+//      user at the manual button.
+//
+// This is a PARTIAL fix — a full in-app viewer (with the audit's full
+// feature set) requires either (a) re-attempting flutter_pdfview with a
+// Gradle workaround, or (b) adopting syncfusion_flutter_pdfviewer (large
+// binary footprint, commercial licence for advanced features). Both are
+// out of scope for this stub-fix task and risky to do blind.
 // =============================================================================
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../l10n/app_localizations.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/app_fonts.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final String pdfUrl;
@@ -45,36 +67,54 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   /// Launches the PDF URL in the system's default PDF viewer. Tries
   /// externalApplication mode first (opens in a dedicated PDF app), then
-  /// falls back to inAppBrowserView (opens in an in-app browser tab).
+  /// falls back to inAppBrowserView (opens in an in-app browser tab), then
+  /// default platform behavior.
   Future<void> _launchPdf() async {
+    setState(() {
+      _launching = true;
+      _error = null;
+    });
     try {
       final uri = Uri.parse(widget.pdfUrl);
       bool success = false;
 
       // Try external app first (dedicated PDF viewer — best experience).
-      if (await canLaunchUrl(uri)) {
-        success = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
+      try {
+        if (await canLaunchUrl(uri)) {
+          success = await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+        }
+      } catch (_) {
+        success = false;
       }
 
       // Fallback: in-app browser view.
       if (!success) {
-        success = await launchUrl(
-          uri,
-          mode: LaunchMode.inAppBrowserView,
-        );
+        try {
+          success = await launchUrl(
+            uri,
+            mode: LaunchMode.inAppBrowserView,
+          );
+        } catch (_) {
+          success = false;
+        }
       }
 
       // Fallback: default platform behavior.
       if (!success) {
-        success = await launchUrl(uri);
+        try {
+          success = await launchUrl(uri);
+        } catch (_) {
+          success = false;
+        }
       }
 
       if (!success) {
+        if (!mounted) return;
         setState(() {
-          _error = 'No PDF viewer app found on this device.';
+          _error = tr(context, 'pdf_no_viewer');
           _launching = false;
         });
         return;
@@ -84,15 +124,47 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       // user sees the "Opening..." feedback before returning.
       if (mounted) {
         await Future.delayed(const Duration(milliseconds: 800));
-        Navigator.of(context).maybePop();
+        if (mounted) Navigator.of(context).maybePop();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _launching = false;
-        });
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _launching = false;
+      });
+    }
+  }
+
+  /// Manual launch — invoked from the AppBar action and the error CTA. Same
+  /// fallback chain, but always shows the result via a SnackBar so the user
+  /// gets feedback even on the manual path.
+  Future<void> _manualLaunch() async {
+    try {
+      final uri = Uri.parse(widget.pdfUrl);
+      bool success = false;
+      try {
+        success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        success = false;
       }
+      if (!success) {
+        try {
+          success = await launchUrl(uri);
+        } catch (_) {
+          success = false;
+        }
+      }
+      if (!mounted) return;
+      if (!success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: L10nText('pdf_no_viewer')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
     }
   }
 
@@ -105,6 +177,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        // Always-available manual fallback. If the auto-launch silently
+        // fails (e.g. the system has no PDF viewer registered for the
+        // https scheme), the user can tap this to retry with an explicit
+        // external launch.
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.open_in_browser_rounded),
+            tooltip: tr(context, 'pdf_open_in_browser'),
+            onPressed: _manualLaunch,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: _buildBody(),
     );
@@ -124,11 +208,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 child: CircularProgressIndicator(),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Opening PDF...',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+              L10nText(
+                'pdf_opening',
+                style: AppFonts.style(
+                  size: 16,
+                  weight: FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -155,12 +239,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               const Icon(
                 Icons.picture_as_pdf,
                 size: 64,
-                color: Colors.red,
+                color: AppTheme.errorColor,
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Could not open PDF',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              L10nText(
+                'pdf_open_failed',
+                style: AppFonts.style(
+                  size: 18,
+                  weight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -168,17 +255,32 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: Colors.grey),
               ),
+              const SizedBox(height: 8),
+              L10nText(
+                'pdf_open_manually',
+                style: AppFonts.style(
+                  size: 12,
+                  color: Colors.grey.shade600,
+                ),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _launching = true;
-                    _error = null;
-                  });
-                  _launchPdf();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _launchPdf,
+                    icon: const Icon(Icons.refresh),
+                    label: L10nText('retry'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _manualLaunch,
+                    icon: const Icon(Icons.open_in_browser_rounded),
+                    label: L10nText('pdf_open_in_browser'),
+                  ),
+                ],
               ),
             ],
           ),

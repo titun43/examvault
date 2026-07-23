@@ -126,10 +126,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: AppTheme.spaceSm + 4, vertical: AppTheme.spaceXs + 2),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.22),
+                              color: Colors.white.withValues(alpha: 0.22),
                               borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                               border: Border.all(
-                                  color: Colors.white.withOpacity(0.25), width: 1),
+                                  color: Colors.white.withValues(alpha: 0.25), width: 1),
                             ),
                             child: Text(
                               localizedCategoryName!.toUpperCase(),
@@ -156,10 +156,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                 width: 64,
                                 height: 64,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.25),
+                                  color: Colors.white.withValues(alpha: 0.25),
                                   borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                                   border: Border.all(
-                                      color: Colors.white.withOpacity(0.35), width: 1.5),
+                                      color: Colors.white.withValues(alpha: 0.35), width: 1.5),
                                 ),
                                 child: Center(
                                   child: Text(
@@ -196,7 +196,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                           Text(
                             localizedDescription,
                             style: AppFonts.style(
-                                size: 13, color: Colors.white.withOpacity(0.92), height: 1.4),
+                                size: 13, color: Colors.white.withValues(alpha: 0.92), height: 1.4),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           )
@@ -243,7 +243,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: AppTheme.spaceSm + 2, vertical: AppTheme.spaceXs),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                           ),
                           child: Text(
@@ -346,9 +346,9 @@ class _QuickStartCta extends StatelessWidget {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.25),
+                    color: Colors.white.withValues(alpha: 0.25),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(0.35), width: 1.5),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 1.5),
                   ),
                   child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 32),
                 ),
@@ -366,7 +366,7 @@ class _QuickStartCta extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         '${subject.testCount} ${tr(context, 'subject_tests')} • ${tr(context, 'startNow')}',
-                        style: AppFonts.style(size: 12, color: Colors.white.withOpacity(0.9)),
+                        style: AppFonts.style(size: 12, color: Colors.white.withValues(alpha: 0.9)),
                       ),
                     ],
                   ),
@@ -520,7 +520,7 @@ class _ContentTypeGrid extends StatelessWidget {
             color: isDark ? AppTheme.darkCardColor : Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusLg),
             boxShadow: AppTheme.softShadow1,
-            border: Border.all(color: data.color.withOpacity(0.1), width: 1),
+            border: Border.all(color: data.color.withValues(alpha: 0.1), width: 1),
           ),
           child: Padding(
             padding: const EdgeInsets.all(AppTheme.spaceLg),
@@ -532,7 +532,7 @@ class _ContentTypeGrid extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: data.color.withOpacity(0.12),
+                    color: data.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   ),
                   child: Center(
@@ -587,7 +587,15 @@ class _ContentTypeGrid extends StatelessWidget {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => MaterialListScreen(subject: subject, type: type),
+        // Issue #27: pass the resolved categoryName so MaterialListScreen's
+        // hero gradient matches the exam category (ADRE/APSC/...) instead of
+        // silently falling back to brand emerald because it was handed a
+        // Firestore doc id / slug.
+        builder: (_) => MaterialListScreen(
+          subject: subject,
+          type: type,
+          categoryName: categoryName,
+        ),
       ),
     );
   }

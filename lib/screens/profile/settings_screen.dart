@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
@@ -44,10 +45,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
       TextEditingController();
   bool _isDeleting = false;
 
+  // ─── Issue #19: Notification preference state ───
+  // Three local toggles persisted to SharedPreferences. These are LOCAL
+  // preferences only — wiring them to actual FCM topic subscribe/unsubscribe
+  // (via NotificationService.subscribeToAllTopics /
+  // unsubscribeFromCategory) is a follow-up task. For now the toggles just
+  // record the user's intent so the FCM wiring can read them on next launch.
+  // Default to true (opt-in) per FCM best practice.
+  static const String _kPrefPush = 'notif_push_enabled';
+  static const String _kPrefAnnouncements = 'notif_announcements_enabled';
+  static const String _kPrefDailyQuiz = 'notif_daily_quiz_enabled';
+
+  bool _notifPush = true;
+  bool _notifAnnouncements = true;
+  bool _notifDailyQuiz = true;
+
   @override
   void initState() {
     super.initState();
     _loadPackageInfo();
+    _loadNotifPrefs();
+  }
+
+  Future<void> _loadNotifPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        // Default to true if the key has never been set (opt-in).
+        _notifPush = prefs.getBool(_kPrefPush) ?? true;
+        _notifAnnouncements = prefs.getBool(_kPrefAnnouncements) ?? true;
+        _notifDailyQuiz = prefs.getBool(_kPrefDailyQuiz) ?? true;
+      });
+    } catch (_) {
+      // Non-fatal — keep defaults.
+    }
+  }
+
+  Future<void> _setNotifPref(String key, bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(key, value);
+    } catch (_) {
+      // Non-fatal — the in-memory toggle still flips for this session.
+    }
+    // NOTE (follow-up): wire these to FCM topic subscribe/unsubscribe via
+    // NotificationService. E.g. when _notifPush turns false, call
+    // FirebaseService.messaging.unsubscribeFromTopic('all_users') etc.
+    // Left as a follow-up to avoid touching NotificationService bootstrap
+    // logic in this stub-fix task.
   }
 
   @override
@@ -218,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     backgroundColor: AppTheme.errorColor,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor:
-                        AppTheme.errorColor.withOpacity(0.5),
+                        AppTheme.errorColor.withValues(alpha: 0.5),
                     disabledForegroundColor: Colors.white70,
                   ),
                 ),
@@ -264,6 +310,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() => _isDeleting = false);
       _showToast('${tr(context, 'settings_delete_account_failed')}: $e');
     }
+  }
+
+  // ==================== LOGOUT FLOW (Issue #19) ====================
+  // Logout previously lived only on the Profile screen. The audit wants it
+  // on Settings too (it's the conventional place). This is a simple confirm-
+  // then-call pattern (no type-to-confirm needed — logout is reversible).
+
+  /// Shows a confirmation dialog, then calls AuthProvider.logout() and
+  /// navigates to LoginScreen (clearing the back stack).
+  void _showLogoutConfirmDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.logout_rounded,
+            color: AppTheme.errorColor, size: 48),
+        title: L10nText('settings_logout_confirm_title'),
+        content: L10nText(
+          'settings_logout_confirm_msg',
+          style: AppFonts.style(
+              size: 14, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: L10nText('settings_cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _performLogout();
+            },
+            icon: const Icon(Icons.logout_rounded),
+            label: L10nText('settings_logout_confirm_button'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Calls AuthProvider.logout() (which signs out FirebaseAuth, cancels the
+  /// user-doc subscription, clears the in-memory UserModel, and notifies
+  /// listeners), then navigates to the Login screen with a clean stack.
+  Future<void> _performLogout() async {
+    try {
+      await Provider.of<AuthProvider>(context, listen: false).logout();
+    } catch (_) {
+      // Safe to swallow — signOut() on a valid session is a no-op; the
+      // Auth state listener fires with null regardless.
+    }
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -366,6 +471,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: AppTheme.spaceXxl),
 
+          // ==================== NOTIFICATIONS (Issue #19) ====================
+          // Three local toggles persisted to SharedPreferences. The actual
+          // FCM topic subscribe/unsubscribe wiring is a follow-up (see the
+          // _setNotifPref note above). For now these just record the user's
+          // intent. The master switch (_notifPush) does NOT cascade-disable
+          // the other two in the UI — that would hide the user's last-saved
+          // state. The FCM wiring layer should treat _notifPush=false as a
+          // global mute.
+          _SectionHeader(labelKey: 'settings_notifications'),
+          const SizedBox(height: AppTheme.spaceSm),
+          _SettingsCard(
+            color: cardColor,
+            child: Column(
+              children: [
+                _NotifToggle(
+                  icon: Icons.notifications_active_rounded,
+                  iconColor: AppTheme.primaryColor,
+                  titleKey: 'settings_notif_push',
+                  subtitleKey: 'settings_notif_push_subtitle',
+                  value: _notifPush,
+                  onChanged: (v) {
+                    setState(() => _notifPush = v);
+                    _setNotifPref(_kPrefPush, v);
+                  },
+                ),
+                _Divider(),
+                _NotifToggle(
+                  icon: Icons.campaign_rounded,
+                  iconColor: AppTheme.accentColor,
+                  titleKey: 'settings_notif_announcements',
+                  subtitleKey: 'settings_notif_announcements_subtitle',
+                  value: _notifAnnouncements,
+                  onChanged: (v) {
+                    setState(() => _notifAnnouncements = v);
+                    _setNotifPref(_kPrefAnnouncements, v);
+                  },
+                ),
+                _Divider(),
+                _NotifToggle(
+                  icon: Icons.quiz_rounded,
+                  iconColor: AppTheme.warningColor,
+                  titleKey: 'settings_notif_daily_quiz',
+                  subtitleKey: 'settings_notif_daily_quiz_subtitle',
+                  value: _notifDailyQuiz,
+                  onChanged: (v) {
+                    setState(() => _notifDailyQuiz = v);
+                    _setNotifPref(_kPrefDailyQuiz, v);
+                  },
+                ),
+              ],
+            ),
+          ).animate().fadeIn(delay: 120.ms, duration: 350.ms).slideY(begin: 0.05),
+
+          const SizedBox(height: AppTheme.spaceXxl),
+
           // ==================== ACCOUNT (DELETE ACCOUNT — Critical #5) ====================
           // Google Play Data Deletion policy (Jan 2024) requires an in-app
           // account-deletion option. Tapping the tile triggers a two-step
@@ -428,6 +588,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ).animate().fadeIn(delay: 160.ms, duration: 350.ms).slideY(begin: 0.05),
+
+          const SizedBox(height: AppTheme.spaceXxl),
+
+          // ==================== LOGOUT (Issue #19) ====================
+          // Conventional placement: at the very bottom of Settings. Uses
+          // errorColor to signal a destructive-ish action. Tapping shows a
+          // confirmation dialog (logout is reversible but still disruptive —
+          // user loses their current screen state + cache).
+          _SettingsCard(
+            color: cardColor,
+            child: _AboutTile(
+              icon: Icons.logout_rounded,
+              iconColor: AppTheme.errorColor,
+              title: tr(context, 'settings_logout'),
+              onTap: _showLogoutConfirmDialog,
+            ),
+          ).animate().fadeIn(delay: 200.ms, duration: 350.ms).slideY(begin: 0.05),
+
+          // Bottom spacing so the last card isn't flush against the edge.
+          const SizedBox(height: AppTheme.spaceXxl),
         ],
       ),
     );
@@ -511,9 +691,9 @@ class _ThemeOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppTheme.primaryColor.withOpacity(0.12)
+                    ? AppTheme.primaryColor.withValues(alpha: 0.12)
                     : (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.06)
+                        ? Colors.white.withValues(alpha: 0.06)
                         : Colors.grey.shade100),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
@@ -580,8 +760,8 @@ class _LanguageOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppTheme.primaryColor.withOpacity(0.12)
-                    : (isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade100),
+                    ? AppTheme.primaryColor.withValues(alpha: 0.12)
+                    : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade100),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
               child: Center(
@@ -652,7 +832,7 @@ class _AboutTile extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.12),
+                color: iconColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
               child: Icon(icon, size: 20, color: iconColor),
@@ -689,7 +869,85 @@ class _Divider extends StatelessWidget {
       child: Divider(
         height: 1,
         thickness: 1,
-        color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade100,
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade100,
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// NOTIFICATION TOGGLE ROW (Issue #19)
+// =============================================================================
+// A row with an icon, title, subtitle, and a Switch. Mirrors the visual
+// structure of _AboutTile / _ThemeOption but uses a Switch instead of a
+// trailing arrow. The title and subtitle are bilingual via L10nText.
+class _NotifToggle extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String titleKey;
+  final String subtitleKey;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _NotifToggle({
+    required this.icon,
+    required this.iconColor,
+    required this.titleKey,
+    required this.subtitleKey,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm + 2),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            ),
+            child: Icon(icon, size: 20, color: iconColor),
+          ),
+          const SizedBox(width: AppTheme.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                L10nText(
+                  titleKey,
+                  style: AppFonts.style(
+                    size: 15,
+                    weight: FontWeight.w500,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                L10nText(
+                  subtitleKey,
+                  style: AppFonts.style(
+                    size: 12,
+                    color: isDark
+                        ? Colors.grey.shade500
+                        : Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: AppTheme.primaryColor,
+          ),
+        ],
       ),
     );
   }

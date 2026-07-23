@@ -65,7 +65,7 @@ class LeaderboardScreen extends StatelessWidget {
           ],
           bottom: TabBar(
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white.withOpacity(0.7),
+            unselectedLabelColor: Colors.white.withValues(alpha: 0.7),
             indicatorColor: AppTheme.accentColor,
             indicatorWeight: 3,
             labelStyle: AppFonts.style(
@@ -142,7 +142,7 @@ class LeaderboardScreen extends StatelessWidget {
       width: double.infinity,
       padding: EdgeInsets.symmetric(
           horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
-      color: AppTheme.warningColor.withOpacity(0.12),
+      color: AppTheme.warningColor.withValues(alpha: 0.12),
       child: Row(
         children: [
           Icon(Icons.cloud_off, size: 16, color: AppTheme.warningColor),
@@ -174,7 +174,7 @@ class LeaderboardScreen extends StatelessWidget {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -189,7 +189,7 @@ class LeaderboardScreen extends StatelessWidget {
               style: AppFonts.style(
                 size: 15,
                 weight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
               textAlign: TextAlign.center,
             ),
@@ -301,7 +301,7 @@ class LeaderboardScreen extends StatelessWidget {
         Text(
           '${player.totalXp} XP',
           style: AppFonts.style(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: 0.9),
             size: 11,
             weight: FontWeight.w500,
           ),
@@ -316,7 +316,7 @@ class LeaderboardScreen extends StatelessWidget {
       padding: EdgeInsets.all(AppTheme.spaceMd),
       decoration: BoxDecoration(
         color: isCurrentUser
-            ? AppTheme.primaryColor.withOpacity(0.1)
+            ? AppTheme.primaryColor.withValues(alpha: 0.1)
             : Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: isCurrentUser
@@ -341,7 +341,7 @@ class LeaderboardScreen extends StatelessWidget {
           SizedBox(width: AppTheme.spaceMd),
           CircleAvatar(
             radius: 20,
-            backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
+            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
             child: entry.userPhoto != null
                 ? ClipOval(
                     child: CachedNetworkImage(
@@ -400,7 +400,7 @@ class LeaderboardScreen extends StatelessWidget {
                     color: Theme.of(context)
                         .colorScheme
                         .onSurface
-                        .withOpacity(0.55),
+                        .withValues(alpha: 0.55),
                   ),
                 ),
               ],
@@ -425,7 +425,7 @@ class LeaderboardScreen extends StatelessWidget {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withOpacity(0.5),
+                      .withValues(alpha: 0.5),
                 ),
               ),
               // Streak chip — only shown when the user has a streak of at
@@ -436,7 +436,7 @@ class LeaderboardScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withOpacity(0.12),
+                    color: AppTheme.accentColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
                   child: Row(

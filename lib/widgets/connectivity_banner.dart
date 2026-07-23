@@ -28,6 +28,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import '../l10n/app_localizations.dart';
+import '../theme/app_fonts.dart';
+import '../theme/app_theme.dart';
 
 class ConnectivityBanner extends StatefulWidget {
   /// If true, the banner takes up space even when online (reserved space).
@@ -113,7 +116,9 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
       return const SizedBox(height: 0);
     }
     return Material(
-      color: const Color(0xFFE65100), // deep orange — noticeable but not alarming
+      // Use the theme's warningColor token (Orange 600) instead of a raw
+      // hex literal — keeps the banner's color tied to the design system.
+      color: AppTheme.warningColor,
       child: SafeArea(
         bottom: false,
         child: Padding(
@@ -122,13 +127,20 @@ class _ConnectivityBannerState extends State<ConnectivityBanner> {
             children: [
               const Icon(Icons.cloud_off, size: 18, color: Colors.white),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'You are offline. Some content may be unavailable.',
-                  style: TextStyle(
+                  // Bilingual: resolves to EN / AS / both per the user's
+                  // LanguageProvider preference. Joined as "<title>. <msg>".
+                  '${tr(context, 'connectivity_offline_title')}. '
+                  '${tr(context, 'connectivity_offline_msg')}',
+                  // AppFonts.style wires up the full Poppins → NotoSansBengali
+                  // → HindSiliguri → sans-serif fallback chain so Assamese
+                  // glyphs (অসমীয়া) render correctly when the user picks the
+                  // Assamese locale.
+                  style: AppFonts.style(
+                    size: 12,
+                    weight: FontWeight.w600,
                     color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),

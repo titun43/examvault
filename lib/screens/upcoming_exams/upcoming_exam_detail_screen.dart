@@ -152,7 +152,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
                                     : isSoon
                                         ? AppTheme.accentColor
                                         : AppTheme.primaryColor)
-                                .withOpacity(0.3),
+                                .withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -246,7 +246,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.primaryColor.withOpacity(0.08),
+                            color: AppTheme.primaryColor.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -390,7 +390,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: color, size: 20),
@@ -424,7 +424,7 @@ class UpcomingExamDetailScreen extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: (statusColor ?? Colors.green).withOpacity(0.1),
+                color: (statusColor ?? Colors.green).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -451,8 +451,8 @@ class UpcomingExamDetailScreen extends StatelessWidget {
       onPressed: () => _launchUrl(context, url),
       avatar: Icon(icon, size: 16, color: AppTheme.primaryColor),
       label: Text(label),
-      backgroundColor: AppTheme.primaryColor.withOpacity(0.06),
-      side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.2)),
+      backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.06),
+      side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.2)),
       labelStyle: const TextStyle(
         color: AppTheme.primaryColor,
         fontWeight: FontWeight.w600,

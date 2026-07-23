@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/notification_model.dart';
 import '../../services/firestore_service.dart';
+import '../../l10n/app_localizations.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -15,13 +16,14 @@ class NotificationsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(tr(context, 'notifications_title')),
         actions: [
           TextButton(
             onPressed: () {
               FirestoreService.markAllNotificationsRead(userId);
             },
-            child: const Text('Mark All Read', style: TextStyle(color: Colors.white)),
+            child: Text(tr(context, 'notifications_mark_all_read'),
+                style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -32,13 +34,13 @@ class NotificationsScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('No notifications yet'),
+                  const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(tr(context, 'notifications_empty')),
                 ],
               ),
             );
@@ -50,10 +52,10 @@ class NotificationsScreen extends StatelessWidget {
               final notification = snapshot.data![index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: notification.isRead ? null : AppTheme.primaryColor.withOpacity(0.05),
+                color: notification.isRead ? null : AppTheme.primaryColor.withValues(alpha: 0.05),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: _getTypeColor(notification.type).withOpacity(0.1),
+                    backgroundColor: _getTypeColor(notification.type).withValues(alpha: 0.1),
                     child: Icon(_getTypeIcon(notification.type), color: _getTypeColor(notification.type)),
                   ),
                   title: Text(
@@ -79,12 +81,12 @@ class NotificationsScreen extends StatelessWidget {
     switch (type) {
       case NotificationType.testResult: return AppTheme.primaryColor;
       case NotificationType.newTest: return AppTheme.successColor;
-      case NotificationType.currentAffair: return Colors.purple;
+      case NotificationType.currentAffair: return AppTheme.notifColorCurrentAffair;
       case NotificationType.leaderboard: return AppTheme.accentColor;
-      case NotificationType.premium: return Colors.amber;
-      case NotificationType.announcement: return Colors.blue;
-      case NotificationType.dailyQuiz: return Colors.teal;
-      default: return Colors.grey;
+      case NotificationType.premium: return AppTheme.notifColorPremium;
+      case NotificationType.announcement: return AppTheme.notifColorAnnouncement;
+      case NotificationType.dailyQuiz: return AppTheme.notifColorDailyQuiz;
+      default: return AppTheme.notifColorDefault;
     }
   }
 

@@ -116,7 +116,23 @@ class DailyQuizScreen extends StatelessWidget {
     final storedStreak = user?.streak ?? 0;
     final lastActive = user?.lastActiveAt;
     final effectiveStreak = computeEffectiveStreak(storedStreak, lastActive);
-    final message = streakMessage(effectiveStreak, lastActive);
+    // Localized motivational message — the streak_helper.streakMessage()
+    // helper returns English-only strings; we inline the SAME 4-way condition
+    // here using l10n keys so the message honors the user's LanguageMode
+    // preference (english / assamese / both). The branching logic is
+    // identical to streakMessage() — only the source of the displayed
+    // string changes (now tr() instead of a hardcoded English literal).
+    final activeToday = wasActiveToday(lastActive);
+    final String message;
+    if (effectiveStreak == 0) {
+      message = activeToday
+          ? tr(context, 'daily_quiz_streak_msg_start_active')
+          : tr(context, 'daily_quiz_streak_msg_start_inactive');
+    } else if (activeToday) {
+      message = tr(context, 'daily_quiz_streak_msg_active_fire');
+    } else {
+      message = tr(context, 'daily_quiz_streak_msg_keep_alive');
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -166,7 +182,7 @@ class DailyQuizScreen extends StatelessWidget {
                     Text(
                       message,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                         fontSize: 12,
                       ),
                     ),
@@ -269,7 +285,7 @@ class _DailyQuizCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withOpacity(0.1),
+                    color: AppTheme.accentColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
@@ -296,7 +312,7 @@ class _DailyQuizCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withOpacity(0.1),
+                      color: AppTheme.accentColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -323,19 +339,29 @@ class _DailyQuizCard extends StatelessWidget {
               spacing: 12,
               runSpacing: 4,
               children: [
-                _metaChip(Icons.help_outline, '${test.questionCount} Qs', mutedColor),
-                _metaChip(Icons.timer, '${test.duration} min', mutedColor),
                 _metaChip(
-                    Icons.star_border, '${test.totalMarks} marks', mutedColor),
-                _metaChip(Icons.trending_up, '${test.attemptCount} attempts',
+                    Icons.help_outline,
+                    '${test.questionCount} ${tr(context, 'test_series_qs_suffix')}',
                     mutedColor),
+                _metaChip(
+                    Icons.timer,
+                    '${test.duration} ${tr(context, 'test_duration')}',
+                    mutedColor),
+                _metaChip(Icons.star_border,
+                    '${test.totalMarks} ${tr(context, 'test_marks')}', mutedColor),
+                _metaChip(Icons.trending_up,
+                    '${test.attemptCount} ${tr(context, 'test_attempts')}', mutedColor),
               ],
             ),
             if (test.instructions != null &&
                 test.instructions!.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
-                test.instructions!,
+                // Bilingual instructions — honors the user's LanguageMode
+                // (english / assamese / both) via localized_content.dart.
+                // TestModel.instructionsAs mirrors the English
+                // `instructions` field for admin-authored Assamese copy.
+                lc(context, test.instructions!, test.instructionsAs),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

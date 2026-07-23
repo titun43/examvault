@@ -37,6 +37,32 @@ class AppTheme {
   static const Color warningColor = Color(0xFFEA580C);        // Orange 600
   static const Color infoColor = Color(0xFF0F766E);           // Teal (brand)
 
+  // ==================== SEMANTIC TYPE COLORS ====================
+  // Brand-aligned replacements for raw `Colors.purple/green/teal/...` that
+  // used to scatter through the test, notification, and announcement screens.
+  // All tokens harmonize with the emerald + amber brand palette so dark/light
+  // themes stay consistent. Add new tokens here rather than reaching for raw
+  // Material colors.
+
+  // Test type chips — test_series_screen.dart `_getTypeColor(TestType)`.
+  // Each TestType gets a distinct, harmonious hue (no raw Colors.xxx).
+  static const Color typeMock = Color(0xFF0F766E);          // Teal 700 (brand primary)
+  static const Color typePreviousYear = Color(0xFFD97706);  // Amber 600 (brand accent dark)
+  static const Color typeDailyQuiz = Color(0xFF7C3AED);     // Violet 600 (matches APSC)
+  static const Color typePractice = Color(0xFF059669);      // Emerald 600
+  static const Color typeSubjectwise = Color(0xFF14B8A6);   // Teal 500 (brand primary light)
+
+  // Notification type chips — notifications_screen.dart `_getTypeColor(NotificationType)`.
+  static const Color notifColorCurrentAffair = Color(0xFF7C3AED);  // Violet 600
+  static const Color notifColorPremium = Color(0xFFFBBF24);        // Amber 400
+  static const Color notifColorAnnouncement = Color(0xFF0F766E);   // Teal 700 (brand)
+  static const Color notifColorDailyQuiz = Color(0xFF14B8A6);      // Teal 500 (brand)
+  static const Color notifColorDefault = Color(0xFF71717A);        // Zinc 500 (neutral)
+
+  // "Mark for review" palette entry — test_instructions_screen.dart legend.
+  // Distinct from success/error so users instantly recognize the review state.
+  static const Color reviewMarkColor = Color(0xFF7C3AED);   // Violet 600
+
   // ==================== DARK THEME COLORS ====================
   static const Color darkPrimaryColor = Color(0xFF2DD4BF);     // Teal 400
   static const Color darkPrimaryLightColor = Color(0xFF5EEAD4); // Teal 300
@@ -153,12 +179,15 @@ class AppTheme {
   // Primary: Poppins (Latin). Fallback: NotoSansBengali covers Assamese script
   // (অসমীয়া uses the Bengali-Assamese script family). Set via ThemeProvider
   // at runtime using google_fonts; the static list here is the fallback chain.
-  static const List<String> fontFallback = [
-    'Poppins',
-    'NotoSansBengali',
-    'Noto Sans Bengali',
-    'sans-serif',
-  ];
+  //
+  // SINGLE SOURCE OF TRUTH: AppTheme.fontFallback is the same List as
+  // AppFonts.fallback — defining it as a const reference (rather than a
+  // second literal list) avoids the historical divergence bug where the
+  // two lists drifted and Assamese glyphs (অসমীয়া) tofu'd on widgets that
+  // used the legacy text-style constants (heading1/2/3, bodyText1/2,
+  // caption) below. Do NOT redefine this list inline — always reference
+  // AppFonts.fallback so the chain stays unified.
+  static const List<String> fontFallback = AppFonts.fallback;
 
   // ==================== GRADIENTS ====================
   static const LinearGradient primaryGradient = LinearGradient(
@@ -197,6 +226,7 @@ class AppTheme {
     fontSize: 28,
     fontWeight: FontWeight.w700,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.2,
   );
 
@@ -204,6 +234,7 @@ class AppTheme {
     fontSize: 24,
     fontWeight: FontWeight.w600,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.3,
   );
 
@@ -211,6 +242,7 @@ class AppTheme {
     fontSize: 20,
     fontWeight: FontWeight.w600,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.3,
   );
 
@@ -218,6 +250,7 @@ class AppTheme {
     fontSize: 16,
     fontWeight: FontWeight.w400,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.5,
   );
 
@@ -225,6 +258,7 @@ class AppTheme {
     fontSize: 14,
     fontWeight: FontWeight.w400,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.5,
   );
 
@@ -232,6 +266,7 @@ class AppTheme {
     fontSize: 12,
     fontWeight: FontWeight.w400,
     fontFamily: 'Poppins',
+    fontFamilyFallback: AppTheme.fontFallback,
     height: 1.4,
   );
 
@@ -264,10 +299,10 @@ class AppTheme {
           fontFamily: 'Poppins',
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLg),
         ),
@@ -365,7 +400,6 @@ class AppTheme {
         labelStyle: const TextStyle(fontFamily: 'Poppins'),
         secondaryLabelStyle:
             const TextStyle(color: Colors.white, fontFamily: 'Poppins'),
-        brightness: Brightness.light,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
@@ -400,10 +434,10 @@ class AppTheme {
           fontFamily: 'Poppins',
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: darkCardColor,
         elevation: 0,
-        shadowColor: Colors.black.withOpacity(0.3),
+        shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLg),
         ),
@@ -440,6 +474,17 @@ class AppTheme {
           ),
         ),
       ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: darkPrimaryColor,
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            fontFamily: 'Poppins',
+            fontFamilyFallback: AppTheme.fontFallback,
+          ),
+        ),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: darkCardColor,
@@ -469,11 +514,38 @@ class AppTheme {
         unselectedItemColor: Color(0xFF757575),
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+        selectedLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'Poppins',
+          fontFamilyFallback: AppTheme.fontFallback,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'Poppins',
+          fontFamilyFallback: AppTheme.fontFallback,
+        ),
       ),
       dividerTheme: DividerThemeData(
         color: Colors.grey.shade800,
         thickness: 1,
         space: 1,
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: darkCardColor,
+        selectedColor: darkPrimaryColor,
+        labelStyle: const TextStyle(
+          color: Colors.white,
+          fontFamily: 'Poppins',
+          fontFamilyFallback: AppTheme.fontFallback,
+        ),
+        secondaryLabelStyle: const TextStyle(
+          color: darkBackgroundColor,
+          fontFamily: 'Poppins',
+          fontFamilyFallback: AppTheme.fontFallback,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }
