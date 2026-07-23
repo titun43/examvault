@@ -190,13 +190,13 @@ class _PremiumScreenState extends State<PremiumScreen> {
           end: Alignment.bottomRight,
           colors: [
             AppTheme.successColor,
-            AppTheme.successColor.withValues(alpha: 0.85),
+            AppTheme.successColor.withOpacity(0.85),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.successColor.withValues(alpha: 0.25),
+            color: AppTheme.successColor.withOpacity(0.25),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -392,10 +392,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withValues(alpha: 0.10),
+                    color: AppTheme.warningColor.withOpacity(0.10),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                        color: AppTheme.warningColor.withValues(alpha: 0.45)),
+                        color: AppTheme.warningColor.withOpacity(0.45)),
                   ),
                   child: Row(
                     children: [
@@ -437,10 +437,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
                   onPressed: null,
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: AppTheme.successColor.withValues(alpha: 0.15),
+                    backgroundColor: AppTheme.successColor.withOpacity(0.15),
                     foregroundColor: AppTheme.successColor,
                     disabledBackgroundColor:
-                        AppTheme.successColor.withValues(alpha: 0.15),
+                        AppTheme.successColor.withOpacity(0.15),
                     disabledForegroundColor: AppTheme.successColor,
                   ),
                   child: Row(
@@ -541,7 +541,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppTheme.primaryColor.withValues(alpha: 0.05)
+              ? AppTheme.primaryColor.withOpacity(0.05)
               : Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
@@ -841,7 +841,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
           SnackBar(
             content: Text('${tr(context, 'test_paymentFailedPrefix')} '
                 '${response.message ?? tr(context, 'test_paymentFailedGeneric')}'),
-            backgroundColor: AppTheme.errorColor.withValues(alpha: 0.85),
+            backgroundColor: AppTheme.errorColor.withOpacity(0.85),
             duration: const Duration(seconds: 8),
             action: SnackBarAction(
               label: tr(context, 'contact_support'),

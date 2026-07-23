@@ -212,8 +212,8 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                     ),
                     filled: true,
                     fillColor: isDark
-                        ? Colors.white.withValues(alpha: 0.05)
-                        : Colors.black.withValues(alpha: 0.04),
+                        ? Colors.white.withOpacity(0.05)
+                        : Colors.black.withOpacity(0.04),
                   ),
                   onChanged: (v) {
                     setState(() {
@@ -361,7 +361,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -374,7 +374,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -403,7 +403,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
                   Text(
                     localizedDescription,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.9),
+                      color: Colors.white.withOpacity(0.9),
                       fontSize: 11,
                     ),
                     maxLines: 2,
@@ -416,7 +416,7 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.25),
+                color: Colors.white.withOpacity(0.25),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: const Row(

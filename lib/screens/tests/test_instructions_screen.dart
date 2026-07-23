@@ -214,7 +214,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                 color: isDark ? AppTheme.darkCardColor : Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: Colors.black.withOpacity(0.06),
                     blurRadius: 12,
                     offset: const Offset(0, -4),
                   ),
@@ -244,7 +244,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withValues(alpha: 0.8),
+                                    .withOpacity(0.8),
                               ),
                             ),
                           ),
@@ -259,7 +259,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                     child: FilledButton.icon(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
-                        disabledBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.35),
+                        disabledBackgroundColor: AppTheme.primaryColor.withOpacity(0.35),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                         ),
@@ -304,14 +304,14 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
               style: AppFonts.style(size: 16, weight: FontWeight.w800, color: Colors.white)),
           Text(label,
               style: AppFonts.style(
-                  size: 11, weight: FontWeight.w500, color: Colors.white.withValues(alpha: 0.85))),
+                  size: 11, weight: FontWeight.w500, color: Colors.white.withOpacity(0.85))),
         ],
       ),
     );
   }
 
   Widget _headerStatDivider() {
-    return Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.25));
+    return Container(width: 1, height: 36, color: Colors.white.withOpacity(0.25));
   }
 
   Widget _sectionCard({
@@ -328,7 +328,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
         color: isDark ? AppTheme.darkCardColor : Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.05),
+          color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05),
         ),
         boxShadow: AppTheme.softShadow1,
       ),
@@ -341,7 +341,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
+                  color: iconColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                 ),
                 child: Icon(icon, size: 18, color: iconColor),
@@ -375,7 +375,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
       padding: const EdgeInsets.symmetric(
           horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceSm),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+        color: color.withOpacity(isDark ? 0.15 : 0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       ),
       child: Row(
@@ -416,7 +416,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
           style: AppFonts.style(
             size: 12,
             weight: FontWeight.w500,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
           ),
         ),
       ],
@@ -429,7 +429,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45)),
+          Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurface.withOpacity(0.45)),
           const SizedBox(width: AppTheme.spaceSm),
           Expanded(
             child: Text(
@@ -437,7 +437,7 @@ class _TestInstructionsScreenState extends State<TestInstructionsScreen> {
               style: AppFonts.style(
                 size: 13,
                 height: 1.45,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
               ),
             ),
           ),

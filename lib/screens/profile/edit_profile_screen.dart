@@ -257,7 +257,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           CircleAvatar(
                             radius: 56,
                             backgroundColor: AppTheme.primaryColor
-                                .withValues(alpha: 0.15),
+                                .withOpacity(0.15),
                             child: _isUploadingPhoto
                                 ? const CircularProgressIndicator()
                                 : (_photoUrl != null &&

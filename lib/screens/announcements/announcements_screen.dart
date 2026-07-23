@@ -111,7 +111,7 @@ class _AnnouncementCard extends StatelessWidget {
         label: Text(button.label),
         style: TextButton.styleFrom(
           foregroundColor: _typeColor,
-          backgroundColor: _typeColor.withValues(alpha: 0.1),
+          backgroundColor: _typeColor.withOpacity(0.1),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           minimumSize: const Size(0, 32),
         ),
@@ -147,7 +147,7 @@ class _AnnouncementCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -214,7 +214,7 @@ class _AnnouncementCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                       boxShadow: [
                         BoxShadow(
-                          color: AppTheme.errorColor.withValues(alpha: 0.4),
+                          color: AppTheme.errorColor.withOpacity(0.4),
                           blurRadius: 4,
                           spreadRadius: 0,
                         ),
@@ -243,7 +243,7 @@ class _AnnouncementCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade600.withValues(alpha: 0.15),
+                      color: Colors.grey.shade600.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(

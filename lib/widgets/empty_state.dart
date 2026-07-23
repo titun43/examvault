@@ -89,7 +89,7 @@ class EmptyState extends StatelessWidget {
     final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
     final descColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
     final effectiveIconColor = iconColor ?? AppTheme.primaryColor;
-    final circleColor = effectiveIconColor.withValues(alpha: 0.1);
+    final circleColor = effectiveIconColor.withOpacity(0.1);
 
     return Center(
       child: Padding(

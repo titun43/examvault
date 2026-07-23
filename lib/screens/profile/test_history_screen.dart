@@ -165,7 +165,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
         color: selected
             ? AppTheme.primaryColor
             : (Theme.of(context).brightness == Brightness.dark
-                ? Colors.white.withValues(alpha: 0.12)
+                ? Colors.white.withOpacity(0.12)
                 : Colors.grey.shade300),
       ),
       shape: RoundedRectangleBorder(
@@ -207,7 +207,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         side: BorderSide(
           color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.white.withValues(alpha: 0.08)
+              ? Colors.white.withOpacity(0.08)
               : Colors.grey.shade200,
         ),
       ),
@@ -282,7 +282,7 @@ class _TestHistoryScreenState extends State<TestHistoryScreen> {
               child: LinearProgressIndicator(
                 value: (pct / 100).clamp(0.0, 1.0),
                 minHeight: 8,
-                backgroundColor: barColor.withValues(alpha: 0.15),
+                backgroundColor: barColor.withOpacity(0.15),
                 valueColor: AlwaysStoppedAnimation<Color>(barColor),
               ),
             ),
@@ -406,7 +406,7 @@ class _MetricChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(
           horizontal: AppTheme.spaceSm, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       ),
       child: Row(

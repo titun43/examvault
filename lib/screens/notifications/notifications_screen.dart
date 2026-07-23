@@ -52,10 +52,10 @@ class NotificationsScreen extends StatelessWidget {
               final notification = snapshot.data![index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: notification.isRead ? null : AppTheme.primaryColor.withValues(alpha: 0.05),
+                color: notification.isRead ? null : AppTheme.primaryColor.withOpacity(0.05),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: _getTypeColor(notification.type).withValues(alpha: 0.1),
+                    backgroundColor: _getTypeColor(notification.type).withOpacity(0.1),
                     child: Icon(_getTypeIcon(notification.type), color: _getTypeColor(notification.type)),
                   ),
                   title: Text(

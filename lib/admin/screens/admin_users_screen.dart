@@ -38,8 +38,8 @@ class AdminUsersScreen extends StatelessWidget {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: user.isPremium
-                        ? AppTheme.accentColor.withValues(alpha: 0.1)
-                        : AppTheme.primaryColor.withValues(alpha: 0.1),
+                        ? AppTheme.accentColor.withOpacity(0.1)
+                        : AppTheme.primaryColor.withOpacity(0.1),
                     child: user.photoUrl != null
                         ? ClipOval(child: CachedNetworkImage(imageUrl: user.photoUrl!, fit: BoxFit.cover))
                         : const Icon(Icons.person),

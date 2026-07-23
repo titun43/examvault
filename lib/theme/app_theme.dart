@@ -299,10 +299,10 @@ class AppTheme {
           fontFamily: 'Poppins',
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: Colors.white,
         elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.08),
+        shadowColor: Colors.black.withOpacity(0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLg),
         ),
@@ -434,10 +434,10 @@ class AppTheme {
           fontFamily: 'Poppins',
         ),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         color: darkCardColor,
         elevation: 0,
-        shadowColor: Colors.black.withValues(alpha: 0.3),
+        shadowColor: Colors.black.withOpacity(0.3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLg),
         ),

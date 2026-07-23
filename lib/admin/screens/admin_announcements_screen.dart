@@ -45,7 +45,7 @@ class AdminAnnouncementsScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: _typeColor(a.type).withValues(alpha: 0.15),
+                    backgroundColor: _typeColor(a.type).withOpacity(0.15),
                     child: Icon(_typeIcon(a.type), color: _typeColor(a.type)),
                   ),
                   title: Row(

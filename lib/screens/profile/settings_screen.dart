@@ -264,7 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     backgroundColor: AppTheme.errorColor,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor:
-                        AppTheme.errorColor.withValues(alpha: 0.5),
+                        AppTheme.errorColor.withOpacity(0.5),
                     disabledForegroundColor: Colors.white70,
                   ),
                 ),
@@ -691,9 +691,9 @@ class _ThemeOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppTheme.primaryColor.withValues(alpha: 0.12)
+                    ? AppTheme.primaryColor.withOpacity(0.12)
                     : (Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.06)
+                        ? Colors.white.withOpacity(0.06)
                         : Colors.grey.shade100),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
@@ -760,8 +760,8 @@ class _LanguageOption extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppTheme.primaryColor.withValues(alpha: 0.12)
-                    : (isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade100),
+                    ? AppTheme.primaryColor.withOpacity(0.12)
+                    : (isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade100),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
               child: Center(
@@ -832,7 +832,7 @@ class _AboutTile extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
+                color: iconColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
               child: Icon(icon, size: 20, color: iconColor),
@@ -869,7 +869,7 @@ class _Divider extends StatelessWidget {
       child: Divider(
         height: 1,
         thickness: 1,
-        color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.grey.shade100,
+        color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade100,
       ),
     );
   }
@@ -910,7 +910,7 @@ class _NotifToggle extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
+              color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: Icon(icon, size: 20, color: iconColor),

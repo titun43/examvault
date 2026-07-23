@@ -101,7 +101,7 @@ class BookmarksScreen extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withValues(alpha: 0.12),
+            color: AppTheme.primaryColor.withOpacity(0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Icon(Icons.bookmark, color: AppTheme.primaryColor),
@@ -177,7 +177,7 @@ class BookmarksScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                color: AppTheme.primaryColor.withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.bookmark_border,
@@ -210,7 +210,7 @@ class BookmarksScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.08),
+                color: AppTheme.primaryColor.withOpacity(0.08),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.bookmark_border,

@@ -96,7 +96,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                           ),
                         ),
                         selected: isSelected,
-                        selectedTileColor: AppTheme.primaryColor.withValues(alpha: 0.2),
+                        selectedTileColor: AppTheme.primaryColor.withOpacity(0.2),
                         onTap: () {
                           setState(() {
                             _selectedIndex = index;

@@ -117,7 +117,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
           width: 56,
           height: 56,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
+            color: Colors.white.withOpacity(0.2),
             borderRadius: BorderRadius.circular(28),
           ),
           child: Center(
@@ -143,7 +143,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
         Text(
           '${category.subjectCount} Subjects',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.9),
+            color: Colors.white.withOpacity(0.9),
             fontSize: 11,
           ),
         ),
@@ -153,7 +153,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.25),
+              color: Colors.white.withOpacity(0.25),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
@@ -176,7 +176,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [color, color.withValues(alpha: 0.7)],
+        colors: [color, color.withOpacity(0.7)],
       ),
     );
     final Widget background;
@@ -200,8 +200,8 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
                 colors: [
-                  Colors.black.withValues(alpha: 0.65),
-                  Colors.black.withValues(alpha: 0.2),
+                  Colors.black.withOpacity(0.65),
+                  Colors.black.withOpacity(0.2),
                 ],
               ),
             ),
@@ -234,7 +234,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: color.withValues(alpha: 0.3),
+                  color: color.withOpacity(0.3),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -260,7 +260,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
                 decoration: BoxDecoration(
                   color: categoryLocked
                       ? Colors.white
-                      : Colors.white.withValues(alpha: 0.3),
+                      : Colors.white.withOpacity(0.3),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -295,7 +295,7 @@ class _AllCategoriesScreenState extends State<AllCategoriesScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppTheme.accentColor.withValues(alpha: 0.12),
+                  color: AppTheme.accentColor.withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.lock,

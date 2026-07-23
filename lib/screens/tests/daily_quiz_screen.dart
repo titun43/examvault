@@ -182,7 +182,7 @@ class DailyQuizScreen extends StatelessWidget {
                     Text(
                       message,
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.95),
+                        color: Colors.white.withOpacity(0.95),
                         fontSize: 12,
                       ),
                     ),
@@ -285,7 +285,7 @@ class _DailyQuizCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withValues(alpha: 0.1),
+                    color: AppTheme.accentColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(
@@ -312,7 +312,7 @@ class _DailyQuizCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withValues(alpha: 0.1),
+                      color: AppTheme.accentColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(

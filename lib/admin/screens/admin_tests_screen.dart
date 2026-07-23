@@ -210,7 +210,7 @@ class _TestCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final subtitleColor =
         isDark ? Colors.grey.shade400 : Colors.grey.shade600;
-    final chipBg = (isDark ? Colors.white : Colors.black).withValues(alpha: 0.06);
+    final chipBg = (isDark ? Colors.white : Colors.black).withOpacity(0.06);
 
     Color typeColor(TestType t) {
       switch (t) {
@@ -315,10 +315,10 @@ class _TestCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color != null ? color.withValues(alpha: 0.12) : (bg ?? Colors.transparent),
+        color: color != null ? color.withOpacity(0.12) : (bg ?? Colors.transparent),
         borderRadius: BorderRadius.circular(8),
         border: color != null
-            ? Border.all(color: color.withValues(alpha: 0.4))
+            ? Border.all(color: color.withOpacity(0.4))
             : null,
       ),
       child: Text(

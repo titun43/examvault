@@ -99,10 +99,10 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                               width: 56,
                               height: 56,
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.25),
+                                color: Colors.white.withOpacity(0.25),
                                 borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                                 border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.35), width: 1.5),
+                                    color: Colors.white.withOpacity(0.35), width: 1.5),
                               ),
                               child: Center(
                                 child: Text(widget.type.emoji,
@@ -132,7 +132,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                                     style: AppFonts.style(
                                       size: 13,
                                       weight: FontWeight.w500,
-                                      color: Colors.white.withValues(alpha: 0.9),
+                                      color: Colors.white.withOpacity(0.9),
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -215,7 +215,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: typeColor.withValues(alpha: 0.15),
+                    color: typeColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                   ),
                   child: Icon(
@@ -293,7 +293,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withValues(alpha: 0.6),
+                                .withOpacity(0.6),
                           ),
                         ),
                       ],
@@ -306,7 +306,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                   color: Theme.of(context)
                       .colorScheme
                       .onSurface
-                      .withValues(alpha: 0.4),
+                      .withOpacity(0.4),
                   size: 24,
                 ),
               ],
@@ -322,11 +322,11 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: isPremium
-            ? AppTheme.accentColor.withValues(alpha: 0.15)
+            ? AppTheme.accentColor.withOpacity(0.15)
             : Theme.of(context)
                 .colorScheme
                 .onSurface
-                .withValues(alpha: 0.08),
+                .withOpacity(0.08),
         borderRadius: BorderRadius.circular(AppTheme.radiusSm),
       ),
       child: Text(
@@ -339,7 +339,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               : Theme.of(context)
                   .colorScheme
                   .onSurface
-                  .withValues(alpha: 0.6),
+                  .withOpacity(0.6),
         ),
       ),
     );
@@ -429,7 +429,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
           style: AppFonts.style(
             size: 14,
             height: 1.5,
-            color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.8),
+            color: Theme.of(ctx).colorScheme.onSurface.withOpacity(0.8),
           ),
         ),
         actions: [
@@ -579,7 +579,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                color: AppTheme.primaryColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -599,7 +599,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.6),
+                    .withOpacity(0.6),
               ),
               textAlign: TextAlign.center,
             ),
@@ -612,7 +612,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.5),
+                    .withOpacity(0.5),
               ),
               textAlign: TextAlign.center,
             ),
@@ -649,7 +649,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppTheme.warningColor.withValues(alpha: 0.1),
+                color: AppTheme.warningColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -667,7 +667,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.7),
+                    .withOpacity(0.7),
               ),
             ),
             SizedBox(height: AppTheme.spaceSm),
@@ -679,7 +679,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.5),
+                    .withOpacity(0.5),
               ),
               textAlign: TextAlign.center,
             ),
@@ -708,7 +708,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
               width: 96,
               height: 96,
               decoration: BoxDecoration(
-                color: AppTheme.errorColor.withValues(alpha: 0.1),
+                color: AppTheme.errorColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -726,7 +726,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.7),
+                    .withOpacity(0.7),
               ),
             ),
             SizedBox(height: AppTheme.spaceXl),
@@ -751,7 +751,7 @@ class _MaterialListScreenState extends State<MaterialListScreen> {
       child: Container(
         padding: EdgeInsets.symmetric(
             horizontal: AppTheme.spaceLg, vertical: 6),
-        color: AppTheme.warningColor.withValues(alpha: 0.92),
+        color: AppTheme.warningColor.withOpacity(0.92),
         child: Row(
           children: [
             const Icon(Icons.cloud_off, size: 16, color: Colors.white),

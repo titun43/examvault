@@ -54,7 +54,7 @@ class AdminPreviousPapersScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                    backgroundColor: AppTheme.primaryColor.withOpacity(0.15),
                     child: Text(
                       t.year != null ? "'${(t.year! % 100).toString().padLeft(2, '0')}" : 'PP',
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor),

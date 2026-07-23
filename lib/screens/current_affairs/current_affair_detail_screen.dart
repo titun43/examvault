@@ -92,9 +92,9 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.black.withValues(alpha: 0.35),
+                                Colors.black.withOpacity(0.35),
                                 Colors.transparent,
-                                Colors.black.withValues(alpha: 0.25),
+                                Colors.black.withOpacity(0.25),
                               ],
                             ),
                           ),
@@ -148,7 +148,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                          color: AppTheme.primaryColor.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -166,7 +166,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.accentColor.withValues(alpha: 0.12),
+                            color: AppTheme.accentColor.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Row(
@@ -247,7 +247,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                        color: AppTheme.primaryColor.withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
                         border: Border(
                           left: BorderSide(
@@ -321,7 +321,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppTheme.accentColor.withValues(alpha: 0.08),
+                            color: AppTheme.accentColor.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -347,7 +347,7 @@ class CurrentAffairDetailScreen extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.primaryColor,
                           side: BorderSide(
-                              color: AppTheme.primaryColor.withValues(alpha: 0.4)),
+                              color: AppTheme.primaryColor.withOpacity(0.4)),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 14),
                           shape: RoundedRectangleBorder(

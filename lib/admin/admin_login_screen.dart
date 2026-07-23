@@ -67,7 +67,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   Text(
                     'Sign in to manage ExamVault',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
+                      color: Colors.white.withOpacity(0.7),
                       fontSize: 14,
                     ),
                   ),
@@ -77,11 +77,11 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Admin Email',
-                      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                      prefixIcon: Icon(Icons.email, color: Colors.white.withValues(alpha: 0.6)),
+                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      prefixIcon: Icon(Icons.email, color: Colors.white.withOpacity(0.6)),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -96,12 +96,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
-                      prefixIcon: Icon(Icons.lock, color: Colors.white.withValues(alpha: 0.6)),
+                      labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                      prefixIcon: Icon(Icons.lock, color: Colors.white.withOpacity(0.6)),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                          color: Colors.white.withValues(alpha: 0.6),
+                          color: Colors.white.withOpacity(0.6),
                         ),
                         onPressed: () {
                           setState(() {
@@ -111,7 +111,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -143,9 +143,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: Colors.white.withOpacity(0.06),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                      border: Border.all(color: Colors.white.withOpacity(0.12)),
                     ),
                     child: Column(
                       children: [
@@ -153,12 +153,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.info_outline,
-                                size: 16, color: Colors.white.withValues(alpha: 0.6)),
+                                size: 16, color: Colors.white.withOpacity(0.6)),
                             const SizedBox(width: 6),
                             Text(
                               'Default Admin Credentials',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.8),
+                                color: Colors.white.withOpacity(0.8),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -170,7 +170,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           'Email: admin@examvault.com\nPassword: admin123',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
+                            color: Colors.white.withOpacity(0.7),
                             fontSize: 12,
                             height: 1.5,
                           ),

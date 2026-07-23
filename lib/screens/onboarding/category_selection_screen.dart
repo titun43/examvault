@@ -128,7 +128,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                             color: Theme.of(context)
                                 .colorScheme
                                 .onSurface
-                                .withValues(alpha: 0.65),
+                                .withOpacity(0.65),
                           ),
                         ),
                       ],
@@ -145,7 +145,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withValues(alpha: 0.6),
+                                    .withOpacity(0.6),
                               ),
                             ),
                           )
@@ -178,7 +178,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: isSelected
-                                          ? color.withValues(alpha: isDark ? 0.28 : 0.14)
+                                          ? color.withOpacity(isDark ? 0.28 : 0.14)
                                           : (isDark
                                               ? AppTheme.darkSurfaceColor
                                               : Colors.white),
@@ -190,7 +190,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                             : Theme.of(context)
                                                 .colorScheme
                                                 .onSurface
-                                                .withValues(alpha: 0.15),
+                                                .withOpacity(0.15),
                                         width: isSelected ? 1.5 : 1,
                                       ),
                                     ),
@@ -275,7 +275,7 @@ class _CategorySelectionScreenState extends State<CategorySelectionScreen> {
                                 color: Theme.of(context)
                                     .colorScheme
                                     .onSurface
-                                    .withValues(alpha: 0.6),
+                                    .withOpacity(0.6),
                               ),
                             ),
                           ),

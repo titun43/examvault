@@ -261,7 +261,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 percent: clampedPercent,
                 circularStrokeCap: CircularStrokeCap.round,
                 progressColor: _ringColor,
-                backgroundColor: Colors.white.withValues(alpha: 0.18),
+                backgroundColor: Colors.white.withOpacity(0.18),
                 animation: true,
                 animationDuration: 900,
                 center: Column(
@@ -281,7 +281,7 @@ class _ResultScreenState extends State<ResultScreen> {
                       style: AppFonts.style(
                         size: 14,
                         weight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.92),
+                        color: Colors.white.withOpacity(0.92),
                       ),
                     ),
                   ],
@@ -305,7 +305,7 @@ class _ResultScreenState extends State<ResultScreen> {
                 'result_score',
                 style: AppFonts.style(
                   size: 12,
-                  color: Colors.white.withValues(alpha: 0.85),
+                  color: Colors.white.withOpacity(0.85),
                 ),
               ).animate().fadeIn(delay: 320.ms),
             ],
@@ -367,7 +367,7 @@ class _ResultScreenState extends State<ResultScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+                color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               ),
               child: Icon(icon, color: color, size: 22),
@@ -439,9 +439,9 @@ class _ResultScreenState extends State<ResultScreen> {
           vertical: AppTheme.spaceSm + 2,
         ),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
+          color: color.withOpacity(0.08),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-          border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+          border: Border.all(color: color.withOpacity(0.25), width: 1),
         ),
         child: Row(
           children: [
@@ -532,7 +532,7 @@ class _ResultScreenState extends State<ResultScreen> {
             padding: const EdgeInsets.symmetric(
                 horizontal: AppTheme.spaceSm + 2, vertical: AppTheme.spaceXs),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: AppTheme.primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(AppTheme.radiusFull),
             ),
             child: Text(
@@ -575,7 +575,7 @@ class _ResultScreenState extends State<ResultScreen> {
         color: isDark ? AppTheme.darkCardColor : Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         boxShadow: AppTheme.softShadow1,
-        border: Border.all(color: statusColor.withValues(alpha: 0.18), width: 1),
+        border: Border.all(color: statusColor.withOpacity(0.18), width: 1),
       ),
       child: Material(
         color: Colors.transparent,
@@ -655,7 +655,7 @@ class _ResultScreenState extends State<ResultScreen> {
                     vertical: AppTheme.spaceXs,
                   ),
                   decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.12),
+                    color: statusColor.withOpacity(0.12),
                     borderRadius:
                         BorderRadius.circular(AppTheme.radiusFull),
                   ),
@@ -711,9 +711,9 @@ class _ResultScreenState extends State<ResultScreen> {
           final isCorrectAnswer = i == question.correctAnswerIndex;
           final isUserAnswer = i == userAnswer;
           final Color bgColor = isCorrectAnswer
-              ? AppTheme.successColor.withValues(alpha: 0.12)
+              ? AppTheme.successColor.withOpacity(0.12)
               : isUserAnswer
-                  ? AppTheme.errorColor.withValues(alpha: 0.12)
+                  ? AppTheme.errorColor.withOpacity(0.12)
                   : neutralBg;
           final Color borderColor = isCorrectAnswer
               ? AppTheme.successColor
@@ -784,10 +784,10 @@ class _ResultScreenState extends State<ResultScreen> {
           Container(
             padding: const EdgeInsets.all(AppTheme.spaceMd),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.06),
+              color: AppTheme.primaryColor.withOpacity(0.06),
               borderRadius: BorderRadius.circular(AppTheme.radiusSm),
               border: Border.all(
-                color: AppTheme.primaryColor.withValues(alpha: 0.18),
+                color: AppTheme.primaryColor.withOpacity(0.18),
                 width: 1,
               ),
             ),

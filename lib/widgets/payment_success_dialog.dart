@@ -46,7 +46,7 @@ class PaymentSuccessDialog {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor.withValues(alpha: 0.12),
+                    color: AppTheme.successColor.withOpacity(0.12),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -77,7 +77,7 @@ class PaymentSuccessDialog {
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.06),
+                    color: AppTheme.primaryColor.withOpacity(0.06),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Column(

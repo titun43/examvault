@@ -41,7 +41,7 @@ class AdminCategoriesScreen extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: (AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor).withValues(alpha: 0.1),
+                    backgroundColor: (AppTheme.categoryColors[category.name] ?? AppTheme.primaryColor).withOpacity(0.1),
                     child: Text(category.icon ?? '📚', style: const TextStyle(fontSize: 20)),
                   ),
                   title: Text(category.name),

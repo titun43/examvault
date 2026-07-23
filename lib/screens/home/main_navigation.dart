@@ -86,7 +86,7 @@ class _MainNavigationState extends State<MainNavigation> {
             style: AppFonts.style(
               size: 14,
               height: 1.5,
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
             ),
           ),
           actions: [

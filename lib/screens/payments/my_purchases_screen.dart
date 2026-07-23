@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 
@@ -175,7 +175,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
       }
       final String token;
       try {
-        token = await user.getIdToken();
+        token = (await user.getIdToken())!;
       } catch (_) {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
@@ -411,7 +411,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
+                  color: statusColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(Icons.receipt_outlined, color: statusColor, size: 24),
@@ -426,7 +426,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
+                      color: statusColor.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(statusLabel,
@@ -685,7 +685,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withValues(alpha: 0.12),
+                    color: AppTheme.accentColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(Icons.workspace_premium,
@@ -803,7 +803,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withValues(alpha: 0.12),
+                color: AppTheme.successColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text('Active',
@@ -865,7 +865,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withValues(alpha: 0.12),
+                color: AppTheme.successColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text('Active',
@@ -971,7 +971,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.12),
+                color: statusColor.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(statusLabel,
@@ -1000,7 +1000,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            color: AppTheme.primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text('$count',
@@ -1017,7 +1017,7 @@ class _MyPurchasesScreenState extends State<MyPurchasesScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label,

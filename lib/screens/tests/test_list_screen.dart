@@ -585,11 +585,11 @@ class _TestListScreenState extends State<TestListScreen> {
                         vertical: AppTheme.spaceXs + 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.22),
+                        color: Colors.white.withOpacity(0.22),
                         borderRadius:
                             BorderRadius.circular(AppTheme.radiusFull),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.25),
+                          color: Colors.white.withOpacity(0.25),
                           width: 1,
                         ),
                       ),
@@ -643,7 +643,7 @@ class _TestListScreenState extends State<TestListScreen> {
                               style: AppFonts.style(
                                 size: 12,
                                 weight: FontWeight.w600,
-                                color: Colors.white.withValues(alpha: 0.92),
+                                color: Colors.white.withOpacity(0.92),
                               ),
                             ),
                           ],
@@ -670,10 +670,10 @@ class _TestListScreenState extends State<TestListScreen> {
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.25),
+        color: Colors.white.withOpacity(0.25),
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.35),
+          color: Colors.white.withOpacity(0.35),
           width: 1.5,
         ),
       ),
@@ -689,10 +689,10 @@ class _TestListScreenState extends State<TestListScreen> {
   Widget _buildShimmerList(bool isDark) {
     final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
     final baseColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
+        ? Colors.white.withOpacity(0.06)
         : Colors.grey.shade300;
     final highlightColor = isDark
-        ? Colors.white.withValues(alpha: 0.14)
+        ? Colors.white.withOpacity(0.14)
         : Colors.grey.shade100;
 
     return Column(
@@ -786,7 +786,7 @@ class _TestListScreenState extends State<TestListScreen> {
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: AppTheme.primaryColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Center(
@@ -858,7 +858,7 @@ class _TestListScreenState extends State<TestListScreen> {
             width: 96,
             height: 96,
             decoration: BoxDecoration(
-              color: AppTheme.errorColor.withValues(alpha: 0.1),
+              color: AppTheme.errorColor.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -953,7 +953,7 @@ class _TestListScreenState extends State<TestListScreen> {
             color: isActive
                 ? AppTheme.primaryColor
                 : (isDark
-                    ? Colors.white.withValues(alpha: 0.12)
+                    ? Colors.white.withOpacity(0.12)
                     : Colors.grey.shade300),
             width: 1.2,
           ),
@@ -1030,8 +1030,8 @@ class _TestListScreenState extends State<TestListScreen> {
     final subtleTextColor =
         isDark ? Colors.white70 : const Color(0xFF57534E);
     final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.05);
+        ? Colors.white.withOpacity(0.06)
+        : Colors.black.withOpacity(0.05);
 
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
@@ -1063,7 +1063,7 @@ class _TestListScreenState extends State<TestListScreen> {
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                            color: categoryColor.withValues(alpha: 0.12),
+                            color: categoryColor.withOpacity(0.12),
                             borderRadius:
                                 BorderRadius.circular(AppTheme.radiusMd),
                           ),
@@ -1158,11 +1158,11 @@ class _TestListScreenState extends State<TestListScreen> {
                           vertical: AppTheme.spaceXs + 2,
                         ),
                         decoration: BoxDecoration(
-                          color: AppTheme.warningColor.withValues(alpha: 0.1),
+                          color: AppTheme.warningColor.withOpacity(0.1),
                           borderRadius:
                               BorderRadius.circular(AppTheme.radiusSm),
                           border: Border.all(
-                            color: AppTheme.warningColor.withValues(alpha: 0.25),
+                            color: AppTheme.warningColor.withOpacity(0.25),
                             width: 0.8,
                           ),
                         ),
@@ -1344,7 +1344,7 @@ class _TestListScreenState extends State<TestListScreen> {
         : null;
     final Color? solidBg = isGradient
         ? null
-        : (outlined ? color!.withValues(alpha: 0.1) : color!.withValues(alpha: 0.15));
+        : (outlined ? color!.withOpacity(0.1) : color!.withOpacity(0.15));
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -1356,7 +1356,7 @@ class _TestListScreenState extends State<TestListScreen> {
         color: solidBg,
         borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         border: outlined
-            ? Border.all(color: color!.withValues(alpha: 0.4), width: 0.8)
+            ? Border.all(color: color!.withOpacity(0.4), width: 0.8)
             : null,
       ),
       child: Text(
@@ -1717,7 +1717,7 @@ class _TestListScreenState extends State<TestListScreen> {
         decoration: BoxDecoration(
           border: Border.all(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.08)
+                ? Colors.white.withOpacity(0.08)
                 : Colors.grey.shade200,
           ),
           borderRadius: BorderRadius.circular(AppTheme.radiusMd),
@@ -1727,7 +1727,7 @@ class _TestListScreenState extends State<TestListScreen> {
             Container(
               padding: const EdgeInsets.all(AppTheme.spaceSm),
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
+                color: color.withOpacity(0.12),
                 borderRadius:
                     BorderRadius.circular(AppTheme.radiusSm + 2),
               ),
@@ -1941,7 +1941,7 @@ class _TestListScreenState extends State<TestListScreen> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.22),
+              color: Colors.white.withOpacity(0.22),
               borderRadius: BorderRadius.circular(AppTheme.radiusMd),
             ),
             child: const Icon(
@@ -1971,7 +1971,7 @@ class _TestListScreenState extends State<TestListScreen> {
                   'test_unlockSubjectDesc',
                   style: AppFonts.style(
                     size: 11,
-                    color: Colors.white.withValues(alpha: 0.85),
+                    color: Colors.white.withOpacity(0.85),
                     height: 1.4,
                   ),
                 ),
