@@ -32,7 +32,7 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../auth/login_screen.dart';
-import 'subject_detail_screen.dart';
+import '../tests/test_list_screen.dart';
 
 enum _AccessState { loading, allowed, denied, rollingOut }
 
@@ -746,24 +746,20 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                // Navigate to the SubjectDetailScreen (content hub) instead of
-                // going straight to TestListScreen. The hub shows a grid of
-                // content-type cards: Tests (always), Previous Papers, Study
-                // Notes, Syllabus (each shown only if the admin has added ≥1
-                // item of that type — real-time via Firestore stream).
+                // Navigate DIRECTLY to TestListScreen (no intermediate hub).
+                // The old SubjectDetailScreen "content hub" was removed —
+                // after tapping a subject, users go straight to its tests.
                 //
-                // We pass the authoritative category.id so the downstream
-                // TestListScreen (and TakeTestScreen + /access-check) uses the
-                // SAME id that was stored in ExamPackPurchase when the exam
-                // pack was bought. Without this, a subject whose Firestore
-                // `categoryId` field holds the category NAME/SLUG (allowed by
-                // getSubjectsStream's fallback matching) would cause the
-                // exam-pack access tier to silently no-match.
-                builder: (_) => SubjectDetailScreen(
+                // We pass the authoritative _liveCategory.id so the
+                // TestListScreen (and TakeTestScreen + /access-check) uses
+                // the SAME id that was stored in ExamPackPurchase when the
+                // exam pack was bought. Without this, a subject whose
+                // Firestore `categoryId` field holds the category NAME/SLUG
+                // (allowed by getSubjectsStream's fallback matching) would
+                // cause the exam-pack access tier to silently no-match.
+                builder: (_) => TestListScreen(
                   subject: subject,
                   categoryId: _liveCategory.id,
-                  categoryName: _liveCategory.name,
-                  categoryNameAs: _liveCategory.nameAs,
                 ),
               ),
             );
@@ -783,7 +779,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
               child: Row(
                 children: [
                   // Icon tile — category-colored.
-                  // Wrapped in Hero so it flies to SubjectDetailScreen's
+                  // Wrapped in Hero so it flies to TestListScreen's
                   // header on tap (tag: 'subject-icon-<id>').
                   Hero(
                     tag: 'subject-icon-${subject.id}',

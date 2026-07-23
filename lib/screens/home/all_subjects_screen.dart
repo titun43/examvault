@@ -16,7 +16,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/category_preference_service.dart';
 import '../../utils/localized_content.dart';
-import 'subject_detail_screen.dart';
+import '../tests/test_list_screen.dart';
 
 class AllSubjectsScreen extends StatefulWidget {
   const AllSubjectsScreen({super.key});
@@ -328,20 +328,14 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            // Issue #24: navigate to SubjectDetailScreen (content hub)
-            // instead of TestListScreen, so users can access Previous Papers,
-            // Study Notes, and Syllabus in addition to Tests. Pass the
-            // resolved authoritative categoryId + matched category name so
-            // the hero gradient and exam-pack access check work correctly.
-            builder: (_) => SubjectDetailScreen(
+            // Navigate DIRECTLY to TestListScreen (no intermediate hub).
+            // The old SubjectDetailScreen "content hub" was removed —
+            // after tapping a subject, users go straight to its tests.
+            // Pass the resolved authoritative categoryId so the hero
+            // gradient and exam-pack access check work correctly.
+            builder: (_) => TestListScreen(
               subject: subject,
               categoryId: authCategoryId,
-              categoryName: matchedCategory.id.isNotEmpty
-                  ? matchedCategory.name
-                  : null,
-              categoryNameAs: matchedCategory.id.isNotEmpty
-                  ? matchedCategory.nameAs
-                  : null,
             ),
           ),
         );

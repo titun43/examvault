@@ -83,14 +83,6 @@ class AppStrings {
     'category_chooseSubject': 'Choose a subject to start practicing',
     'category_allSubjects': 'All Subjects',
     'subject_tests': 'Tests',
-    'subject_description': 'Description',
-    'subject_startMock': 'Start a Mock Test',
-    'subject_browseContent': 'Browse content for this subject',
-    'subject_contentTypes': 'Content',
-    'subject_items': 'items',
-    'subject_item': 'item',
-    'subject_recent': 'Recent Activity',
-    'subject_exploreMore': 'Explore More',
 
     // Test List
     'test_all': 'All',
@@ -599,14 +591,6 @@ class AppStrings {
     'category_chooseSubject': 'অনুশীলন আৰম্ভ কৰিবলৈ এটা বিষয় বাছক',
     'category_allSubjects': 'সকলো বিষয়',
     'subject_tests': 'পৰীক্ষা',
-    'subject_description': 'বিৱৰণ',
-    'subject_startMock': 'এটা মক টেষ্ট আৰম্ভ কৰক',
-    'subject_browseContent': 'এই বিষয়ৰ সামগ্ৰী চাওক',
-    'subject_contentTypes': 'সামগ্ৰী',
-    'subject_items': 'টা সামগ্ৰী',
-    'subject_item': 'টা সামগ্ৰী',
-    'subject_recent': 'শেহতীয়া কাৰ্য্য',
-    'subject_exploreMore': 'অধিক চাওক',
 
     // Test List
     'test_all': 'সকলো',
