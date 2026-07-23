@@ -100,7 +100,10 @@ class LanguageProvider extends ChangeNotifier {
 /// Falls back to the key itself if not found (makes missing strings obvious
 /// during development without crashing).
 String tr(BuildContext context, String key) {
-  final mode = Provider.of<LanguageProvider>(context, listen: false).mode;
+  // listen:true so any widget calling tr() in build() rebuilds when the
+  // user changes language in Settings. (All call sites are in build context
+  // — audited; none are inside onPressed/onTap/initState callback bodies.)
+  final mode = Provider.of<LanguageProvider>(context, listen: true).mode;
   final en = AppStrings.english[key];
   final as = AppStrings.assamese[key];
 

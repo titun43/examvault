@@ -24,7 +24,9 @@ String lc(
   String english,
   String? assamese,
 ) {
-  final mode = Provider.of<LanguageProvider>(context, listen: false).mode;
+  // listen:true so widgets rebuild when the user changes language in Settings.
+  // (All call sites are in build() — audited; none in callback bodies.)
+  final mode = Provider.of<LanguageProvider>(context, listen: true).mode;
   final hasAs = assamese != null && assamese.isNotEmpty;
   switch (mode) {
     case LanguageMode.assamese:
@@ -48,7 +50,7 @@ List<String> lcList(
   if (assamese.isEmpty || assamese.length != english.length) {
     return english;
   }
-  final mode = Provider.of<LanguageProvider>(context, listen: false).mode;
+  final mode = Provider.of<LanguageProvider>(context, listen: true).mode;
   switch (mode) {
     case LanguageMode.assamese:
       return assamese;
@@ -60,5 +62,5 @@ List<String> lcList(
 
 /// True when the user wants Assamese (either alone or in "both" mode).
 bool lcShowsAssamese(BuildContext context) {
-  return Provider.of<LanguageProvider>(context, listen: false).showsAssamese;
+  return Provider.of<LanguageProvider>(context, listen: true).showsAssamese;
 }
