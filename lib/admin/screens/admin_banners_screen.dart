@@ -54,13 +54,15 @@ class AdminBannersScreen extends StatelessWidget {
             itemCount: snapshot.data!.length,
             itemBuilder: (context, index) {
               final b = snapshot.data![index];
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final placeholderBg = isDark ? Colors.grey.shade800 : Colors.grey.shade300;
               return Stack(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: b.imageUrl.isEmpty
                         ? Container(
-                            color: Colors.grey.shade300,
+                            color: placeholderBg,
                             child: const Center(child: Icon(Icons.image, size: 40)),
                           )
                         : CachedNetworkImage(
@@ -69,11 +71,11 @@ class AdminBannersScreen extends StatelessWidget {
                             width: double.infinity,
                             height: double.infinity,
                             placeholder: (_, __) => Container(
-                              color: Colors.grey.shade200,
+                              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                               child: const Center(child: CircularProgressIndicator()),
                             ),
                             errorWidget: (_, __, ___) => Container(
-                              color: Colors.grey.shade300,
+                              color: placeholderBg,
                               child: const Center(child: Icon(Icons.broken_image, size: 40)),
                             ),
                           ),
@@ -174,6 +176,7 @@ class AdminBannersScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         return StatefulBuilder(builder: (context, setState) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
           return AlertDialog(
             title: Text(banner == null ? 'Add Banner' : 'Edit Banner'),
             content: SingleChildScrollView(
@@ -225,9 +228,9 @@ class AdminBannersScreen extends StatelessWidget {
                       height: 120,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
+                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
                       ),
                       child: isUploading
                           ? const Center(child: CircularProgressIndicator())
@@ -245,11 +248,11 @@ class AdminBannersScreen extends StatelessWidget {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(Icons.add_photo_alternate,
-                                        size: 40, color: Colors.grey.shade500),
+                                        size: 40, color: isDark ? Colors.grey.shade400 : Colors.grey.shade500),
                                     const SizedBox(height: 8),
                                     Text('Tap to upload banner image',
                                         style: TextStyle(
-                                            color: Colors.grey.shade600,
+                                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                                             fontSize: 12)),
                                   ],
                                 ),

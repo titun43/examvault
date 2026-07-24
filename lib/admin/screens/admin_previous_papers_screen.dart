@@ -33,6 +33,23 @@ class AdminPreviousPapersScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_off, size: 56, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.grey.shade500),
+                    const SizedBox(height: 12),
+                    const Text('Failed to load', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(snapshot.error.toString(), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Padding(
@@ -120,6 +137,13 @@ class AdminPreviousPapersScreen extends StatelessWidget {
                   StreamBuilder<List<SubjectModel>>(
                     stream: FirestoreService.getSubjectsStream(),
                     builder: (context, snap) {
+                      if (snap.hasError) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('Failed to load subjects. Please retry.',
+                              style: TextStyle(color: Colors.red, fontSize: 12)),
+                        );
+                      }
                       final subjects = snap.data ?? [];
                       return DropdownButtonFormField<String>(
                         value: selectedSubjectId,
@@ -243,12 +267,25 @@ class AdminPreviousPapersScreen extends StatelessWidget {
                     createdAt: test?.createdAt ?? now,
                     updatedAt: now,
                   );
-                  if (test == null) {
-                    await FirestoreService.addTest(model);
-                  } else {
-                    await FirestoreService.updateTest(model);
+                  try {
+                    if (test == null) {
+                      await FirestoreService.addTest(model);
+                    } else {
+                      await FirestoreService.updateTest(model);
+                    }
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(test == null ? 'Previous paper added' : 'Previous paper updated')),
+                      );
+                      Navigator.pop(context);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Save failed: $e')),
+                      );
+                    }
                   }
-                  if (context.mounted) Navigator.pop(context);
                 },
                 child: const Text('Save'),
               ),
@@ -271,8 +308,21 @@ class AdminPreviousPapersScreen extends StatelessWidget {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
               onPressed: () async {
-                await FirestoreService.deleteTest(t.id);
-                if (context.mounted) Navigator.pop(context);
+                try {
+                  await FirestoreService.deleteTest(t.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Previous paper deleted')),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Delete failed: $e')),
+                    );
+                  }
+                }
               },
               child: const Text('Delete'),
             ),

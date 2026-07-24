@@ -22,8 +22,18 @@ class AdminHomeScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('Error loading stats:\n${snapshot.error}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.errorColor, fontSize: 13)),
+              ),
+            );
+          }
           if (!snapshot.hasData) {
-            return const Center(child: Text('Error loading stats'));
+            return const Center(child: Text('No stats available'));
           }
           final stats = snapshot.data!;
           return GridView.builder(
@@ -38,6 +48,7 @@ class AdminHomeScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final card = _statCards[index];
               return _buildStatCard(
+                context,
                 card['title'] as String,
                 stats[card['key']]?.toString() ?? '0',
                 card['icon'] as IconData,
@@ -59,7 +70,8 @@ class AdminHomeScreen extends StatelessWidget {
     {'title': 'Total Payments', 'key': 'totalPayments', 'icon': Icons.payment, 'color': Colors.red},
   ];
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(BuildContext context, String title, String value, IconData icon, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -81,7 +93,8 @@ class AdminHomeScreen extends StatelessWidget {
               title,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                // was Colors.grey.shade600 — unreadable on dark Card.
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               ),
               textAlign: TextAlign.center,
             ),

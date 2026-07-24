@@ -30,6 +30,28 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_off, size: 56, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.grey.shade500),
+                    const SizedBox(height: 12),
+                    Text('Failed to load upcoming exams',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade200 : Colors.grey.shade800)),
+                    const SizedBox(height: 4),
+                    Text(snapshot.error.toString(),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
               child: Text('No upcoming exams yet.\nTap + to add one.',
@@ -47,13 +69,13 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                 child: ListTile(
                   leading: CircleAvatar(
                     backgroundColor: (days < 0
-                        ? Colors.grey
+                        ? (Theme.of(context).brightness == Brightness.dark ? Colors.blueGrey.shade700 : Colors.grey)
                         : days < 30
                             ? Colors.red
                             : days < 90
                                 ? Colors.orange
                                 : AppTheme.primaryColor).withOpacity(0.15),
-                    child: Icon(Icons.event, color: days < 0 ? Colors.grey : AppTheme.primaryColor),
+                    child: Icon(Icons.event, color: days < 0 ? (Theme.of(context).brightness == Brightness.dark ? Colors.blueGrey.shade300 : Colors.grey) : AppTheme.primaryColor),
                   ),
                   title: Row(
                     children: [
@@ -62,15 +84,7 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       if (!e.isPublished)
-                        Container(
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text('Draft', style: TextStyle(fontSize: 10)),
-                        ),
+                        const _DraftBadge(),
                     ],
                   ),
                   subtitle: Column(
@@ -83,7 +97,7 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                         'Exam: ${_fmtDate(e.examDate)} • ${days < 0 ? '${-days}d ago' : 'in $days days'}',
                         style: TextStyle(
                           fontSize: 12,
-                          color: days < 0 ? Colors.grey : AppTheme.primaryColor,
+                          color: days < 0 ? (Theme.of(context).brightness == Brightness.dark ? Colors.blueGrey.shade300 : Colors.grey) : AppTheme.primaryColor,
                         ),
                       ),
                     ],
@@ -98,24 +112,37 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                       if (value == 'edit') {
                         _showAddEditDialog(context, exam: e);
                       } else if (value == 'publish') {
-                        await FirestoreService.updateUpcomingExam(UpcomingExamModel(
-                          id: e.id,
-                          name: e.name,
-                          organization: e.organization,
-                          categoryId: e.categoryId,
-                          examDate: e.examDate,
-                          applicationStartDate: e.applicationStartDate,
-                          applicationEndDate: e.applicationEndDate,
-                          notificationUrl: e.notificationUrl,
-                          syllabusUrl: e.syllabusUrl,
-                          imageUrl: e.imageUrl,
-                          description: e.description,
-                          tags: e.tags,
-                          isPublished: !e.isPublished,
-                          order: e.order,
-                          createdAt: e.createdAt,
-                          updatedAt: DateTime.now(),
-                        ));
+                        try {
+                          await FirestoreService.updateUpcomingExam(UpcomingExamModel(
+                            id: e.id,
+                            name: e.name,
+                            organization: e.organization,
+                            categoryId: e.categoryId,
+                            examDate: e.examDate,
+                            applicationStartDate: e.applicationStartDate,
+                            applicationEndDate: e.applicationEndDate,
+                            notificationUrl: e.notificationUrl,
+                            syllabusUrl: e.syllabusUrl,
+                            imageUrl: e.imageUrl,
+                            description: e.description,
+                            tags: e.tags,
+                            isPublished: !e.isPublished,
+                            order: e.order,
+                            createdAt: e.createdAt,
+                            updatedAt: DateTime.now(),
+                          ));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.isPublished ? 'Unpublished' : 'Published')),
+                            );
+                          }
+                        } catch (err) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed: $err')),
+                            );
+                          }
+                        }
                       } else if (value == 'delete') {
                         _confirmDelete(context, e);
                       }
@@ -283,9 +310,25 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
                     updatedAt: now,
                   );
                   if (exam == null) {
-                    await FirestoreService.addUpcomingExam(model);
+                    try {
+                      await FirestoreService.addUpcomingExam(model);
+                    } catch (err) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to add: $err')),
+                        );
+                      }
+                    }
                   } else {
-                    await FirestoreService.updateUpcomingExam(model);
+                    try {
+                      await FirestoreService.updateUpcomingExam(model);
+                    } catch (err) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to save: $err')),
+                        );
+                      }
+                    }
                   }
                   if (context.mounted) Navigator.pop(context);
                 },
@@ -310,14 +353,55 @@ class AdminUpcomingExamsScreen extends StatelessWidget {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
               onPressed: () async {
-                await FirestoreService.deleteUpcomingExam(e.id);
-                if (context.mounted) Navigator.pop(context);
+                Navigator.pop(context); // close confirm dialog
+                try {
+                  await FirestoreService.deleteUpcomingExam(e.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Exam deleted')),
+                    );
+                  }
+                } catch (err) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to delete: $err')),
+                    );
+                  }
+                }
               },
               child: const Text('Delete'),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// Dark-mode-aware "Draft" badge — readable in both themes.
+/// Uses a muted warning-orange tint (the old Colors.grey.shade300 was
+/// invisible in dark mode).
+class _DraftBadge extends StatelessWidget {
+  const _DraftBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppTheme.warningColor.withOpacity(isDark ? 0.22 : 0.14),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Draft',
+        style: TextStyle(
+          fontSize: 10,
+          color: AppTheme.warningColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

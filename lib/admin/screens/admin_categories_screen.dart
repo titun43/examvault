@@ -29,6 +29,23 @@ class AdminCategoriesScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.cloud_off, size: 56, color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade400 : Colors.grey.shade500),
+                    const SizedBox(height: 12),
+                    const Text('Failed to load', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    Text(snapshot.error.toString(), textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No categories. Add one!'));
           }
@@ -122,12 +139,25 @@ class AdminCategoriesScreen extends StatelessWidget {
                   createdAt: category?.createdAt ?? now,
                   updatedAt: now,
                 );
-                if (category == null) {
-                  await FirestoreService.addCategory(newCategory);
-                } else {
-                  await FirestoreService.updateCategory(newCategory);
+                try {
+                  if (category == null) {
+                    await FirestoreService.addCategory(newCategory);
+                  } else {
+                    await FirestoreService.updateCategory(newCategory);
+                  }
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(category == null ? 'Category added' : 'Category updated')),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Save failed: $e')),
+                    );
+                  }
                 }
-                if (context.mounted) Navigator.pop(context);
               },
               child: const Text('Save'),
             ),
@@ -149,8 +179,21 @@ class AdminCategoriesScreen extends StatelessWidget {
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.errorColor),
               onPressed: () async {
-                await FirestoreService.deleteCategory(category.id);
-                if (context.mounted) Navigator.pop(context);
+                try {
+                  await FirestoreService.deleteCategory(category.id);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Category deleted')),
+                    );
+                    Navigator.pop(context);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Delete failed: $e')),
+                    );
+                  }
+                }
               },
               child: const Text('Delete'),
             ),

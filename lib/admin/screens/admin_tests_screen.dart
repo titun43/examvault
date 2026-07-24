@@ -129,21 +129,6 @@ class _AdminTestsScreenState extends State<AdminTestsScreen> {
     }
   }
 
-  Color _typeColor(TestType t) {
-    switch (t) {
-      case TestType.mock:
-        return Colors.green;
-      case TestType.previousYear:
-        return Colors.orange;
-      case TestType.dailyQuiz:
-        return Colors.purple;
-      case TestType.practice:
-        return Colors.cyan;
-      case TestType.subjectwise:
-        return Colors.pink;
-    }
-  }
-
   void _showAddEditDialog(BuildContext context, {TestModel? test}) {
     showDialog(
       context: context,
@@ -406,8 +391,9 @@ class _AddEditTestDialogState extends State<_AddEditTestDialog> {
         // the list refreshes. This guards against the assertion error when
         // dropdown value isn't in items.
       }
-    } catch (e) {
-      print('AdminTests: load subjects error: $e');
+    } catch (_) {
+      // Subjects failed to load — dropdown will just be empty; admin can
+      // still retry by closing & reopening the dialog.
     }
   }
 
