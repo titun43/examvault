@@ -286,12 +286,11 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: AppTheme.spaceLg),
               _buildGuestBanner(),
               const SizedBox(height: AppTheme.spaceXl),
-              // ===== Quick actions + All Free Tests (side by side) =====
-              // AREA 1 (left, ~25% wide): a single tall vertical "All Free
-              // Tests" button (blue gradient, gift icon). AREA 2 (right,
-              // ~75% wide): the existing 5 quick-action tiles in a 3-column
-              // grid. Both areas share the same height because the Row uses
-              // CrossAxisAlignment.stretch.
+              // ===== Quick actions + All Free Tests (stacked) =====
+              // SECTION 1: "All Free Tests" full-width banner button (blue
+              // gradient CTA). SECTION 2: the 5 quick-action tiles in a single
+              // 5-column row below it. Stacking (instead of side-by-side)
+              // avoids the old 3+2 tile wrap that looked uneven in dark mode.
               _buildQuickActionsRow(),
               const SizedBox(height: AppTheme.spaceXl),
               _buildAnnouncementsTicker(),
@@ -704,35 +703,30 @@ class _HomeScreenState extends State<HomeScreen> {
         .slideY(begin: 0.1);
   }
 
-  /// AREA 1 + AREA 2 layout: the single tall "All Free Tests" button on
-  /// the left, and the existing 5 quick-action tiles on the right in a
-  /// 3-column grid. Both children stretch to the same height via
-  /// CrossAxisAlignment.stretch. The left button takes ~1/4 of the width
-  /// and the grid takes ~3/4 (flex ratio 1 : 3).
+  /// Two stacked full-width sections:
+  ///   SECTION 1 — "All Free Tests" full-width banner button (blue CTA).
+  ///   SECTION 2 — the 5 quick-action tiles in a single 5-column row.
+  /// Previously these were squeezed side-by-side (button on the left took
+  /// ~25% and the grid took ~75%), which forced the 5 tiles into a 3+2 wrap
+  /// that looked uneven — especially in dark mode. Stacking them gives the
+  /// button the full width and lets all 5 tiles sit in one clean row.
   Widget _buildQuickActionsRow() {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // AREA 1 — "All Free Tests" vertical button (left, flex 1).
-          Expanded(
-            flex: 1,
-            child: _buildAllFreeTestsButton(),
-          ),
-          const SizedBox(width: AppTheme.spaceSm),
-          // AREA 2 — 5 quick-action tiles in a 3-column grid (right, flex 3).
-          Expanded(
-            flex: 3,
-            child: _buildQuickActionsGrid(),
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // SECTION 1 — "All Free Tests" full-width banner button.
+        _buildAllFreeTestsButton(),
+        const SizedBox(height: AppTheme.spaceSm),
+        // SECTION 2 — 5 quick-action tiles in a single 5-column row.
+        _buildQuickActionsGrid(),
+      ],
     );
   }
 
-  /// AREA 1 — the single tall "All Free Tests" button. Blue gradient
-  /// background, gift icon at top, vertically-stacked label in the middle,
-  /// arrow at the bottom. Tapping opens the new FreeTestsScreen.
+  /// SECTION 1 — the "All Free Tests" button, now a full-width horizontal
+  /// banner. Blue gradient background, gift icon on the left, a "FREE" pill
+  /// + label in the middle, and an arrow on the right. Tapping opens the
+  /// FreeTestsScreen.
   Widget _buildAllFreeTestsButton() {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -745,25 +739,24 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spaceSm,
-          vertical: AppTheme.spaceMd,
+          horizontal: AppTheme.spaceMd,
+          vertical: AppTheme.spaceSm + 2,
         ),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             colors: AppTheme.brandGradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           boxShadow: AppTheme.softShadow1,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Row(
           children: [
-            // Gift icon at the top (white).
+            // Gift icon on the left (white, in a translucent rounded square).
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.18),
                 borderRadius: BorderRadius.circular(AppTheme.radiusMd),
@@ -771,16 +764,16 @@ class _HomeScreenState extends State<HomeScreen> {
               child: const Icon(
                 Icons.card_giftcard_rounded,
                 color: Colors.white,
-                size: 22,
+                size: 24,
               ),
             ),
-            // Vertically-stacked label in the middle.
+            const SizedBox(width: AppTheme.spaceSm),
+            // "FREE" pill + label.
             Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // "FREE" pill (green) — emphasizes that all tests here
-                  // are free.
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppTheme.spaceSm,
@@ -800,27 +793,27 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppTheme.spaceXs + 2),
+                  const SizedBox(height: AppTheme.spaceXs),
                   L10nText(
                     'home_allFreeTests',
                     style: AppFonts.style(
-                      size: 12,
+                      size: 14,
                       weight: FontWeight.w800,
                       color: Colors.white,
                       height: 1.2,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            // Arrow at the bottom (white).
+            const SizedBox(width: AppTheme.spaceXs),
+            // Arrow on the right (white).
             const Icon(
               Icons.arrow_forward_rounded,
               color: Colors.white,
-              size: 20,
+              size: 22,
             ),
           ],
         ),
@@ -831,10 +824,9 @@ class _HomeScreenState extends State<HomeScreen> {
         .slideY(begin: 0.12);
   }
 
-  /// AREA 2 — the existing 5 quick-action tiles, now in a 3-column grid
-  /// (was 5-column when it filled the full width; now it only takes ~3/4
-  /// of the width so 3 columns + 2 rows of larger, more readable tiles
-  /// works better than a cramped 5-across strip).
+  /// SECTION 2 — the 5 quick-action tiles in a single 5-column row that
+  /// fills the full width. All five tiles now sit on one row (no 3+2 wrap),
+  /// which keeps the layout even in both light and dark mode.
   Widget _buildQuickActionsGrid() {
     // Curated palette aligned with the Assam theme — NO raw color literals.
     // Daily Quiz  → amber (accentColor)
@@ -879,7 +871,7 @@ class _HomeScreenState extends State<HomeScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
+        crossAxisCount: 5,
         mainAxisSpacing: AppTheme.spaceSm,
         crossAxisSpacing: AppTheme.spaceSm,
         childAspectRatio: 0.82,
@@ -901,7 +893,7 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: () => _navigateQuickAction(action.route),
       child: Container(
-        padding: const EdgeInsets.all(AppTheme.spaceSm),
+        padding: const EdgeInsets.all(AppTheme.spaceXs + 2),
         decoration: BoxDecoration(
           color: isDark ? AppTheme.darkCardColor : Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -911,9 +903,8 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 42,
-              height: 42,
-              padding: const EdgeInsets.all(AppTheme.spaceSm),
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -928,14 +919,14 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(
                 action.icon,
                 color: action.color,
-                size: 22,
+                size: 20,
               ),
             ),
-            const SizedBox(height: AppTheme.spaceXs + 2),
+            const SizedBox(height: AppTheme.spaceXs),
             L10nText(
               action.labelKey,
               style: AppFonts.style(
-                size: 10,
+                size: 9,
                 weight: FontWeight.w600,
                 color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
                 height: 1.2,
