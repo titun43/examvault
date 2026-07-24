@@ -27,24 +27,6 @@
 // immediately without a server round-trip.
 //
 // =============================================================================
-// v3 SINGLE-COLUMN REDESIGN (visual layer only — payment/access logic unchanged):
-//   - Test cards switched from a 2-column SliverGrid back to a single-column
-//     SliverList (one full-width card per row). Better readability, more
-//     Testbook-like, no more cramped square tiles.
-//   - Each card is now a HORIZONTAL layout:
-//       * Top: 56×56 category-tinted icon tile + title (2 lines, 15 px w700,
-//         Hero) + corner badge (FREE / PREMIUM / ₹X) on the right.
-//       * Subtitle line: type · year (category-colored, 12 px w600).
-//       * Optional "Completed · N%" green line if the user has a prior result.
-//       * Thin divider.
-//       * Bottom row: inline meta chips (Q count · duration · negative marking)
-//         on the left, compact CTA button (Start / Unlock Premium / Buy ₹X) on
-//         the right. Button height 36 to align with the chips.
-//   - Shimmer skeleton updated to match the new horizontal single-column shape.
-//   - New helpers: _metaChip (icon+label inline), _buildCompactActionButton
-//     (three variants matching the access logic, height 36). _GradientButton
-//     gains a `compact` flag (height 36, smaller icon/font/padding).
-// =============================================================================
 // v2 MODERNIZATION (visual layer only — payment/access logic unchanged):
 //   - Plain AppBar replaced with a category-themed SliverAppBar hero header.
 //     The hero shows the subject icon + name + "N Tests" count + an optional
@@ -124,11 +106,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
-import '../../models/test_result_model.dart';
 import '../../models/user_model.dart';
 import '../../services/access_service.dart';
 import '../../services/exam_pack_cache_service.dart';
@@ -138,10 +120,9 @@ import '../../services/razorpay_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/localized_content.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
-import 'test_instructions_screen.dart';
+import 'take_test_screen.dart';
 import '../auth/login_screen.dart';
 
 class TestListScreen extends StatefulWidget {
@@ -194,11 +175,6 @@ class _TestListScreenState extends State<TestListScreen> {
   // a chip calls setState and the build filters the streamed tests locally.
   _TestFilter _activeFilter = _TestFilter.all;
 
-  // testId -> user's LATEST attempt for that test (by attemptedAt). Powers
-  // the "Completed · X%" badge on each card so a user browsing a category
-  // with many tests can see at a glance which ones they've already taken.
-  Map<String, TestResultModel> _latestResults = {};
-
   @override
   void initState() {
     super.initState();
@@ -221,20 +197,6 @@ class _TestListScreenState extends State<TestListScreen> {
     // banner and grants access to all tests in this subject.
     if (widget.subject != null && widget.subject!.premiumPrice > 0) {
       _fetchSubjectPackStatus(widget.subject!.id);
-    }
-    _loadLatestResults();
-  }
-
-  Future<void> _loadLatestResults() async {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
-    final user = auth.user;
-    if (user == null) return;
-    try {
-      final results = await FirestoreService.getLatestResultsByTestId(user.id);
-      if (!mounted) return;
-      setState(() => _latestResults = results);
-    } catch (_) {
-      // Non-fatal — badge just won't show if this fails.
     }
   }
 
@@ -454,9 +416,7 @@ class _TestListScreenState extends State<TestListScreen> {
     // all resolve to the ADRE palette. Unknown ids fall back to brand emerald.
     final categoryName = subject?.categoryId;
     final heroGradient = AppTheme.gradientFor(categoryName);
-    final heroTitle = subject != null
-        ? lc(context, subject.name, subject.nameAs)
-        : tr(context, 'subject_tests');
+    final heroTitle = subject?.name ?? tr(context, 'subject_tests');
     final heroIcon = subject?.icon ?? '📝';
 
     // Subject-pack banner visibility — same condition as v1, computed up
@@ -507,15 +467,7 @@ class _TestListScreenState extends State<TestListScreen> {
 
               // ==================== CONTENT STATES ====================
               if (isLoading)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.spaceLg,
-                    AppTheme.spaceSm,
-                    AppTheme.spaceLg,
-                    AppTheme.spaceXl,
-                  ),
-                  sliver: _buildShimmerList(isDark),
-                )
+                SliverToBoxAdapter(child: _buildShimmerList(isDark))
               else if (hasError)
                 SliverFillRemaining(
                   hasScrollBody: false,
@@ -541,24 +493,10 @@ class _TestListScreenState extends State<TestListScreen> {
                     AppTheme.spaceLg,
                     AppTheme.spaceXl,
                   ),
-                  sliver: SliverList(
-                    // Single-column professional list (Testbook-style):
-                    // one full-width card per row. Horizontal layout inside
-                    // each card — icon tile + title/badge on top, meta + CTA
-                    // button on the bottom — gives the user a clean, scannable
-                    // vertical stream that reads well on every screen size.
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => Padding(
-                        padding: EdgeInsets.only(
-                          bottom: index == tests.length - 1
-                              ? 0
-                              : AppTheme.spaceMd,
-                        ),
-                        child: _buildTestCard(
-                            context, tests[index], index, isDark),
-                      ),
-                      childCount: tests.length,
-                    ),
+                  sliver: SliverList.builder(
+                    itemCount: tests.length,
+                    itemBuilder: (context, index) =>
+                        _buildTestCard(context, tests[index], index, isDark),
                   ),
                 ),
               ],
@@ -728,6 +666,12 @@ class _TestListScreenState extends State<TestListScreen> {
   // ===========================================================================
   Widget _buildShimmerList(bool isDark) {
     final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
+    final footerBgColor = isDark
+        ? Colors.white.withOpacity(0.03)
+        : const Color(0xFFFAFAFA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : AppTheme.cardBorderColor;
     final baseColor = isDark
         ? Colors.white.withOpacity(0.06)
         : Colors.grey.shade300;
@@ -735,87 +679,99 @@ class _TestListScreenState extends State<TestListScreen> {
         ? Colors.white.withOpacity(0.14)
         : Colors.grey.shade100;
 
-    // Single-column shimmer matching the real SliverList (one full-width
-    // horizontal card per row). 6 rows fills the viewport on most phones
-    // and gives a smooth scroll-feel during the brief fetch window.
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) => Padding(
-          padding: EdgeInsets.only(
-            bottom: index == 5 ? 0 : AppTheme.spaceMd,
+    // Shimmer skeleton matching the real 4-row Testbook-style card:
+    // Row 1: badges + exam tag | Row 2: title | Row 3: stats + start link |
+    // Row 4: footer bar. 5 cards fill the viewport on most phones.
+    return Column(
+      children: List.generate(5, (index) {
+        return Container(
+          margin: const EdgeInsets.fromLTRB(
+              AppTheme.spaceLg, AppTheme.spaceSm, AppTheme.spaceLg, 0),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            boxShadow: AppTheme.softShadow1,
+            border: Border.all(color: borderColor, width: 1),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(AppTheme.spaceMd),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-              boxShadow: AppTheme.softShadow1,
-            ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
             child: Shimmer.fromColors(
               baseColor: baseColor,
               highlightColor: highlightColor,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top row: icon tile (56×56) + title block + badge
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _skeletonBox(56, 56, AppTheme.radiusMd),
-                      const SizedBox(width: AppTheme.spaceMd),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  // Top content block (Row 1 + Row 2 + Row 3).
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppTheme.spaceLg,
+                      AppTheme.spaceMd,
+                      AppTheme.spaceLg,
+                      AppTheme.spaceMd,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Row 1: badges (left) + exam tag (right).
+                        Row(
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _skeletonBox(
-                                          double.infinity, 14, AppTheme.radiusSm),
-                                      const SizedBox(height: 6),
-                                      _skeletonBox(
-                                          120, 14, AppTheme.radiusSm),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: AppTheme.spaceSm),
-                                _skeletonBox(
-                                    44, 20, AppTheme.radiusFull),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            _skeletonBox(70, 10, AppTheme.radiusSm),
+                            _skeletonBox(54, 18, AppTheme.radiusFull),
+                            const SizedBox(width: AppTheme.spaceSm),
+                            _skeletonBox(54, 18, AppTheme.radiusFull),
+                            const Spacer(),
+                            _skeletonBox(80, 12, AppTheme.radiusSm),
                           ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: AppTheme.spaceSm),
+                        // Row 2: title (2 lines).
+                        _skeletonBox(
+                            double.infinity, 15, AppTheme.radiusSm),
+                        const SizedBox(height: 6),
+                        _skeletonBox(180, 15, AppTheme.radiusSm),
+                        const SizedBox(height: AppTheme.spaceSm),
+                        // Row 3: stats (left) + start link (right).
+                        Row(
+                          children: [
+                            _skeletonBox(60, 12, AppTheme.radiusSm),
+                            const SizedBox(width: AppTheme.spaceSm),
+                            _skeletonBox(60, 12, AppTheme.radiusSm),
+                            const SizedBox(width: AppTheme.spaceSm),
+                            _skeletonBox(60, 12, AppTheme.radiusSm),
+                            const Spacer(),
+                            _skeletonBox(70, 14, AppTheme.radiusSm),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  // Divider
-                  _skeletonBox(double.infinity, 1, AppTheme.radiusFull),
-                  const SizedBox(height: AppTheme.spaceSm),
-                  // Bottom row: meta chips + button
-                  Row(
-                    children: [
-                      _skeletonBox(50, 12, AppTheme.radiusSm),
-                      const SizedBox(width: AppTheme.spaceMd),
-                      _skeletonBox(50, 12, AppTheme.radiusSm),
-                      const Spacer(),
-                      _skeletonBox(90, 36, AppTheme.radiusMd),
-                    ],
+                  // Row 4: footer bar.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceLg,
+                      vertical: AppTheme.spaceSm + 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: footerBgColor,
+                      border: Border(
+                        top: BorderSide(color: borderColor, width: 0.8),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        _skeletonBox(50, 11, AppTheme.radiusSm),
+                        const SizedBox(width: AppTheme.spaceMd),
+                        _skeletonBox(30, 11, AppTheme.radiusSm),
+                        const Spacer(),
+                        _skeletonBox(45, 11, AppTheme.radiusSm),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-        ),
-        childCount: 6,
-      ),
+        );
+      }),
     );
   }
 
@@ -1044,33 +1000,19 @@ class _TestListScreenState extends State<TestListScreen> {
     bool isDark,
   ) {
     // listen: TRUE — so the card rebuilds when AuthProvider changes.
-    // This is CRITICAL: after a successful payment, addPurchasedTest() calls
-    // notifyListeners(). Without listen:true, the card would NOT rebuild and
-    // the button would stay as "Buy" even though the test was just purchased
-    // — exactly the "payment success hole kichui hoi na, akhano buy dekhachche"
-    // bug. With listen:true, the button flips from "Buy" to "Start Test"
-    // INSTANTLY after payment success.
+    // CRITICAL: after a successful payment, addPurchasedTest() calls
+    // notifyListeners(). Without listen:true the button stays "Buy".
     final auth = Provider.of<AuthProvider>(context, listen: true);
     final user = auth.user;
-    // Use the SERVER-SIDE premium status (accurate) instead of the local
-    // Firestore copy (can be stale). This ensures the button label matches
-    // what will actually happen when the user taps it.
     final isPremium = _effectiveIsPremium(user);
     final hasPurchasedTest =
         (user?.purchasedTests.contains(test.id) ?? false);
-    // LOCAL exam-pack check (synchronous) — the Firestore-loaded
-    // purchasedCategoryIds. This is the instant source that prevents the
-    // "Buy" flash: even before _serverHasExamPackAccess flips to true (after
-    // the 300-900ms server round-trip), this local check grants access.
     final rawCategoryId =
         (widget.categoryId != null && widget.categoryId!.isNotEmpty)
             ? widget.categoryId!
             : (widget.subject?.categoryId ?? '');
     final localHasExamPack = rawCategoryId.isNotEmpty &&
         (user?.purchasedCategoryIds.contains(rawCategoryId) ?? false);
-    // Also grant access when the user owns the exam pack for this category
-    // (local OR server-confirmed). Without this check, exam-pack buyers see
-    // a "Buy" button on every test inside the category they already paid for.
     final hasAccess = isPremium ||
         hasPurchasedTest ||
         localHasExamPack ||
@@ -1078,23 +1020,31 @@ class _TestListScreenState extends State<TestListScreen> {
         _serverHasSubjectPackAccess;
     final isPaid = test.isPaid;
     final needsPurchase = isPaid && !hasAccess;
-    // Distinguish "premium-only" (no individual price) from "buy individually".
     final isPremiumOnly = test.isPremium && test.price <= 0;
     final canBuyIndividually = test.price > 0;
 
-    // Category accent color (for the left bar + icon tile).
+    // Category name (for the footer exam-tag and subject fallback).
     final categoryName = widget.subject?.categoryId;
-    final categoryColor = AppTheme.colorFor(categoryName);
 
     final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
     final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
     final subtleTextColor =
-        isDark ? Colors.white70 : const Color(0xFF57534E);
+        isDark ? Colors.white60 : const Color(0xFF6B7280);
     final borderColor = isDark
         ? Colors.white.withOpacity(0.06)
-        : Colors.black.withOpacity(0.05);
+        : AppTheme.cardBorderColor;
+    final footerBgColor = isDark
+        ? Colors.white.withOpacity(0.03)
+        : const Color(0xFFFAFAFA);
+
+    // Subject name (for the footer subject tag). Falls back to the category
+    // id if no subject is passed in.
+    final subjectName = widget.subject != null
+        ? widget.subject!.name
+        : (categoryName?.isNotEmpty == true ? categoryName! : 'Test');
 
     return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -1106,8 +1056,7 @@ class _TestListScreenState extends State<TestListScreen> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            // Whole card is tappable — same logic as the action button.
-            // Testbook-style: tap anywhere on the card to start/buy.
+            // Whole card is tappable — Testbook-style.
             onTap: () {
               HapticFeedback.selectionClick();
               if (needsPurchase) {
@@ -1117,155 +1066,225 @@ class _TestListScreenState extends State<TestListScreen> {
               }
             },
             borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-            child: Padding(
-              padding: const EdgeInsets.all(AppTheme.spaceMd),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ===== Top row: icon tile + title block + badge =====
-                  Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ===== Top content block (padding) =====
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spaceLg,
+                    AppTheme.spaceMd,
+                    AppTheme.spaceLg,
+                    AppTheme.spaceMd,
+                  ),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Icon tile (56×56, category-tinted).
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: categoryColor.withOpacity(0.12),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMd),
-                          border: Border.all(
-                            color: categoryColor.withOpacity(0.28),
-                            width: 1,
+                      // ===== ROW 1: Badges (left) + exam tags (right) =====
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Left: dual badges — access pill + type pill.
+                          Expanded(
+                            child: Wrap(
+                              spacing: AppTheme.spaceSm,
+                              runSpacing: AppTheme.spaceXs,
+                              children: _buildCardBadges(
+                                context: context,
+                                test: test,
+                                canBuyIndividually: canBuyIndividually,
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            _emojiForTestType(test.type),
-                            style: const TextStyle(fontSize: 28),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spaceMd),
-                      // Title block (flex).
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title + corner badge row.
+                          // Right: exam category tag (with pin icon).
+                          if (categoryName != null &&
+                              categoryName.isNotEmpty) ...[
+                            const SizedBox(width: AppTheme.spaceSm),
                             Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Expanded(
-                                  child: Hero(
-                                    tag: 'test-title-${test.id}',
-                                    child: Material(
-                                      type: MaterialType.transparency,
-                                      child: Text(
-                                        lc(
-                                            context, test.title, test.titleAs),
-                                        style: AppFonts.style(
-                                          size: 15,
-                                          weight: FontWeight.w700,
-                                          color: titleColor,
-                                          height: 1.3,
-                                        ),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ),
+                                Icon(
+                                  Icons.location_on_outlined,
+                                  size: 12,
+                                  color: subtleTextColor,
                                 ),
-                                const SizedBox(width: AppTheme.spaceSm),
-                                _buildCardBadge(
-                                  context: context,
-                                  test: test,
-                                  canBuyIndividually: canBuyIndividually,
+                                const SizedBox(width: 3),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                      maxWidth: 120),
+                                  child: Text(
+                                    categoryName,
+                                    style: AppFonts.style(
+                                      size: 11,
+                                      weight: FontWeight.w600,
+                                      color: subtleTextColor,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
-                            // Type · Year subtitle (category-colored).
-                            Text(
-                              _buildTypeYearLabel(context, test),
-                              style: AppFonts.style(
-                                size: 12,
-                                weight: FontWeight.w600,
-                                color: categoryColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: AppTheme.spaceSm),
+
+                      // ===== ROW 2: Title (Hero, 2-3 lines) =====
+                      Hero(
+                        tag: 'test-title-${test.id}',
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: Text(
+                            test.title,
+                            style: AppFonts.style(
+                              size: 16,
+                              weight: FontWeight.w700,
+                              color: titleColor,
+                              height: 1.3,
                             ),
-                            // Completed % (if attempted).
-                            if (_latestResults[test.id] != null) ...[
-                              const SizedBox(height: 2),
-                              Text(
-                                'Completed \u00b7 ${_latestResults[test.id]!.percentage.round()}%',
-                                style: AppFonts.style(
-                                  size: 11,
-                                  weight: FontWeight.w700,
-                                  color: AppTheme.successColor,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      // Optional "Completed · N%" line if attempted.
+                      if (_latestResults[test.id] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Completed \u00b7 ${_latestResults[test.id]!.percentage.round()}%',
+                          style: AppFonts.style(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: AppTheme.successColor,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: AppTheme.spaceSm),
+
+                      // ===== ROW 3: Stats (left) + Start Now link (right) =====
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Stats inline: Qs · mins · marks (gray, dot-separated).
+                          Expanded(
+                            child: Wrap(
+                              crossAxisAlignment:
+                                  WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  '${test.questionCount} ${tr(context, 'test_questions')}',
+                                  style: AppFonts.style(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
+                                _dotSeparator(subtleTextColor),
+                                Text(
+                                  '${test.duration} ${tr(context, 'test_duration')}',
+                                  style: AppFonts.style(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
+                                ),
+                                _dotSeparator(subtleTextColor),
+                                Text(
+                                  '${test.totalMarks} ${tr(context, 'test_marks')}',
+                                  style: AppFonts.style(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spaceSm),
+                          // "Start Now →" blue link (Testbook-style compact CTA).
+                          _buildStartNowLink(
+                            context: context,
+                            test: test,
+                            user: user,
+                            needsPurchase: needsPurchase,
+                            isPremiumOnly: isPremiumOnly,
+                            price: test.price,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
+                ),
 
-                  // ===== Divider =====
-                  Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    color: borderColor,
+                // ===== ROW 4: Footer bar (subject + language + timer + share) =====
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceLg,
+                    vertical: AppTheme.spaceSm + 2,
                   ),
-                  const SizedBox(height: AppTheme.spaceSm),
-
-                  // ===== Bottom row: meta chips (left) + CTA button (right) =====
-                  Row(
+                  decoration: BoxDecoration(
+                    color: footerBgColor,
+                    border: Border(
+                      top: BorderSide(color: borderColor, width: 0.8),
+                    ),
+                  ),
+                  child: Row(
                     children: [
-                      Expanded(
-                        child: Wrap(
-                          spacing: AppTheme.spaceMd,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            _metaChip(
-                              icon: Icons.help_outline_rounded,
-                              label: '${test.questionCount}Q',
-                              color: subtleTextColor,
-                            ),
-                            _metaChip(
-                              icon: Icons.timer_outlined,
-                              label: '${test.duration}m',
-                              color: subtleTextColor,
-                            ),
-                            if (test.negativeMarking)
-                              _metaChip(
-                                icon: Icons.warning_amber_rounded,
-                                label: tr(context, 'test_negativeMarking'),
-                                color: AppTheme.warningColor,
-                              ),
-                          ],
+                      // Subject tag (category-colored text).
+                      Icon(Icons.book_outlined,
+                          size: 13, color: AppTheme.primaryColor),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          subjectName,
+                          style: AppFonts.style(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: AppTheme.primaryColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: AppTheme.spaceSm),
-                      _buildCompactActionButton(
-                        context: context,
-                        test: test,
-                        user: user,
-                        needsPurchase: needsPurchase,
-                        isPremiumOnly: isPremiumOnly,
-                        price: test.price,
+                      const SizedBox(width: AppTheme.spaceMd),
+                      // Language indicator.
+                      Icon(Icons.language_rounded,
+                          size: 13, color: AppTheme.primaryColor),
+                      const SizedBox(width: 3),
+                      Text(
+                        'EN',
+                        style: AppFonts.style(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: AppTheme.primaryColor,
+                        ),
                       ),
+                      const SizedBox(width: AppTheme.spaceMd),
+                      // Negative-marking warning (if applicable).
+                      if (test.negativeMarking) ...[
+                        Icon(Icons.warning_amber_rounded,
+                            size: 13, color: AppTheme.warningColor),
+                        const SizedBox(width: 3),
+                        Text(
+                          tr(context, 'test_negativeMarking'),
+                          style: AppFonts.style(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: AppTheme.warningColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(width: AppTheme.spaceMd),
+                      ],
+                      const Spacer(),
+                      // Share button (green text + icon, Testbook-style).
+                      _ShareButton(test: test),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1274,6 +1293,148 @@ class _TestListScreenState extends State<TestListScreen> {
         .animate()
         .fadeIn(delay: (index * 50).ms, duration: 400.ms)
         .slideY(begin: 0.06);
+  }
+
+  /// Gray dot separator used between stats in Row 3.
+  Widget _dotSeparator(Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        '\u00b7',
+        style: AppFonts.style(
+          size: 14,
+          weight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  /// Row 1 badges — access pill (FREE/Premium/₹X) + test-type pill (outlined).
+  /// Testbook-style: compact dual badges on the top-left of the card.
+  List<Widget> _buildCardBadges({
+    required BuildContext context,
+    required TestModel test,
+    required bool canBuyIndividually,
+  }) {
+    final badges = <Widget>[];
+
+    // Access badge — the single most important signal.
+    if (!test.isPaid) {
+      // FREE — green filled pill.
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'free'),
+        color: AppTheme.successColor,
+      ));
+    } else if (test.isPremium && !canBuyIndividually) {
+      // Premium-only — amber gradient pill.
+      badges.add(_pill(
+        context: context,
+        label: tr(context, 'premium'),
+        gradientColors: AppTheme.accentGradientColors,
+        isGradient: true,
+      ));
+    } else if (canBuyIndividually) {
+      // Paid — amber solid pill with ₹X.
+      badges.add(_pill(
+        context: context,
+        label: '\u20b9${test.price}',
+        color: AppTheme.accentColor,
+      ));
+    }
+
+    // Test-type pill (outlined, category-colored).
+    String? typeLabel;
+    if (test.type == TestType.mock) {
+      typeLabel = tr(context, 'test_mock');
+    } else if (test.type == TestType.previousYear) {
+      typeLabel = tr(context, 'test_previousYear');
+    } else if (test.type == TestType.dailyQuiz) {
+      typeLabel = tr(context, 'daily_quiz_title');
+    }
+    if (typeLabel != null) {
+      badges.add(_pill(
+        context: context,
+        label: typeLabel,
+        color: AppTheme.primaryColor,
+        outlined: true,
+      ));
+    }
+
+    // Year pill (outlined).
+    if (test.year != null && test.year! > 0) {
+      badges.add(_pill(
+        context: context,
+        label: '${test.year}',
+        color: AppTheme.primaryColor,
+        outlined: true,
+      ));
+    }
+
+    return badges;
+  }
+
+  /// Row 3 compact "Start Now →" link. Testbook-style: blue text link with
+  /// a right-arrow, NOT a full-width filled button. Three variants matching
+  /// the access logic:
+  ///   * Start Now (primary blue) — when the user has access
+  ///   * Unlock Premium (accent amber) — premium-only, no individual price
+  ///   * Buy ₹X (accent amber) — paid test that can be bought individually
+  Widget _buildStartNowLink({
+    required BuildContext context,
+    required TestModel test,
+    required UserModel? user,
+    required bool needsPurchase,
+    required bool isPremiumOnly,
+    required int price,
+  }) {
+    final Color linkColor = needsPurchase
+        ? AppTheme.accentColor
+        : AppTheme.primaryColor;
+    final String label = !needsPurchase
+        ? tr(context, 'startNow')
+        : (isPremiumOnly
+            ? tr(context, 'test_unlockPremium')
+            : '${tr(context, 'test_buyNow')} \u20b9$price');
+    final IconData icon = !needsPurchase
+        ? Icons.arrow_forward_rounded
+        : (isPremiumOnly
+            ? Icons.workspace_premium_rounded
+            : Icons.shopping_cart_outlined);
+
+    return InkWell(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        if (needsPurchase) {
+          _showPurchaseSheet(context, test, user);
+        } else {
+          _startTest(context, test);
+        }
+      },
+      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceSm,
+          vertical: AppTheme.spaceXs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: AppFonts.style(
+                size: 13,
+                weight: FontWeight.w700,
+                color: linkColor,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(icon, size: 16, color: linkColor),
+          ],
+        ),
+      ),
+    );
   }
 
   String _emojiForTestType(TestType type) {
@@ -1291,44 +1452,41 @@ class _TestListScreenState extends State<TestListScreen> {
     }
   }
 
-  // ===========================================================================
-  // CARD HELPERS (Testbook-style single-column horizontal card)
-  // ===========================================================================
-
-  /// Compact corner badge for the test card's top-right corner.
-  /// Shows only the MOST important access/price signal: FREE, Premium, or ₹X.
-  Widget _buildCardBadge({
+  /// Visual-hierarchy badges helper retained as `_pill` (used by
+  /// `_buildCardBadges`). The old `_buildBadges` / `_buildMetaItem` /
+  /// `_buildActionButton` helpers were removed in the v3 4-row redesign —
+  /// `_buildCardBadges` + `_buildStartNowLink` replace them.
+  Widget _pill({
     required BuildContext context,
-    required TestModel test,
-    required bool canBuyIndividually,
+    required String label,
+    Color? color,
+    List<Color>? gradientColors,
+    bool isGradient = false,
+    bool outlined = false,
   }) {
-    if (!test.isPaid) {
-      return _cardCornerBadge(tr(context, 'free'), AppTheme.successColor);
-    } else if (test.isPremium && !canBuyIndividually) {
-      return _cardCornerBadge(
-        tr(context, 'premium'),
-        AppTheme.accentColor,
-        isGradient: true,
-      );
-    } else if (canBuyIndividually) {
-      return _cardCornerBadge('₹${test.price}', AppTheme.accentColor);
-    }
-    return const SizedBox.shrink();
-  }
+    final LinearGradient? gradientBg = isGradient
+        ? LinearGradient(
+            colors: gradientColors!,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : null;
+    final Color? solidBg = isGradient
+        ? null
+        : (outlined ? color!.withOpacity(0.1) : color!.withOpacity(0.15));
 
-  Widget _cardCornerBadge(String label, Color color, {bool isGradient = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spaceSm,
+        vertical: AppTheme.spaceXs,
+      ),
       decoration: BoxDecoration(
-        gradient: isGradient
-            ? LinearGradient(
-                colors: AppTheme.accentGradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              )
-            : null,
-        color: isGradient ? null : color.withOpacity(0.15),
+        gradient: gradientBg,
+        color: solidBg,
         borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+        border: outlined
+            ? Border.all(color: color!.withOpacity(0.4), width: 0.8)
+            : null,
       ),
       child: Text(
         label,
@@ -1336,131 +1494,9 @@ class _TestListScreenState extends State<TestListScreen> {
           size: 10,
           weight: FontWeight.w800,
           color: isGradient ? Colors.white : color,
-          letterSpacing: 0.3,
+          letterSpacing: 0.4,
         ),
       ),
-    );
-  }
-
-  /// "Type · Year" compact subtitle for the card (e.g. "Mock · 2024").
-  String _buildTypeYearLabel(BuildContext context, TestModel test) {
-    final parts = <String>[];
-    switch (test.type) {
-      case TestType.mock:
-        parts.add(tr(context, 'test_mock'));
-        break;
-      case TestType.previousYear:
-        parts.add(tr(context, 'test_previousYear'));
-        break;
-      case TestType.dailyQuiz:
-        parts.add(tr(context, 'daily_quiz_title'));
-        break;
-      case TestType.practice:
-        parts.add(tr(context, 'test_mock'));
-        break;
-      case TestType.subjectwise:
-        parts.add(tr(context, 'test_mock'));
-        break;
-    }
-    if (test.year != null && test.year! > 0) {
-      parts.add('${test.year}');
-    }
-    return parts.join(' · ');
-  }
-
-  /// Compact inline meta chip — used in the bottom row of the new horizontal
-  /// Testbook-style card. Renders an icon + label inline (no background) so
-  /// multiple chips can sit side-by-side via Wrap.
-  Widget _metaChip({
-    required IconData icon,
-    required String label,
-    required Color color,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: AppFonts.style(
-            size: 12,
-            weight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Compact inline CTA button — sits at the right end of the card's bottom
-  /// row. Three variants matching the access logic:
-  ///   * Start Test (filled primary) — when the user has access
-  ///   * Unlock Premium (outlined accent) — premium-only, no individual price
-  ///   * Buy ₹X (gradient accent) — paid test that can be bought individually
-  Widget _buildCompactActionButton({
-    required BuildContext context,
-    required TestModel test,
-    required UserModel? user,
-    required bool needsPurchase,
-    required bool isPremiumOnly,
-    required int price,
-  }) {
-    if (!needsPurchase) {
-      return ElevatedButton.icon(
-        onPressed: () => _startTest(context, test),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primaryColor,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-          minimumSize: const Size(0, 36),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          ),
-        ),
-        icon: const Icon(Icons.play_arrow_rounded, size: 18),
-        label: Text(
-          tr(context, 'test_startTest'),
-          style: AppFonts.style(
-            size: 13,
-            weight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-      );
-    }
-    if (isPremiumOnly) {
-      return OutlinedButton.icon(
-        onPressed: () => _showPurchaseSheet(context, test, user),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.accentColor,
-          side: BorderSide(color: AppTheme.accentColor, width: 1.5),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-          minimumSize: const Size(0, 36),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          ),
-        ),
-        icon: const Icon(Icons.workspace_premium_rounded, size: 18),
-        label: Text(
-          tr(context, 'test_unlockPremium'),
-          style: AppFonts.style(
-            size: 13,
-            weight: FontWeight.w700,
-            color: AppTheme.accentColor,
-          ),
-        ),
-      );
-    }
-    return _GradientButton(
-      gradient: AppTheme.accentGradientColors,
-      icon: Icons.shopping_cart_outlined,
-      label: '${tr(context, 'test_buyNow')} ₹$price',
-      onPressed: () => _showPurchaseSheet(context, test, user),
-      compact: true,
     );
   }
 
@@ -1491,7 +1527,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -1529,7 +1565,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (!context.mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+        MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
       );
       return;
     }
@@ -1548,7 +1584,7 @@ class _TestListScreenState extends State<TestListScreen> {
         if (!context.mounted) return;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
         return;
       }
@@ -1561,7 +1597,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
       } else if (e.statusCode == 404) {
         // Backend not ready — show the friendly message.
@@ -1576,7 +1612,7 @@ class _TestListScreenState extends State<TestListScreen> {
       if (localHasAccess) {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+          MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
         );
       }
     }
@@ -1635,7 +1671,7 @@ class _TestListScreenState extends State<TestListScreen> {
                 ),
                 Text(
                   tr(context, 'test_unlockTest')
-                      .replaceAll('{title}', lc(context, test.title, test.titleAs)),
+                      .replaceAll('{title}', test.title),
                   style: AppFonts.style(
                     size: 16,
                     weight: FontWeight.w700,
@@ -1822,7 +1858,7 @@ class _TestListScreenState extends State<TestListScreen> {
       userEmail: user.email ?? 'user@examvault.com',
       userPhone: user.phoneNumber ?? '9999999999',
       testId: test.id,
-      testTitle: lc(context, test.title, test.titleAs),
+      testTitle: test.title,
       amount: test.price,
       subjectId:
           test.subjectId.isNotEmpty ? test.subjectId : widget.subject?.id,
@@ -1886,7 +1922,7 @@ class _TestListScreenState extends State<TestListScreen> {
         // na" — the user now gets clear, unmissable feedback.
         PaymentSuccessDialog.show(
           context,
-          itemName: lc(context, test.title, test.titleAs),
+          itemName: test.title,
           amount: test.price,
           actionLabel: tr(context, 'test_openTest'),
           paymentId: response.paymentId,
@@ -1894,7 +1930,7 @@ class _TestListScreenState extends State<TestListScreen> {
           if (shouldOpen && context.mounted) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => TestInstructionsScreen(test: test, categoryId: effectiveCategoryId)),
+              MaterialPageRoute(builder: (_) => TakeTestScreen(test: test, categoryId: effectiveCategoryId)),
             );
           }
         });
@@ -1959,7 +1995,7 @@ class _TestListScreenState extends State<TestListScreen> {
               children: [
                 Text(
                   tr(context, 'test_unlockSubject')
-                      .replaceAll('{subject}', lc(context, subject.name, subject.nameAs)),
+                      .replaceAll('{subject}', subject.name),
                   style: AppFonts.style(
                     size: 14,
                     weight: FontWeight.w700,
@@ -2060,7 +2096,7 @@ class _TestListScreenState extends State<TestListScreen> {
       userEmail: user.email ?? 'user@examvault.com',
       userPhone: user.phoneNumber ?? '9999999999',
       subjectId: subject.id,
-      subjectName: lc(context, subject.name, subject.nameAs),
+      subjectName: subject.name,
       amount: subject.premiumPrice,
       categoryId: effectiveCategoryId,
       onPreparing: () {
@@ -2104,7 +2140,7 @@ class _TestListScreenState extends State<TestListScreen> {
         PaymentSuccessDialog.show(
           context,
           itemName:
-              '${tr(context, 'test_subjectPackPrefix')}${lc(context, subject.name, subject.nameAs)}',
+              '${tr(context, 'test_subjectPackPrefix')}${subject.name}',
           amount: subject.premiumPrice,
           actionLabel: tr(context, 'done'),
           paymentId: response.paymentId,
@@ -2143,31 +2179,21 @@ class _FilterChipData {
 
 /// Amber-gradient "Buy Now ₹X" button. ElevatedButton doesn't support
 /// gradients directly, so we use a Material + Ink + InkWell + gradient.
-/// Pass `compact: true` for the inline card-CTA variant (height 36, smaller
-/// icon/font/padding) so it lines up with the meta chips on the bottom row.
 class _GradientButton extends StatelessWidget {
   final List<Color> gradient;
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
-  final bool compact;
 
   const _GradientButton({
     required this.gradient,
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double height = compact ? 36 : 44;
-    final double iconSize = compact ? 18 : 20;
-    final double fontSize = compact ? 13 : 14;
-    final double horizontalPadding =
-        compact ? AppTheme.spaceMd : AppTheme.spaceLg;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2183,20 +2209,20 @@ class _GradientButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppTheme.radiusMd),
           ),
           child: Container(
-            height: height,
+            height: 44,
             alignment: Alignment.center,
             padding:
-                EdgeInsets.symmetric(horizontal: horizontalPadding),
+                const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: iconSize, color: Colors.white),
+                Icon(icon, size: 20, color: Colors.white),
                 const SizedBox(width: AppTheme.spaceSm),
                 Text(
                   label,
                   style: AppFonts.style(
-                    size: fontSize,
+                    size: 14,
                     weight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -2204,6 +2230,58 @@ class _GradientButton extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Testbook-style "Share" button for the test card footer. Renders as a
+/// compact green text + share icon (no background). Tapping it opens the
+/// system share sheet with a short message + the app's Play Store link.
+class _ShareButton extends StatelessWidget {
+  final TestModel test;
+  const _ShareButton({required this.test});
+
+  Future<void> _share() async {
+    final text =
+        '${test.title}\n\nCheck out this test on ExamVault — mock tests, '
+        'previous year papers & daily quizzes for Assam exams.';
+    try {
+      await Share.share(text);
+    } catch (_) {
+      // Silently ignore share failures — non-critical action.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: _share,
+      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceXs,
+          vertical: AppTheme.spaceXs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.share_outlined,
+              size: 13,
+              color: AppTheme.successColor,
+            ),
+            const SizedBox(width: 3),
+            Text(
+              'Share',
+              style: AppFonts.style(
+                size: 11,
+                weight: FontWeight.w700,
+                color: AppTheme.successColor,
+              ),
+            ),
+          ],
         ),
       ),
     );

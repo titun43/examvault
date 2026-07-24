@@ -1,14 +1,17 @@
 // =============================================================================
-// ExamVault - Theme Configuration (Modernized v2)
+// ExamVault - Theme Configuration (Modernized v3 — Testbook-style blue)
 // =============================================================================
-// Assam-inspired palette: Emerald (tea gardens / Brahmaputra) + Amber (gamocha).
-// Material 3 tonal scheme with soft shadows, design tokens, and full dark mode.
-// NO blue/indigo primary — respects project color guidelines.
+// Primary: Vivid blue #0066FF (Testbook-style clean professional look).
+// Accent: Warm amber (premium/buy highlights). Background: pure white so
+// cards float on subtle shadows + a 1px #E5E7EB border.
+// Category identity colors (ADRE/APSC/TET/...) are PRESERVED so each exam
+// keeps its signature gradient on hero headers.
 //
 // BACKWARD COMPATIBILITY: All legacy static color properties (primaryColor,
 // accentColor, categoryColors, gradients, text styles, lightTheme, darkTheme)
 // keep their names so existing screens compile unchanged. New tokens are
-// additive (spacing, radius, elevation, softShadows, categoryGradients).
+// additive (spacing, radius, elevation, softShadows, categoryGradients,
+// liveBadgeColor, cardBorderColor).
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -17,25 +20,29 @@ import 'app_fonts.dart';
 class AppTheme {
   AppTheme._();
 
-  // ==================== CORE PALETTE (Assam-inspired) ====================
-  // Primary: Deep emerald/teal — অসমৰ চাহ-বাগিচা আৰু ব্ৰহ্মপুত্ৰ
-  static const Color primaryColor = Color(0xFF0F766E);       // Teal 700
-  static const Color primaryLightColor = Color(0xFF14B8A6);   // Teal 500
-  static const Color primaryDarkColor = Color(0xFF115E59);    // Teal 800
-  static const Color primaryUltraDarkColor = Color(0xFF042F2E); // Teal 950
+  // ==================== CORE PALETTE (Testbook-style blue) ====================
+  // Primary: Vivid blue #0066FF — clean professional exam-prep look.
+  static const Color primaryColor = Color(0xFF0066FF);         // Blue (brand)
+  static const Color primaryLightColor = Color(0xFF3D8BFF);    // Lighter blue
+  static const Color primaryDarkColor = Color(0xFF0052CC);     // Darker blue
+  static const Color primaryUltraDarkColor = Color(0xFF003D99); // Deep blue
 
-  // Accent: Warm amber/saffron — গামোচা
+  // Accent: Warm amber (premium / buy highlights — kept from v2)
   static const Color accentColor = Color(0xFFF59E0B);         // Amber 500
   static const Color accentLightColor = Color(0xFFFBBF24);    // Amber 400
   static const Color accentDarkColor = Color(0xFFD97706);     // Amber 600
 
-  // Neutrals — warm stone (not cold blue-grey)
-  static const Color backgroundColor = Color(0xFFFAFAF9);     // Stone 50
-  static const Color surfaceColor = Color(0xFFF5F5F4);        // Stone 100
+  // Neutrals — pure white background (cards float on shadow + subtle border)
+  static const Color backgroundColor = Color(0xFFFFFFFF);     // Pure white
+  static const Color surfaceColor = Color(0xFFFFFFFF);        // Pure white
+  static const Color cardBorderColor = Color(0xFFE5E7EB);     // Light gray border
   static const Color errorColor = Color(0xFFDC2626);          // Red 600
-  static const Color successColor = Color(0xFF16A34A);        // Green 600
+  static const Color successColor = Color(0xFF16A34A);        // Green 600 (FREE badge)
   static const Color warningColor = Color(0xFFEA580C);        // Orange 600
-  static const Color infoColor = Color(0xFF0F766E);           // Teal (brand)
+  static const Color infoColor = Color(0xFF0066FF);           // Blue (brand)
+
+  // Live badge — pink outlined, Testbook-style for live quizzes/tests
+  static const Color liveBadgeColor = Color(0xFFEC4899);      // Pink 500
 
   // ==================== SEMANTIC TYPE COLORS ====================
   // Brand-aligned replacements for raw `Colors.purple/green/teal/...` that
@@ -64,8 +71,8 @@ class AppTheme {
   static const Color reviewMarkColor = Color(0xFF7C3AED);   // Violet 600
 
   // ==================== DARK THEME COLORS ====================
-  static const Color darkPrimaryColor = Color(0xFF2DD4BF);     // Teal 400
-  static const Color darkPrimaryLightColor = Color(0xFF5EEAD4); // Teal 300
+  static const Color darkPrimaryColor = Color(0xFF5A9CFF);     // Lighter blue (dark mode)
+  static const Color darkPrimaryLightColor = Color(0xFF80B3FF); // Even lighter blue
   static const Color darkBackgroundColor = Color(0xFF0C0A09);  // Stone 950
   static const Color darkSurfaceColor = Color(0xFF1C1917);     // Stone 900
   static const Color darkCardColor = Color(0xFF292524);        // Stone 800
@@ -202,10 +209,10 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
-  /// Brand gradient — emerald → teal (used for hero headers, primary CTAs)
+  /// Brand gradient — blue → deep blue (used for hero headers, primary CTAs)
   static const List<Color> brandGradient = [
-    Color(0xFF0F766E),
-    Color(0xFF115E59),
+    Color(0xFF0066FF),
+    Color(0xFF0052CC),
   ];
 
   /// Accent gradient — amber → orange (used for premium, highlights)
@@ -214,9 +221,9 @@ class AppTheme {
     Color(0xFFD97706),
   ];
 
-  // Legacy cardGradient — keep name, update to brand emerald (was blue)
+  // Legacy cardGradient — keep name, updated to brand blue (Testbook v3)
   static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF0F766E), Color(0xFF14B8A6)],
+    colors: [Color(0xFF0066FF), Color(0xFF3D8BFF)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

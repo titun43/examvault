@@ -12,11 +12,9 @@ import '../../models/test_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
-import '../../utils/localized_content.dart';
-import '../../l10n/app_localizations.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/weekly_streak_indicator.dart';
-import 'test_instructions_screen.dart';
+import 'take_test_screen.dart';
 
 class DailyQuizScreen extends StatelessWidget {
   const DailyQuizScreen({super.key});
@@ -25,7 +23,7 @@ class DailyQuizScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(title: L10nText('daily_quiz_title')),
+      appBar: AppBar(title: const Text('Daily Quiz')),
       body: StreamBuilder<List<TestModel>>(
         stream: FirestoreService.getTestsStream(
           type: TestType.dailyQuiz,
@@ -43,19 +41,8 @@ class DailyQuizScreen extends StatelessWidget {
             return _buildEmptyState(context, isDark);
           }
 
-          // Only quizzes created TODAY are eligible for the "Today's Quiz"
-          // section. Older quizzes go into "Previous Quizzes". This prevents
-          // a stale Monday quiz from being labelled "Today's Quiz" on Friday
-          // (Critical #7 fix).
-          final now = DateTime.now();
-          bool isSameDay(DateTime a, DateTime b) =>
-              a.year == b.year && a.month == b.month && a.day == b.day;
-          final todayQuizzes =
-              quizzes.where((q) => isSameDay(q.createdAt, now)).toList();
-          final previousQuizzes =
-              quizzes.where((q) => !isSameDay(q.createdAt, now)).toList();
-          final today =
-              todayQuizzes.isNotEmpty ? todayQuizzes.first : null;
+          final today = quizzes.first; // getTestsStream sorts by createdAt desc
+          final previous = quizzes.skip(1).toList();
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -69,7 +56,7 @@ class DailyQuizScreen extends StatelessWidget {
                 const SizedBox(height: 24),
                 // Today's Quiz
                 Text(
-                  tr(context, 'daily_quiz_today'),
+                  "Today's Quiz",
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -77,14 +64,11 @@ class DailyQuizScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (today != null)
-                  _DailyQuizCard(test: today, isFeatured: true)
-                else
-                  _buildNoTodayCard(context, isDark),
-                if (previousQuizzes.isNotEmpty) ...[
+                _DailyQuizCard(test: today, isFeatured: true),
+                if (previous.isNotEmpty) ...[
                   const SizedBox(height: 24),
                   Text(
-                    tr(context, 'daily_quiz_previous'),
+                    'Previous Quizzes',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
@@ -92,7 +76,7 @@ class DailyQuizScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  ...previousQuizzes.map(
+                  ...previous.map(
                     (q) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _DailyQuizCard(test: q, isFeatured: false),
@@ -116,23 +100,7 @@ class DailyQuizScreen extends StatelessWidget {
     final storedStreak = user?.streak ?? 0;
     final lastActive = user?.lastActiveAt;
     final effectiveStreak = computeEffectiveStreak(storedStreak, lastActive);
-    // Localized motivational message — the streak_helper.streakMessage()
-    // helper returns English-only strings; we inline the SAME 4-way condition
-    // here using l10n keys so the message honors the user's LanguageMode
-    // preference (english / assamese / both). The branching logic is
-    // identical to streakMessage() — only the source of the displayed
-    // string changes (now tr() instead of a hardcoded English literal).
-    final activeToday = wasActiveToday(lastActive);
-    final String message;
-    if (effectiveStreak == 0) {
-      message = activeToday
-          ? tr(context, 'daily_quiz_streak_msg_start_active')
-          : tr(context, 'daily_quiz_streak_msg_start_inactive');
-    } else if (activeToday) {
-      message = tr(context, 'daily_quiz_streak_msg_active_fire');
-    } else {
-      message = tr(context, 'daily_quiz_streak_msg_keep_alive');
-    }
+    final message = streakMessage(effectiveStreak, lastActive);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -165,11 +133,11 @@ class DailyQuizScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 4),
                           child: Text(
-                            tr(context, 'daily_quiz_streak'),
-                            style: const TextStyle(
+                            'day streak',
+                            style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -207,40 +175,6 @@ class DailyQuizScreen extends StatelessWidget {
     );
   }
 
-  /// Empty-state card shown in place of "Today's Quiz" when no quiz was
-  /// created today. Distinct from [_buildEmptyState] which handles the
-  /// "no quizzes at all" case.
-  Widget _buildNoTodayCard(BuildContext context, bool isDark) {
-    final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
-    final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: [
-            const Icon(Icons.event_busy, size: 36, color: AppTheme.accentColor),
-            const SizedBox(height: 12),
-            L10nText(
-              'daily_quiz_no_today',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            L10nText(
-              'daily_quiz_check_later',
-              style: TextStyle(fontSize: 13, color: mutedColor),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildEmptyState(BuildContext context, bool isDark) {
     return const EmptyState(
       icon: Icons.calendar_today,
@@ -263,157 +197,348 @@ class DailyQuizScreen extends StatelessWidget {
 /// TakeTestScreen with the full test.
 class _DailyQuizCard extends StatelessWidget {
   final TestModel test;
-  final bool isFeatured; // true = "Today's Quiz" (larger, "Start Quiz" CTA)
+  final bool isFeatured; // true = "Today's Quiz" (featured accent color)
 
   const _DailyQuizCard({required this.test, required this.isFeatured});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.grey.shade50 : Colors.black87;
-    final subtitleColor = isDark ? Colors.grey.shade300 : Colors.grey.shade700;
-    final mutedColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
+    final subtleTextColor =
+        isDark ? Colors.white60 : const Color(0xFF6B7280);
+    final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.06) : AppTheme.cardBorderColor;
+    final footerBgColor = isDark
+        ? Colors.white.withOpacity(0.03)
+        : const Color(0xFFFAFAFA);
+    final accentColor =
+        isFeatured ? AppTheme.accentColor : AppTheme.primaryColor;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    // Access badge (Row 1 left).
+    final String accessLabel;
+    final Color accessBadgeColor;
+    final bool accessIsGradient;
+    if (!test.isPaid) {
+      accessLabel = 'FREE';
+      accessBadgeColor = AppTheme.successColor;
+      accessIsGradient = false;
+    } else if (test.isPremium && test.price <= 0) {
+      accessLabel = 'Premium';
+      accessBadgeColor = AppTheme.accentColor;
+      accessIsGradient = true;
+    } else {
+      accessLabel = '\u20b9${test.price}';
+      accessBadgeColor = AppTheme.accentColor;
+      accessIsGradient = false;
+    }
+
+    // CTA link label (Row 3 right).
+    final String ctaLabel = !test.isPaid
+        ? 'Start Now'
+        : (test.isPremium && test.price <= 0
+            ? 'Unlock'
+            : 'Buy \u20b9${test.price}');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        boxShadow: AppTheme.softShadow1,
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TakeTestScreen(test: test),
+                ),
+              );
+            },
+            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                // ===== Top content block =====
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppTheme.spaceLg,
+                    AppTheme.spaceMd,
+                    AppTheme.spaceLg,
+                    AppTheme.spaceMd,
                   ),
-                  child: const Icon(
-                    Icons.bolt,
-                    color: AppTheme.accentColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    // Bilingual title — honors the user's LanguageMode
-                    // (english / assamese / both) via localized_content.dart.
-                    lc(context, test.title, test.titleAs),
-                    style: TextStyle(
-                      fontSize: isFeatured ? 16 : 15,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                ),
-                if (test.isPremium)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.star,
-                            size: 12, color: AppTheme.accentColor),
-                        const SizedBox(width: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ===== ROW 1: Badges (left) + "Live" tag (right) =====
+                      Row(
+                        children: [
+                          // Access badge pill.
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spaceSm,
+                              vertical: AppTheme.spaceXs,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: accessIsGradient
+                                  ? LinearGradient(
+                                      colors:
+                                          AppTheme.accentGradientColors,
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: accessIsGradient
+                                  ? null
+                                  : accessBadgeColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusFull),
+                            ),
+                            child: Text(
+                              accessLabel,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: accessIsGradient
+                                    ? Colors.white
+                                    : accessBadgeColor,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spaceSm),
+                          // "Daily Quiz" type pill (outlined).
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppTheme.spaceSm,
+                              vertical: AppTheme.spaceXs,
+                            ),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusFull),
+                              border: Border.all(
+                                color: accentColor.withOpacity(0.4),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              'DAILY QUIZ',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: accentColor,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          // Lightning bolt icon for daily quiz identity.
+                          Icon(
+                            Icons.bolt_rounded,
+                            size: 18,
+                            color: accentColor,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppTheme.spaceSm),
+
+                      // ===== ROW 2: Title =====
+                      Text(
+                        test.title,
+                        style: TextStyle(
+                          fontSize: isFeatured ? 17 : 16,
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (test.instructions != null &&
+                          test.instructions!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
                         Text(
-                          tr(context, 'daily_quiz_premium_badge'),
-                          style: const TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.accentColor,
+                          test.instructions!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: subtleTextColor,
+                            fontStyle: FontStyle.italic,
                           ),
                         ),
                       ],
+                      const SizedBox(height: AppTheme.spaceSm),
+
+                      // ===== ROW 3: Stats (left) + Start Now link (right) =====
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Wrap(
+                              crossAxisAlignment:
+                                  WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  '${test.questionCount} Qs',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
+                                ),
+                                _dotSeparator(subtleTextColor),
+                                Text(
+                                  '${test.duration} min',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
+                                ),
+                                _dotSeparator(subtleTextColor),
+                                Text(
+                                  '${test.totalMarks} marks',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: subtleTextColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: AppTheme.spaceSm),
+                          // "Start Now →" link.
+                          InkWell(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      TakeTestScreen(test: test),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(
+                                AppTheme.radiusSm),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppTheme.spaceSm,
+                                vertical: AppTheme.spaceXs,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    ctaLabel,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: accentColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 16,
+                                    color: accentColor,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ===== ROW 4: Footer bar =====
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spaceLg,
+                    vertical: AppTheme.spaceSm + 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: footerBgColor,
+                    border: Border(
+                      top: BorderSide(color: borderColor, width: 0.8),
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                _metaChip(
-                    Icons.help_outline,
-                    '${test.questionCount} ${tr(context, 'test_series_qs_suffix')}',
-                    mutedColor),
-                _metaChip(
-                    Icons.timer,
-                    '${test.duration} ${tr(context, 'test_duration')}',
-                    mutedColor),
-                _metaChip(Icons.star_border,
-                    '${test.totalMarks} ${tr(context, 'test_marks')}', mutedColor),
-                _metaChip(Icons.trending_up,
-                    '${test.attemptCount} ${tr(context, 'test_attempts')}', mutedColor),
-              ],
-            ),
-            if (test.instructions != null &&
-                test.instructions!.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                // Bilingual instructions — honors the user's LanguageMode
-                // (english / assamese / both) via localized_content.dart.
-                // TestModel.instructionsAs mirrors the English
-                // `instructions` field for admin-authored Assamese copy.
-                lc(context, test.instructions!, test.instructionsAs),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: subtitleColor,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TestInstructionsScreen(test: test),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      isFeatured ? AppTheme.accentColor : AppTheme.primaryColor,
-                ),
-                child: Text(
-                  tr(
-                    context,
-                    isFeatured
-                        ? 'daily_quiz_start'
-                        : 'daily_quiz_start_short',
+                  child: Row(
+                    children: [
+                      Icon(Icons.trending_up_rounded,
+                          size: 13, color: AppTheme.primaryColor),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${test.attemptCount} attempts',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(width: AppTheme.spaceMd),
+                      if (test.negativeMarking) ...[
+                        Icon(Icons.warning_amber_rounded,
+                            size: 13, color: AppTheme.warningColor),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Neg marking',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.warningColor,
+                          ),
+                        ),
+                        const SizedBox(width: AppTheme.spaceMd),
+                      ],
+                      const Spacer(),
+                      Icon(
+                        Icons.share_outlined,
+                        size: 13,
+                        color: AppTheme.successColor,
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Share',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.successColor,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _metaChip(IconData icon, String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: 12, color: color),
+  /// Gray dot separator between stats.
+  Widget _dotSeparator(Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Text(
+        '\u00b7',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
-      ],
+      ),
     );
   }
 }
