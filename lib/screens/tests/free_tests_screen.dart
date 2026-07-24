@@ -187,17 +187,18 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
                         style: AppFonts.style(
                           size: 12,
                           weight: FontWeight.w600,
-                          color: isDark ? Colors.white50 : const Color(0xFF9CA3AF),
+                          color: isDark ? Colors.white54 : const Color(0xFF9CA3AF),
                         ),
                       ),
                     ),
                     Expanded(
                       child: ListView.builder(
                         padding: const EdgeInsets.all(AppTheme.spaceLg),
-                        // addRepaintBoundary is true by default, but we make it
-                        // explicit — each card is its own repaint boundary so
-                        // off-screen cards don't repaint when visible ones update.
-                        addRepaintBoundary: true,
+                        // addRepaintBoundaries is true by default, but we make
+                        // it explicit — each card is its own repaint boundary so
+                        // off-screen cards don't repaint when visible ones
+                        // update.
+                        addRepaintBoundaries: true,
                         itemCount: freeTests.length,
                         itemBuilder: (context, index) {
                           return _FreeTestCard(test: freeTests[index]);
@@ -391,7 +392,7 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
 //     and adds a Material wrapper + transition bookkeeping that is wasted in
 //     a flat list. The title is now a plain Text.
 //   - The card is wrapped in a RepaintBoundary by the ListView.builder
-//     (addRepaintBoundary: true) so off-screen cards don't repaint.
+//     (addRepaintBoundaries: true) so off-screen cards don't repaint.
 // =============================================================================
 
 class _FreeTestCard extends StatelessWidget {
