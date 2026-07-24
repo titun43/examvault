@@ -874,7 +874,11 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisCount: 5,
         mainAxisSpacing: AppTheme.spaceSm,
         crossAxisSpacing: AppTheme.spaceSm,
-        childAspectRatio: 0.82,
+        // 0.75 (taller tiles) instead of 0.82 — prevents vertical overflow
+        // on 360px-and-below phones where 5 columns leave each tile ~52-59px
+        // wide. With the compact icon (34) + 4px padding below, content needs
+        // ~64px which fits the ~68-79px tile height on screens down to 320px.
+        childAspectRatio: 0.75,
       ),
       itemCount: actions.length,
       itemBuilder: (context, index) {
@@ -893,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: () => _navigateQuickAction(action.route),
       child: Container(
-        padding: const EdgeInsets.all(AppTheme.spaceXs + 2),
+        padding: const EdgeInsets.all(AppTheme.spaceXs),
         decoration: BoxDecoration(
           color: isDark ? AppTheme.darkCardColor : Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
@@ -901,10 +905,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -919,21 +924,25 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(
                 action.icon,
                 color: action.color,
-                size: 20,
+                size: 18,
               ),
             ),
             const SizedBox(height: AppTheme.spaceXs),
-            L10nText(
-              action.labelKey,
-              style: AppFonts.style(
-                size: 9,
-                weight: FontWeight.w600,
-                color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
-                height: 1.2,
+            // FittedBox auto-shrinks the label if the tile is too narrow,
+            // so "Current Affairs" never overflows on small phones.
+            Flexible(
+              child: L10nText(
+                action.labelKey,
+                style: AppFonts.style(
+                  size: 9,
+                  weight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade100 : Colors.grey.shade800,
+                  height: 1.15,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
