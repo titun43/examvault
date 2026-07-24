@@ -1,7 +1,9 @@
 // =============================================================================
 // ExamVault - Login Screen
 // User login: Mobile OTP (real SMS) OR Email/Password
-// Admin login: HIDDEN — tap the logo 7 times to open the admin login door
+//
+// NOTE: In-app admin dashboard has been removed. Admins now use the
+// separate web admin panel at github.com/titun43/examvault-admin.
 // =============================================================================
 
 import 'dart:async';
@@ -20,8 +22,6 @@ import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../home/main_navigation.dart';
-import '../../admin/admin_login_screen.dart';
-import '../../admin/admin_dashboard.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,7 +32,6 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   int _currentMethod = 0; // 0=Mobile, 1=Email
-  int _logoTapCount = 0;
 
   // Mobile auth
   final _phoneController = TextEditingController();
@@ -83,26 +82,15 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  /// Hidden admin entry — tap the logo 7 times to open AdminLoginScreen.
-  void _onLogoTap() {
-    _logoTapCount++;
-    if (_logoTapCount == 7) {
-      _logoTapCount = 0;
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const AdminLoginScreen()),
-      );
-    }
-  }
-
-  /// Routes the user after a successful login: admin → AdminDashboard, else → MainNavigation.
+  /// Routes the user after a successful login. Admins no longer have an
+  /// in-app dashboard — they land on MainNavigation like everyone else and
+  /// use the web admin panel (github.com/titun43/examvault-admin) for admin
+  /// work.
   void _routeAfterLogin() {
-    final auth = Provider.of<AuthProvider>(context, listen: false);
     if (!mounted) return;
-    final dest = auth.isAdmin ? const AdminDashboard() : const MainNavigation();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => dest),
+      MaterialPageRoute(builder: (_) => const MainNavigation()),
     );
   }
 
@@ -116,22 +104,19 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              // Logo (secret admin entry — tap 7 times)
-              GestureDetector(
-                onTap: _onLogoTap,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.primaryGradient,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.school,
-                    size: 40,
-                    color: Colors.white,
-                  ),
+              // Logo
+              Container(
+                width: 80,
+                height: 80,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(
+                  Icons.school,
+                  size: 40,
+                  color: Colors.white,
                 ),
               ),
               Text(
@@ -788,12 +773,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
         // Ensure AuthProvider has loaded the user's Firestore doc before
-        // navigating. Without this, _routeAfterLogin() might read
-        // auth.isAdmin == false (because _user is still null) and route an
-        // admin to MainNavigation instead of AdminDashboard. The
-        // authStateChanges listener ALSO calls loadUserData(), but it races
-        // with this callback — awaiting here is idempotent and guarantees
-        // _user is populated before we decide the destination.
+        // navigating. _routeAfterLogin() always lands on MainNavigation now,
+        // but loadUserData() also wires up the user's subscription /
+        // premium-cache listeners — without it, downstream screens would
+        // see a stale (guest) state until the authStateChanges listener
+        // eventually catches up.
         await auth.loadUserData();
         if (!mounted) return;
         _routeAfterLogin();

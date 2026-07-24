@@ -38,7 +38,6 @@ import '../theme/app_fonts.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
-import '../admin/admin_dashboard.dart';
 import '../services/category_preference_service.dart';
 import 'onboarding/category_selection_screen.dart';
 
@@ -100,17 +99,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    // Resolve destination FIRST so we can show the app-open banner (if any)
-    // before pushing the main screen.
-    final Widget dest;
-    if (authProvider.isAuthenticated) {
-      dest = authProvider.isAdmin
-          ? const AdminDashboard()
-          : const MainNavigation();
-    } else {
-      dest = const MainNavigation();
-    }
+    // Admins no longer have an in-app dashboard — they use the separate
+    // web admin panel at github.com/titun43/examvault-admin. Anyone signed
+    // in (admin or not) lands on MainNavigation.
+    const Widget dest = MainNavigation();
 
     // Try to show an app-open banner between splash and the destination.
     // Failures (network error, no banner, frequency cap hit, audience
@@ -163,7 +155,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // First-run category picker: shown once per device (flag lives in
     // SharedPreferences), before MainNavigation. Applies to guests and
-    // regular users alike; admins go straight to AdminDashboard as before.
+    // regular users alike.
     Widget resolvedDest = dest;
     if (dest is MainNavigation) {
       final onboarded = await CategoryPreferenceService.hasCompletedOnboarding();

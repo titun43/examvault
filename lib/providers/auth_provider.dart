@@ -574,33 +574,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ==================== ADMIN LOGIN ====================
-  Future<bool> adminLogin({
-    required String email,
-    required String password,
-  }) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final isAdmin = await AuthService.adminLogin(email: email, password: password);
-      if (isAdmin) {
-        await loadUserData();
-        return true;
-      } else {
-        _errorMessage = 'Invalid admin credentials';
-        return false;
-      }
-    } catch (e) {
-      _errorMessage = e.toString();
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
   // ==================== LOGOUT ====================
   Future<void> logout() async {
     // Stop listening to the user's Firestore doc so we don't get stray
