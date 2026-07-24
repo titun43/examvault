@@ -68,13 +68,21 @@ class TestSeriesScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.quiz_outlined, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No tests available'),
+                Icon(Icons.quiz_outlined,
+                    size: 64,
+                    color: isDark ? Colors.white30 : Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'No tests available',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : Colors.grey.shade600,
+                  ),
+                ),
               ],
             ),
           );
@@ -92,9 +100,17 @@ class TestSeriesScreen extends StatelessWidget {
   }
 
   Widget _buildTestCard(BuildContext context, TestModel test) {
-    final subtleTextColor = const Color(0xFF6B7280);
-    final borderColor = AppTheme.cardBorderColor;
-    final footerBgColor = const Color(0xFFFAFAFA);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? AppTheme.darkCardColor : Colors.white;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C1917);
+    final subtleTextColor =
+        isDark ? Colors.white60 : const Color(0xFF6B7280);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : AppTheme.cardBorderColor;
+    final footerBgColor = isDark
+        ? Colors.white.withOpacity(0.03)
+        : const Color(0xFFFAFAFA);
 
     // Access badge label + color (Row 1 left).
     final String accessLabel;
@@ -132,7 +148,7 @@ class TestSeriesScreen extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spaceMd),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         boxShadow: AppTheme.softShadow1,
         border: Border.all(color: borderColor, width: 1),
@@ -239,10 +255,10 @@ class TestSeriesScreen extends StatelessWidget {
                       // ===== ROW 2: Title =====
                       Text(
                         test.title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF1C1917),
+                          color: titleColor,
                           height: 1.3,
                         ),
                         maxLines: 2,
@@ -459,13 +475,21 @@ class TestSeriesScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.menu_book, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text('No subjects available'),
+                Icon(Icons.menu_book,
+                    size: 64,
+                    color: isDark ? Colors.white30 : Colors.grey),
+                const SizedBox(height: 16),
+                Text(
+                  'No subjects available',
+                  style: TextStyle(
+                    color: isDark ? Colors.white60 : Colors.grey.shade600,
+                  ),
+                ),
               ],
             ),
           );
@@ -478,8 +502,10 @@ class TestSeriesScreen extends StatelessWidget {
           itemCount: subjects.length,
           itemBuilder: (context, index) {
             final subject = subjects[index];
+            final isDark = Theme.of(context).brightness == Brightness.dark;
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
+              color: isDark ? AppTheme.darkCardColor : null,
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
@@ -490,7 +516,10 @@ class TestSeriesScreen extends StatelessWidget {
                 ),
                 title: Text(
                   subject.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : const Color(0xFF1C1917),
+                  ),
                 ),
                 subtitle: Text(
                   '${subject.testCount} ${subject.testCount == 1 ? 'Test' : 'Tests'}'
@@ -499,10 +528,14 @@ class TestSeriesScreen extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.white60 : Colors.grey.shade600,
                   ),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+                trailing: Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: isDark ? Colors.white38 : Colors.grey.shade400,
+                ),
                 onTap: () {
                   Navigator.push(
                     context,
