@@ -111,6 +111,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
+import '../../models/test_result_model.dart';
 import '../../models/user_model.dart';
 import '../../services/access_service.dart';
 import '../../services/exam_pack_cache_service.dart';
@@ -175,6 +176,11 @@ class _TestListScreenState extends State<TestListScreen> {
   // a chip calls setState and the build filters the streamed tests locally.
   _TestFilter _activeFilter = _TestFilter.all;
 
+  // testId -> user's LATEST attempt for that test (by attemptedAt). Powers
+  // the "Completed · X%" badge on each card so a user browsing a category
+  // with many tests can see at a glance which ones they've already taken.
+  Map<String, TestResultModel> _latestResults = {};
+
   @override
   void initState() {
     super.initState();
@@ -197,6 +203,24 @@ class _TestListScreenState extends State<TestListScreen> {
     // banner and grants access to all tests in this subject.
     if (widget.subject != null && widget.subject!.premiumPrice > 0) {
       _fetchSubjectPackStatus(widget.subject!.id);
+    }
+    _loadLatestResults();
+  }
+
+  /// Fetches the user's latest test-result for every test (one Firestore
+  /// query) so the 4-row card can show a "Completed · N%" line for tests
+  /// the user has already attempted. Fire-and-forget — failure is non-fatal
+  /// (badge just won't show).
+  Future<void> _loadLatestResults() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.user;
+    if (user == null) return;
+    try {
+      final results = await FirestoreService.getLatestResultsByTestId(user.id);
+      if (!mounted) return;
+      setState(() => _latestResults = results);
+    } catch (_) {
+      // Non-fatal — badge just won't show if this fails.
     }
   }
 
