@@ -41,6 +41,7 @@ import '../upcoming_exams/upcoming_exams_screen.dart';
 import '../upcoming_exams/upcoming_exam_detail_screen.dart';
 import '../premium/premium_screen.dart';
 import '../tests/daily_quiz_screen.dart';
+import '../tests/free_tests_screen.dart';
 import '../tests/test_series_screen.dart';
 import '../tests/test_list_screen.dart';
 import '../notifications/notifications_screen.dart';
@@ -285,7 +286,13 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: AppTheme.spaceLg),
               _buildGuestBanner(),
               const SizedBox(height: AppTheme.spaceXl),
-              _buildQuickActions(),
+              // ===== Quick actions + All Free Tests (side by side) =====
+              // AREA 1 (left, ~25% wide): a single tall vertical "All Free
+              // Tests" button (blue gradient, gift icon). AREA 2 (right,
+              // ~75% wide): the existing 5 quick-action tiles in a 3-column
+              // grid. Both areas share the same height because the Row uses
+              // CrossAxisAlignment.stretch.
+              _buildQuickActionsRow(),
               const SizedBox(height: AppTheme.spaceXl),
               _buildAnnouncementsTicker(),
               const SizedBox(height: AppTheme.spaceXl),
@@ -697,7 +704,138 @@ class _HomeScreenState extends State<HomeScreen> {
         .slideY(begin: 0.1);
   }
 
-  Widget _buildQuickActions() {
+  /// AREA 1 + AREA 2 layout: the single tall "All Free Tests" button on
+  /// the left, and the existing 5 quick-action tiles on the right in a
+  /// 3-column grid. Both children stretch to the same height via
+  /// CrossAxisAlignment.stretch. The left button takes ~1/4 of the width
+  /// and the grid takes ~3/4 (flex ratio 1 : 3).
+  Widget _buildQuickActionsRow() {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // AREA 1 — "All Free Tests" vertical button (left, flex 1).
+          Expanded(
+            flex: 1,
+            child: _buildAllFreeTestsButton(),
+          ),
+          const SizedBox(width: AppTheme.spaceSm),
+          // AREA 2 — 5 quick-action tiles in a 3-column grid (right, flex 3).
+          Expanded(
+            flex: 3,
+            child: _buildQuickActionsGrid(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// AREA 1 — the single tall "All Free Tests" button. Blue gradient
+  /// background, gift icon at top, vertically-stacked label in the middle,
+  /// arrow at the bottom. Tapping opens the new FreeTestsScreen.
+  Widget _buildAllFreeTestsButton() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        HapticFeedback.selectionClick();
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const FreeTestsScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spaceSm,
+          vertical: AppTheme.spaceMd,
+        ),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: AppTheme.brandGradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+          boxShadow: AppTheme.softShadow1,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Gift icon at the top (white).
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: const Icon(
+                Icons.card_giftcard_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+            // Vertically-stacked label in the middle.
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // "FREE" pill (green) — emphasizes that all tests here
+                  // are free.
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spaceSm,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.successColor,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                    ),
+                    child: Text(
+                      'FREE',
+                      style: AppFonts.style(
+                        size: 9,
+                        weight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spaceXs + 2),
+                  L10nText(
+                    'home_allFreeTests',
+                    style: AppFonts.style(
+                      size: 12,
+                      weight: FontWeight.w800,
+                      color: Colors.white,
+                      height: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Arrow at the bottom (white).
+            const Icon(
+              Icons.arrow_forward_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    )
+        .animate()
+        .fadeIn(delay: 80.ms, duration: 350.ms)
+        .slideY(begin: 0.12);
+  }
+
+  /// AREA 2 — the existing 5 quick-action tiles, now in a 3-column grid
+  /// (was 5-column when it filled the full width; now it only takes ~3/4
+  /// of the width so 3 columns + 2 rows of larger, more readable tiles
+  /// works better than a cramped 5-across strip).
+  Widget _buildQuickActionsGrid() {
     // Curated palette aligned with the Assam theme — NO raw color literals.
     // Daily Quiz  → amber (accentColor)
     // Mock Tests  → emerald (primaryColor)
@@ -741,10 +879,10 @@ class _HomeScreenState extends State<HomeScreen> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
+        crossAxisCount: 3,
         mainAxisSpacing: AppTheme.spaceSm,
         crossAxisSpacing: AppTheme.spaceSm,
-        childAspectRatio: 0.78,
+        childAspectRatio: 0.82,
       ),
       itemCount: actions.length,
       itemBuilder: (context, index) {
