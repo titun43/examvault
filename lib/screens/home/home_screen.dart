@@ -102,6 +102,10 @@ class _HomeScreenState extends State<HomeScreen> {
   late final Stream<List<UpcomingExamModel>> _upcomingExamsStream;
   late final Stream<List<CurrentAffairModel>> _currentAffairsStream;
 
+  // AuthProvider reference for listening to preferred-category changes
+  // so Profile > My Categories propagates live to all Home sections.
+  AuthProvider? _auth;
+
   @override
   void initState() {
     super.initState();
@@ -167,10 +171,20 @@ class _HomeScreenState extends State<HomeScreen> {
         _categoriesLoaded = true;
       });
     });
+    // Reactivity: listen to AuthProvider so preferred categories refresh
+    // live when the user changes them from Profile > My Categories (which
+    // is in a different tab and would otherwise leave Home stale until a
+    // restart). Post-frame so Provider is initialized before we read it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
   }
 
   @override
   void dispose() {
+    _auth?.removeListener(_onAuthChanged);
     _categoriesSub?.cancel();
     _bannerTimer?.cancel();
     _bannerController.dispose();
@@ -1097,7 +1111,48 @@ class _HomeScreenState extends State<HomeScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
     if (!mounted) return;
+    // Skip setState if nothing changed — avoids unnecessary rebuilds when
+    // AuthProvider notifies for unrelated reasons (premium, streak, etc.).
+    if (_listEquals(ids, _selectedCategoryIds)) return;
     setState(() => _selectedCategoryIds = ids);
+  }
+
+  /// AuthProvider listener — fires when the user's preferences change
+  /// (e.g. after Profile > My Categories saves a new selection). Re-fetches
+  /// preferred ids so every section on Home reflects the new selection
+  /// without a restart. Also fires on premium/streak updates, but
+  /// _loadSelectedCategoryIds guards against no-op rebuilds.
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadSelectedCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Whether [categoryId] matches any of the user's preferred categories.
+  /// Handles the case where subject.categoryId might hold a name or slug
+  /// instead of the doc id (mirror of all_subjects_screen's robust matching).
+  /// Returns true (no filter) when the user hasn't selected any categories.
+  bool _isPreferredCategory(String? categoryId) {
+    if (_selectedCategoryIds.isEmpty) return true; // no filter active
+    if (categoryId == null || categoryId.isEmpty) return false;
+    if (_selectedCategoryIds.contains(categoryId)) return true;
+    // Fallback: match against category names/slugs (subject.categoryId may
+    // hold a slug/name due to FirestoreService.getSubjects fallback matching).
+    for (final catId in _selectedCategoryIds) {
+      final cat = _categories.firstWhere(
+        (c) => c.id == catId,
+        orElse: () => CategoryModel.empty(),
+      );
+      if (cat.name == categoryId || cat.slug == categoryId) return true;
+    }
+    return false;
   }
 
   Future<void> _openManageCategories() async {
@@ -1720,7 +1775,15 @@ class _HomeScreenState extends State<HomeScreen> {
             // offline cache, and only sees shimmer/error on the VERY FIRST
             // load when no cache exists yet.
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-              final subjects = snapshot.data!;
+              var subjects = snapshot.data!;
+              // Filter by preferred categories (with fallback to all when
+              // the filtered list is empty — never show an empty preview).
+              if (_selectedCategoryIds.isNotEmpty) {
+                final filtered = subjects
+                    .where((s) => _isPreferredCategory(s.categoryId))
+                    .toList();
+                if (filtered.isNotEmpty) subjects = filtered;
+              }
               return SizedBox(
                 height: 168,
                 child: ListView.builder(
@@ -1942,7 +2005,17 @@ class _HomeScreenState extends State<HomeScreen> {
             // instantly from the Firestore offline cache instead of
             // flashing a shimmer on every stream re-validation.
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-              final exams = snapshot.data!;
+              var exams = snapshot.data!;
+              // Filter by preferred categories (with fallback to all when
+              // the filtered list is empty — never show an empty preview).
+              if (_selectedCategoryIds.isNotEmpty) {
+                final filtered = exams
+                    .where((e) =>
+                        e.categoryId != null &&
+                        _selectedCategoryIds.contains(e.categoryId))
+                    .toList();
+                if (filtered.isNotEmpty) exams = filtered;
+              }
               return Column(
                 children: List.generate(exams.length, (i) {
                   return _buildUpcomingExamMiniCard(exams[i])
@@ -2198,7 +2271,18 @@ class _HomeScreenState extends State<HomeScreen> {
             // instantly from the Firestore offline cache instead of
             // flashing a shimmer on every stream re-validation.
             if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-              final affairs = snapshot.data!;
+              var affairs = snapshot.data!;
+              // Filter by preferred categories (with fallback to all when
+              // the filtered list is empty — CurrentAffairModel.categoryId
+              // is optional and may be null on legacy docs).
+              if (_selectedCategoryIds.isNotEmpty) {
+                final filtered = affairs
+                    .where((a) =>
+                        a.categoryId != null &&
+                        _selectedCategoryIds.contains(a.categoryId))
+                    .toList();
+                if (filtered.isNotEmpty) affairs = filtered;
+              }
               return Column(
                 children: List.generate(affairs.length, (i) {
                   return _buildCurrentAffairCard(affairs[i])

@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/test_model.dart';
+import '../../models/subject_model.dart';
+import '../../services/category_preference_service.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
@@ -16,8 +18,82 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/weekly_streak_indicator.dart';
 import 'take_test_screen.dart';
 
-class DailyQuizScreen extends StatelessWidget {
+class DailyQuizScreen extends StatefulWidget {
   const DailyQuizScreen({super.key});
+
+  @override
+  State<DailyQuizScreen> createState() => _DailyQuizScreenState();
+}
+
+class _DailyQuizScreenState extends State<DailyQuizScreen> {
+  // Categories the user picked during onboarding / Profile > My Categories.
+  // When set, daily quizzes are narrowed to those whose subject's parent
+  // category is in this set. Falls back to all when the filtered list is empty.
+  List<String> _preferredCategoryIds = [];
+  // subjectId -> categoryId lookup map, built from a one-time fetch of all
+  // subjects. Used to filter quizzes by their subject's parent category.
+  Map<String, String> _subjectIdToCategoryId = const {};
+  // AuthProvider reference for listening to preferred-category changes.
+  AuthProvider? _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMeta();
+    _loadPreferredCategoryIds();
+    // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
+    // after Profile > My Categories saves a new selection in another tab).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  /// One-time fetch of all subjects to build the subjectId -> categoryId
+  /// lookup map. Subjects don't change often, so a Future is fine here —
+  /// the quizzes themselves still stream via the StreamBuilder below.
+  Future<void> _loadMeta() async {
+    try {
+      final subs = await FirestoreService.getSubjects();
+      final lookup = <String, String>{};
+      for (final s in subs) {
+        if (s.id.isNotEmpty && s.categoryId.isNotEmpty) {
+          lookup[s.id] = s.categoryId;
+        }
+      }
+      if (mounted) setState(() => _subjectIdToCategoryId = lookup);
+    } catch (_) {
+      // Non-fatal — filter just won't apply until subjects load.
+    }
+  }
+
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    if (_listEquals(ids, _preferredCategoryIds)) return;
+    setState(() => _preferredCategoryIds = ids);
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +112,18 @@ class DailyQuizScreen extends StatelessWidget {
           if (snapshot.hasError) {
             return _buildErrorState(context, isDark);
           }
-          final quizzes = snapshot.data ?? [];
+          var quizzes = snapshot.data ?? [];
+          // Filter by preferred categories (with fallback to all when the
+          // filtered list is empty — never show an empty screen if there are
+          // quizzes in other categories the user hasn't selected).
+          if (_preferredCategoryIds.isNotEmpty &&
+              _subjectIdToCategoryId.isNotEmpty) {
+            final filtered = quizzes.where((t) {
+              final catId = _subjectIdToCategoryId[t.subjectId];
+              return catId != null && _preferredCategoryIds.contains(catId);
+            }).toList();
+            if (filtered.isNotEmpty) quizzes = filtered;
+          }
           if (quizzes.isEmpty) {
             return _buildEmptyState(context, isDark);
           }

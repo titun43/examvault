@@ -42,6 +42,9 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
 
   StreamSubscription? _subjectsSub;
   StreamSubscription? _categoriesSub;
+  // AuthProvider reference for listening to preferred-category changes
+  // (so Profile > My Categories propagates live to this screen).
+  AuthProvider? _auth;
 
   bool get _isLoading => !(_subjectsReady && _categoriesReady);
 
@@ -50,12 +53,28 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
     super.initState();
     _initStreams();
     _loadPreferredCategoryIds();
+    // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
+    // after Profile > My Categories saves a new selection in another tab).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
   }
 
   Future<void> _loadPreferredCategoryIds() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
     if (!mounted) return;
+    // Skip no-op rebuilds when AuthProvider notifies for unrelated reasons
+    // (premium purchase, streak update, etc.).
+    bool same = ids.length == _preferredCategoryIds.length;
+    if (same) {
+      for (var i = 0; i < ids.length; i++) {
+        if (ids[i] != _preferredCategoryIds[i]) { same = false; break; }
+      }
+    }
+    if (same) return;
     setState(() {
       _preferredCategoryIds = ids;
       _applyFilter();
@@ -102,9 +121,15 @@ class _AllSubjectsScreenState extends State<AllSubjectsScreen> {
 
   @override
   void dispose() {
+    _auth?.removeListener(_onAuthChanged);
     _subjectsSub?.cancel();
     _categoriesSub?.cancel();
     super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
   }
 
   void _applyFilter() {

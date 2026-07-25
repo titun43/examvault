@@ -32,12 +32,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/category_preference_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
@@ -68,10 +71,58 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
   // initState). The filter chip row shows a tiny placeholder while loading.
   bool _loadingMeta = true;
 
+  // Categories the user picked during onboarding / Profile > My Categories.
+  // When set (and the user hasn't tapped "All" or a specific chip), the list
+  // defaults to just these — mirrors all_subjects_screen behavior.
+  List<String> _preferredCategoryIds = [];
+  // True when the user explicitly tapped the "All" chip — disables the
+  // preferred-category silent filter so they can browse every free test.
+  bool _explicitAll = false;
+  // AuthProvider reference for listening to preferred-category changes.
+  AuthProvider? _auth;
+
   @override
   void initState() {
     super.initState();
     _loadMeta();
+    _loadPreferredCategoryIds();
+    // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
+    // after Profile > My Categories saves a new selection in another tab).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  /// Loads the user's preferred category ids (handles both logged-in users
+  /// via Firestore and guests via SharedPreferences).
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    // Skip no-op rebuilds.
+    if (_listEquals(ids, _preferredCategoryIds)) return;
+    setState(() => _preferredCategoryIds = ids);
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// One-time fetch of all categories + subjects. These don't change often,
@@ -151,19 +202,33 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
                     .toList();
 
                 // Apply category filter (client-side via subject lookup).
+                // Priority: explicit chip tap > preferred categories > all.
                 if (_selectedCategoryId != null) {
                   freeTests = freeTests.where((t) {
                     final catId = _subjectIdToCategoryId[t.subjectId];
                     return catId == _selectedCategoryId;
                   }).toList();
+                } else if (!_explicitAll && _preferredCategoryIds.isNotEmpty) {
+                  // No explicit chip tap yet — default to the user's
+                  // onboarding selection. Fall back to all if nothing matches
+                  // (e.g. preferred category has no free tests yet).
+                  final filtered = freeTests.where((t) {
+                    final catId = _subjectIdToCategoryId[t.subjectId];
+                    return catId != null &&
+                        _preferredCategoryIds.contains(catId);
+                  }).toList();
+                  if (filtered.isNotEmpty) freeTests = filtered;
                 }
 
                 if (freeTests.isEmpty) {
-                  // Different empty message depending on whether a category
-                  // filter is active.
+                  // Different empty message depending on whether a filter
+                  // (specific chip OR preferred-category silent filter) is
+                  // active.
+                  final filterActive = _selectedCategoryId != null ||
+                      (!_explicitAll && _preferredCategoryIds.isNotEmpty);
                   return EmptyState(
                     icon: Icons.card_giftcard_rounded,
-                    l10nTitleKey: _selectedCategoryId != null
+                    l10nTitleKey: filterActive
                         ? 'free_tests_no_in_category'
                         : 'free_tests_empty',
                     iconColor: AppTheme.successColor,
@@ -249,9 +314,16 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
             _buildChip(
               context: context,
               label: tr(context, 'free_tests_all'),
-              isSelected: _selectedCategoryId == null,
+              // "All" is selected when no specific chip is picked AND either
+              // the user explicitly tapped "All" or has no preferred categories
+              // (so there's no silent filter making "All" misleading).
+              isSelected: _selectedCategoryId == null &&
+                  (_explicitAll || _preferredCategoryIds.isEmpty),
               isDark: isDark,
-              onTap: () => setState(() => _selectedCategoryId = null),
+              onTap: () => setState(() {
+                _selectedCategoryId = null;
+                _explicitAll = true;
+              }),
             ),
             const SizedBox(width: AppTheme.spaceSm),
             for (final cat in _categories) ...[
@@ -260,7 +332,10 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
                 label: lc(context, cat.name, cat.nameAs),
                 isSelected: _selectedCategoryId == cat.id,
                 isDark: isDark,
-                onTap: () => setState(() => _selectedCategoryId = cat.id),
+                onTap: () => setState(() {
+                  _selectedCategoryId = cat.id;
+                  _explicitAll = false;
+                }),
               ),
               const SizedBox(width: AppTheme.spaceSm),
             ],

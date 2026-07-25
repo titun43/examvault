@@ -11,11 +11,14 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../models/category_model.dart';
 import '../../models/subject_model.dart';
 import '../../models/test_model.dart';
 import '../../models/current_affair_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/category_preference_service.dart';
 import '../../services/firestore_service.dart';
 import '../home/category_detail_screen.dart';
 import '../tests/test_list_screen.dart';
@@ -54,6 +57,16 @@ class _SearchScreenState extends State<SearchScreen> {
   StreamSubscription? _testsSub;
   StreamSubscription? _affairsSub;
 
+  // Categories the user picked during onboarding / Profile > My Categories.
+  // When set, search results (subjects/tests/affairs) are narrowed to these
+  // categories. The Categories section stays unfiltered (search is discovery).
+  List<String> _preferredCategoryIds = [];
+  // subjectId -> categoryId lookup map, rebuilt whenever the subjects stream
+  // emits. Used to filter test results by their subject's parent category.
+  Map<String, String> _subjectIdToCategoryId = const {};
+  // AuthProvider reference for listening to preferred-category changes.
+  AuthProvider? _auth;
+
   bool get _isLoading =>
       !(_categoriesReady && _subjectsReady && _testsReady && _affairsReady);
 
@@ -61,9 +74,15 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _initStreams();
-    // Auto-focus the search field on open.
+    _loadPreferredCategoryIds();
+    // Auto-focus the search field on open. Also wire the AuthProvider
+    // listener here (post-frame so Provider is initialized) so preferred
+    // categories refresh live when the user changes them from Profile.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _focusNode.requestFocus();
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
     });
   }
 
@@ -84,8 +103,17 @@ class _SearchScreenState extends State<SearchScreen> {
     _subjectsSub = FirestoreService.getSubjectsStream().listen(
       (data) {
         if (!mounted) return;
+        // Rebuild the subjectId -> categoryId lookup map so test results
+        // can be filtered by their subject's parent category.
+        final lookup = <String, String>{};
+        for (final s in data) {
+          if (s.id.isNotEmpty && s.categoryId.isNotEmpty) {
+            lookup[s.id] = s.categoryId;
+          }
+        }
         setState(() {
           _subjects = data;
+          _subjectIdToCategoryId = lookup;
           _subjectsReady = true;
         });
       },
@@ -131,6 +159,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _auth?.removeListener(_onAuthChanged);
     _categoriesSub?.cancel();
     _subjectsSub?.cancel();
     _testsSub?.cancel();
@@ -138,6 +167,43 @@ class _SearchScreenState extends State<SearchScreen> {
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    if (_listEquals(ids, _preferredCategoryIds)) return;
+    setState(() => _preferredCategoryIds = ids);
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Whether [categoryId] matches any of the user's preferred categories.
+  /// Handles the case where subject.categoryId might hold a name or slug
+  /// instead of the doc id (mirror of all_subjects_screen's robust matching).
+  bool _isPreferredCategoryId(String? categoryId) {
+    if (categoryId == null || categoryId.isEmpty) return false;
+    if (_preferredCategoryIds.contains(categoryId)) return true;
+    for (final catId in _preferredCategoryIds) {
+      final cat = _categories.firstWhere(
+        (c) => c.id == catId,
+        orElse: () => CategoryModel.empty(),
+      );
+      if (cat.name == categoryId || cat.slug == categoryId) return true;
+    }
+    return false;
   }
 
   bool _matches(String? text, String q) {
@@ -213,21 +279,44 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     final q = _query.toLowerCase();
+    // Categories section stays unfiltered — search is a discovery surface
+    // and the user may legitimately search for a category they haven't
+    // selected.
     final matchedCategories = _categories
         .where((c) => _matches(c.name, q) || _matches(c.slug, q))
         .toList();
-    final matchedSubjects = _subjects
+    // Subjects/tests/affairs are narrowed to the user's preferred categories
+    // (with fallback to all when the filtered list is empty — never hide all
+    // search results just because the preferred filter is active).
+    var matchedSubjects = _subjects
         .where((s) => _matches(s.name, q) || _matches(s.slug, q))
         .toList();
-    final matchedTests = _tests
+    var matchedTests = _tests
         .where((t) => _matches(t.title, q) || _matches(t.slug, q))
         .toList();
-    final matchedAffairs = _currentAffairs
+    var matchedAffairs = _currentAffairs
         .where((a) =>
             _matches(a.title, q) ||
             _matches(a.summary, q) ||
             _matches(a.category, q))
         .toList();
+    if (_preferredCategoryIds.isNotEmpty) {
+      final filteredSubjects = matchedSubjects
+          .where((s) => _isPreferredCategoryId(s.categoryId))
+          .toList();
+      if (filteredSubjects.isNotEmpty) matchedSubjects = filteredSubjects;
+      final filteredTests = matchedTests.where((t) {
+        final catId = _subjectIdToCategoryId[t.subjectId];
+        return catId != null && _preferredCategoryIds.contains(catId);
+      }).toList();
+      if (filteredTests.isNotEmpty) matchedTests = filteredTests;
+      final filteredAffairs = matchedAffairs
+          .where((a) =>
+              a.categoryId != null &&
+              _preferredCategoryIds.contains(a.categoryId))
+          .toList();
+      if (filteredAffairs.isNotEmpty) matchedAffairs = filteredAffairs;
+    }
 
     final hasAny = matchedCategories.isNotEmpty ||
         matchedSubjects.isNotEmpty ||

@@ -31,8 +31,12 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../models/category_model.dart';
 import '../../models/test_model.dart';
 import '../../models/subject_model.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/category_preference_service.dart';
 import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 import '../search/search_screen.dart';
@@ -159,9 +163,83 @@ class TestSeriesScreen extends StatelessWidget {
 // _TestList — one tab's worth of test cards. Streams tests by type.
 // =============================================================================
 
-class _TestList extends StatelessWidget {
+class _TestList extends StatefulWidget {
   final TestType? type;
   const _TestList({this.type});
+
+  @override
+  State<_TestList> createState() => _TestListState();
+}
+
+class _TestListState extends State<_TestList> {
+  // Categories the user picked during onboarding / Profile > My Categories.
+  // When set, tests are narrowed to those whose subject's parent category
+  // is in this set. Falls back to all when the filtered list is empty.
+  List<String> _preferredCategoryIds = [];
+  // subjectId -> categoryId lookup map, built from a one-time fetch of all
+  // subjects. Used to filter tests by their subject's parent category.
+  Map<String, String> _subjectIdToCategoryId = const {};
+  // AuthProvider reference for listening to preferred-category changes.
+  AuthProvider? _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMeta();
+    _loadPreferredCategoryIds();
+    // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
+    // after Profile > My Categories saves a new selection in another tab).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  /// One-time fetch of all subjects to build the subjectId -> categoryId
+  /// lookup map. Subjects don't change often, so a Future is fine here —
+  /// the tests themselves still stream via the StreamBuilder below.
+  Future<void> _loadMeta() async {
+    try {
+      final subs = await FirestoreService.getSubjects();
+      final lookup = <String, String>{};
+      for (final s in subs) {
+        if (s.id.isNotEmpty && s.categoryId.isNotEmpty) {
+          lookup[s.id] = s.categoryId;
+        }
+      }
+      if (mounted) setState(() => _subjectIdToCategoryId = lookup);
+    } catch (_) {
+      // Non-fatal — filter just won't apply until subjects load.
+    }
+  }
+
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    if (_listEquals(ids, _preferredCategoryIds)) return;
+    setState(() => _preferredCategoryIds = ids);
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -172,7 +250,7 @@ class _TestList extends StatelessWidget {
         Theme.of(context).brightness == Brightness.dark);
 
     return StreamBuilder<List<TestModel>>(
-      stream: FirestoreService.getTestsStream(type: type, isPublished: true),
+      stream: FirestoreService.getTestsStream(type: widget.type, isPublished: true),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -193,15 +271,27 @@ class _TestList extends StatelessWidget {
             ),
           );
         }
+        var tests = snapshot.data!;
+        // Filter by preferred categories (with fallback to all when the
+        // filtered list is empty — never show an empty tab if there are
+        // tests in other categories the user hasn't selected).
+        if (_preferredCategoryIds.isNotEmpty &&
+            _subjectIdToCategoryId.isNotEmpty) {
+          final filtered = tests.where((t) {
+            final catId = _subjectIdToCategoryId[t.subjectId];
+            return catId != null && _preferredCategoryIds.contains(catId);
+          }).toList();
+          if (filtered.isNotEmpty) tests = filtered;
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           // Each card is wrapped in a RepaintBoundary by default
           // (addRepaintBoundaries: true), so off-screen cards don't repaint
           // when visible ones update.
-          itemCount: snapshot.data!.length,
+          itemCount: tests.length,
           itemBuilder: (context, index) {
             return _TestCard(
-              test: snapshot.data![index],
+              test: tests[index],
               tc: tc,
             );
           },
@@ -577,8 +667,83 @@ class _TestCard extends StatelessWidget {
 // cards; tapping opens the test list for that subject.
 // =============================================================================
 
-class _SubjectList extends StatelessWidget {
+class _SubjectList extends StatefulWidget {
   const _SubjectList();
+
+  @override
+  State<_SubjectList> createState() => _SubjectListState();
+}
+
+class _SubjectListState extends State<_SubjectList> {
+  List<String> _preferredCategoryIds = [];
+  // Categories for robust id/name/slug matching (subject.categoryId may hold
+  // a name or slug instead of the doc id).
+  List<CategoryModel> _categories = const [];
+  AuthProvider? _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferredCategoryIds();
+    _loadCategories();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  Future<void> _loadPreferredCategoryIds() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
+    if (!mounted) return;
+    if (_listEquals(ids, _preferredCategoryIds)) return;
+    setState(() => _preferredCategoryIds = ids);
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await FirestoreService.getCategories();
+      if (mounted) setState(() => _categories = cats);
+    } catch (_) {}
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    _loadPreferredCategoryIds();
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Whether [categoryId] matches any of the user's preferred categories.
+  /// Handles the case where subject.categoryId might hold a name or slug
+  /// instead of the doc id. Returns true (no filter) when the user hasn't
+  /// selected any categories.
+  bool _isPreferredCategory(String? categoryId) {
+    if (_preferredCategoryIds.isEmpty) return true; // no filter active
+    if (categoryId == null || categoryId.isEmpty) return false;
+    if (_preferredCategoryIds.contains(categoryId)) return true;
+    for (final catId in _preferredCategoryIds) {
+      final cat = _categories.firstWhere(
+        (c) => c.id == catId,
+        orElse: () => CategoryModel.empty(),
+      );
+      if (cat.name == categoryId || cat.slug == categoryId) return true;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -607,9 +772,17 @@ class _SubjectList extends StatelessWidget {
           );
         }
         // Sort by name for easy scanning.
-        final subjects = List<SubjectModel>.from(snapshot.data!)
+        var subjects = List<SubjectModel>.from(snapshot.data!)
           ..sort((a, b) =>
               a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        // Filter by preferred categories (with fallback to all when the
+        // filtered list is empty — never show an empty tab).
+        if (_preferredCategoryIds.isNotEmpty) {
+          final filtered = subjects
+              .where((s) => _isPreferredCategory(s.categoryId))
+              .toList();
+          if (filtered.isNotEmpty) subjects = filtered;
+        }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: subjects.length,

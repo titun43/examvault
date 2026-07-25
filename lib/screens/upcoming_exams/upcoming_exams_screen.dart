@@ -26,10 +26,31 @@ class UpcomingExamsScreen extends StatefulWidget {
 class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
   List<String> _preferredCategoryIds = [];
   bool _ready = false;
+  // AuthProvider reference for listening to preferred-category changes
+  // (so Profile > My Categories propagates live to this screen).
+  AuthProvider? _auth;
 
   @override
   void initState() {
     super.initState();
+    _load();
+    // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
+    // after Profile > My Categories saves a new selection in another tab).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _auth = Provider.of<AuthProvider>(context, listen: false);
+      _auth!.addListener(_onAuthChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
     _load();
   }
 
@@ -37,6 +58,15 @@ class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final ids = await CategoryPreferenceService.getSelectedCategoryIds(auth.user);
     if (!mounted) return;
+    // Skip no-op rebuilds when AuthProvider notifies for unrelated reasons
+    // (premium purchase, streak update, etc.).
+    bool same = ids.length == _preferredCategoryIds.length;
+    if (same) {
+      for (var i = 0; i < ids.length; i++) {
+        if (ids[i] != _preferredCategoryIds[i]) { same = false; break; }
+      }
+    }
+    if (same && _ready) return;
     setState(() {
       _preferredCategoryIds = ids;
       _ready = true;
