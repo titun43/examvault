@@ -171,7 +171,8 @@ class _TestList extends StatefulWidget {
   State<_TestList> createState() => _TestListState();
 }
 
-class _TestListState extends State<_TestList> {
+class _TestListState extends State<_TestList>
+    with AutomaticKeepAliveClientMixin {
   // Categories the user picked during onboarding / Profile > My Categories.
   // When set, tests are narrowed to those whose subject's parent category
   // is in this set. Falls back to all when the filtered list is empty.
@@ -182,9 +183,22 @@ class _TestListState extends State<_TestList> {
   // AuthProvider reference for listening to preferred-category changes.
   AuthProvider? _auth;
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<TestModel>> _testsStream;
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _testsStream = FirestoreService.getTestsStream(
+        type: widget.type, isPublished: true);
     _loadMeta();
     _loadPreferredCategoryIds();
     // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
@@ -249,8 +263,13 @@ class _TestListState extends State<_TestList> {
     final tc = _ThemeColors.of(
         Theme.of(context).brightness == Brightness.dark);
 
+    // Required by AutomaticKeepAliveClientMixin so the tab stays alive
+    // when the user switches away and comes back (no re-fetch).
+    super.build(context);
+
     return StreamBuilder<List<TestModel>>(
-      stream: FirestoreService.getTestsStream(type: widget.type, isPublished: true),
+      // Cached in initState — see _testsStream field doc.
+      stream: _testsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -674,16 +693,25 @@ class _SubjectList extends StatefulWidget {
   State<_SubjectList> createState() => _SubjectListState();
 }
 
-class _SubjectListState extends State<_SubjectList> {
+class _SubjectListState extends State<_SubjectList>
+    with AutomaticKeepAliveClientMixin {
   List<String> _preferredCategoryIds = [];
   // Categories for robust id/name/slug matching (subject.categoryId may hold
   // a name or slug instead of the doc id).
   List<CategoryModel> _categories = const [];
   AuthProvider? _auth;
 
+  // Cached Firestore stream — see _TestListState._testsStream doc.
+  late final Stream<List<SubjectModel>> _subjectsStream;
+
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _subjectsStream = FirestoreService.getSubjectsStream();
     _loadPreferredCategoryIds();
     _loadCategories();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -750,8 +778,13 @@ class _SubjectListState extends State<_SubjectList> {
     final tc = _ThemeColors.of(
         Theme.of(context).brightness == Brightness.dark);
 
+    // Required by AutomaticKeepAliveClientMixin so the tab stays alive
+    // when the user switches away and comes back (no re-fetch).
+    super.build(context);
+
     return StreamBuilder<List<SubjectModel>>(
-      stream: FirestoreService.getSubjectsStream(),
+      // Cached in initState — see _subjectsStream field doc.
+      stream: _subjectsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

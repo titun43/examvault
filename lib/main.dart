@@ -137,11 +137,13 @@ class ExamVaultApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            // Disable theme transition animation so toggling between
-            // light/dark mode is INSTANT — no intermediate white flash.
-            // (Flutter's default theme animation can show a brief white
-            // frame while the widget tree rebuilds.)
-            themeAnimationDuration: Duration.zero,
+            // Use the default ~200ms theme transition. Earlier this was set
+            // to Duration.zero to "make toggle instant", but that actually
+            // exposes a flash because every screen rebuilds synchronously on
+            // the same frame (no cross-fade to mask the rebuild cascade).
+            // The `color:` property below already pins the window background
+            // to the correct surface color, so there is no white frame, and
+            // the smooth Material cross-fade masks any in-flight rebuild.
             // Use the dark surface color as the native window background so
             // there is never a white frame behind the app during rebuilds.
             color: themeProvider.isDarkMode

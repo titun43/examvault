@@ -30,9 +30,18 @@ class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
   // (so Profile > My Categories propagates live to this screen).
   AuthProvider? _auth;
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<UpcomingExamModel>> _examsStream;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _examsStream = FirestoreService.getUpcomingExamsStream();
     _load();
     // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
     // after Profile > My Categories saves a new selection in another tab).
@@ -99,7 +108,8 @@ class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
       body: !_ready
           ? const Center(child: CircularProgressIndicator())
           : StreamBuilder<List<UpcomingExamModel>>(
-        stream: FirestoreService.getUpcomingExamsStream(),
+        // Cached in initState — see _examsStream field doc.
+        stream: _examsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

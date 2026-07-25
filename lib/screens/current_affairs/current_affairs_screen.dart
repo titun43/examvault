@@ -28,6 +28,20 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
   // the unique categories to populate the picker modal.
   List<CurrentAffairModel> _latestAffairs = const [];
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<CurrentAffairModel>> _affairsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _affairsStream = FirestoreService.getCurrentAffairsStream(limit: 50);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,7 +109,8 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
           // List
           Expanded(
             child: StreamBuilder<List<CurrentAffairModel>>(
-              stream: FirestoreService.getCurrentAffairsStream(limit: 50),
+              // Cached in initState — see _affairsStream field doc.
+              stream: _affairsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());

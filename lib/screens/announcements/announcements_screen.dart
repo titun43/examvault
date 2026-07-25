@@ -13,15 +13,35 @@ import '../../utils/in_app_navigator.dart';
 import '../../utils/localized_content.dart';
 import '../../l10n/app_localizations.dart';
 
-class AnnouncementsScreen extends StatelessWidget {
+class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
+
+  @override
+  State<AnnouncementsScreen> createState() => _AnnouncementsScreenState();
+}
+
+class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<AnnouncementModel>> _announcementsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _announcementsStream = FirestoreService.getAnnouncementsStream();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(tr(context, 'announcements_title'))),
       body: StreamBuilder<List<AnnouncementModel>>(
-        stream: FirestoreService.getAnnouncementsStream(),
+        // Cached in initState — see _announcementsStream field doc.
+        stream: _announcementsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

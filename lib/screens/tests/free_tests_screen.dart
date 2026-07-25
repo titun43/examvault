@@ -81,9 +81,18 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
   // AuthProvider reference for listening to preferred-category changes.
   AuthProvider? _auth;
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner/shimmer flash. Cache it once in initState instead.
+  late final Stream<List<TestModel>> _testsStream;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _testsStream = FirestoreService.getTestsStream(isPublished: true);
     _loadMeta();
     _loadPreferredCategoryIds();
     // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
@@ -182,8 +191,9 @@ class _FreeTestsScreenState extends State<FreeTestsScreen> {
           Expanded(
             child: StreamBuilder<List<TestModel>>(
               // Pull every published test; we filter for free ones client-side
-              // to avoid needing a composite Firestore index.
-              stream: FirestoreService.getTestsStream(isPublished: true),
+              // to avoid needing a composite Firestore index. The stream is
+              // cached in initState so theme toggles don't re-subscribe.
+              stream: _testsStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return _buildShimmerList(isDark);

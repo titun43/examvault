@@ -181,9 +181,21 @@ class _TestListScreenState extends State<TestListScreen> {
   // with many tests can see at a glance which ones they've already taken.
   Map<String, TestResultModel> _latestResults = {};
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<TestModel>> _testsStream;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _testsStream = FirestoreService.getTestsStream(
+      subjectId: widget.subject?.id,
+      isPublished: true,
+    );
     // INSTANT LOCAL PRE-SEED (synchronous) — before the first frame builds,
     // check the Firestore-loaded purchasedCategoryIds for this category. If
     // the user already bought this exam pack, _serverHasExamPackAccess flips
@@ -455,10 +467,8 @@ class _TestListScreenState extends State<TestListScreen> {
 
     return Scaffold(
       body: StreamBuilder<List<TestModel>>(
-        stream: FirestoreService.getTestsStream(
-          subjectId: subject?.id,
-          isPublished: true,
-        ),
+        // Cached in initState — see _testsStream field doc.
+        stream: _testsStream,
         builder: (context, snapshot) {
           final isLoading = snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData;

@@ -31,8 +31,35 @@ import '../../services/firestore_service.dart';
 import '../../widgets/offline_aware_stream_builder.dart';
 import '../search/search_screen.dart';
 
-class LeaderboardScreen extends StatelessWidget {
+class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
+
+  @override
+  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
+}
+
+class _LeaderboardScreenState extends State<LeaderboardScreen> {
+  // Cached Firestore streams — one per LeaderboardType. Creating the stream
+  // inline inside build() is a Flutter anti-pattern: every parent rebuild
+  // (e.g. theme toggle) hands the OfflineAwareStreamBuilder a BRAND-NEW
+  // stream object, so Flutter cancels the old subscription and re-subscribes
+  // -> resets connection state to "waiting" -> spinner flash. Cache once
+  // in initState instead.
+  late final Map<LeaderboardType, Stream<List<LeaderboardModel>>> _streams;
+
+  @override
+  void initState() {
+    super.initState();
+    // Cache all 3 streams ONCE so theme toggles don't re-fetch from Firestore.
+    _streams = {
+      LeaderboardType.weekly:
+          FirestoreService.getLeaderboardStream(type: LeaderboardType.weekly),
+      LeaderboardType.monthly:
+          FirestoreService.getLeaderboardStream(type: LeaderboardType.monthly),
+      LeaderboardType.allTime:
+          FirestoreService.getLeaderboardStream(type: LeaderboardType.allTime),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,14 +118,21 @@ class LeaderboardScreen extends StatelessWidget {
   }
 
   Widget _buildLeaderboard(BuildContext context, LeaderboardType type) {
-    final currentUserId = Provider.of<AuthProvider>(context).user?.id;
+    // listen: false — currentUserId only changes on login/logout, which
+    // navigates to a fresh MainNavigation (re-creating this screen) per the
+    // file header comment. Using listen: false avoids subscribing the whole
+    // State to AuthProvider notifies (streak updates, user-doc writes, etc.)
+    // which would otherwise trigger a full rebuild + stream re-subscription.
+    final currentUserId =
+        Provider.of<AuthProvider>(context, listen: false).user?.id;
 
     // BUGFIX: use OfflineAwareStreamBuilder instead of raw StreamBuilder.
     // This shows cached data immediately (fixing the post-logout spinner)
     // and shows a friendly offline message instead of an infinite spinner
     // when the device has no connectivity and no cached data.
+    // Stream is cached in initState — see _streams field doc.
     return OfflineAwareStreamBuilder<List<LeaderboardModel>>(
-      stream: FirestoreService.getLeaderboardStream(type: type),
+      stream: _streams[type]!,
       dataBuilder: (context, leaderboard, isStale) {
         if (leaderboard.isEmpty) {
           return _buildEmptyState(context);

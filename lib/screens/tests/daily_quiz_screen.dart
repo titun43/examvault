@@ -36,9 +36,21 @@ class _DailyQuizScreenState extends State<DailyQuizScreen> {
   // AuthProvider reference for listening to preferred-category changes.
   AuthProvider? _auth;
 
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<TestModel>> _quizzesStream;
+
   @override
   void initState() {
     super.initState();
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _quizzesStream = FirestoreService.getTestsStream(
+      type: TestType.dailyQuiz,
+      isPublished: true,
+    );
     _loadMeta();
     _loadPreferredCategoryIds();
     // Reactivity: refresh preferred ids when AuthProvider notifies (e.g.
@@ -101,10 +113,8 @@ class _DailyQuizScreenState extends State<DailyQuizScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Daily Quiz')),
       body: StreamBuilder<List<TestModel>>(
-        stream: FirestoreService.getTestsStream(
-          type: TestType.dailyQuiz,
-          isPublished: true,
-        ),
+        // Cached in initState — see _quizzesStream field doc.
+        stream: _quizzesStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -139,7 +149,14 @@ class _DailyQuizScreenState extends State<DailyQuizScreen> {
                 // Streak / motivational card — shows the user's actual current
                 // streak + a 7-day weekly activity strip. Reads from
                 // AuthProvider so it reflects the latest test submission.
-                _buildStreakCard(context),
+                // Wrapped in a Consumer<AuthProvider> so ONLY this card
+                // rebuilds when AuthProvider notifies (e.g. after a test
+                // submission updates streak) — the parent State does NOT
+                // rebuild, so the StreamBuilder above doesn't re-subscribe
+                // and we avoid a spinner flash.
+                Consumer<AuthProvider>(
+                  builder: (ctx, auth, _) => _buildStreakCard(ctx, auth),
+                ),
                 const SizedBox(height: 24),
                 // Today's Quiz
                 Text(
@@ -179,10 +196,13 @@ class _DailyQuizScreenState extends State<DailyQuizScreen> {
     );
   }
 
-  Widget _buildStreakCard(BuildContext context) {
-    // Read the live user from AuthProvider so the card reflects the latest
-    // test submission (streak + lastActiveAt update after each test).
-    final auth = Provider.of<AuthProvider>(context);
+  /// Builds the streak / motivational card. Takes the [auth] as a parameter
+  /// (instead of calling Provider.of<AuthProvider>(context) internally) so
+  /// the ONLY context subscribed to AuthProvider changes is the Consumer at
+  /// the call site — the parent _DailyQuizScreenState does NOT subscribe,
+  /// which means AuthProvider notifies (streak updates, user-doc writes,
+  /// etc.) do NOT trigger a full screen rebuild + stream re-subscription.
+  Widget _buildStreakCard(BuildContext context, AuthProvider auth) {
     final user = auth.user;
     final storedStreak = user?.streak ?? 0;
     final lastActive = user?.lastActiveAt;

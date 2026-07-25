@@ -7,20 +7,47 @@ import '../../models/notification_model.dart';
 import '../../services/firestore_service.dart';
 import '../../l10n/app_localizations.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final userId = Provider.of<AuthProvider>(context).user?.id ?? '';
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
 
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  // The userId this screen was created for. Read once in initState with
+  // listen: false — auth changes (login/logout) trigger a full navigation
+  // that recreates this screen, so the userId is stable for the screen's
+  // lifetime. Using listen: false avoids subscribing the State to
+  // AuthProvider notifies (which would cause a rebuild + stream
+  // re-subscription on every streak update / user-doc write).
+  late final String _userId;
+
+  // Cached Firestore stream. Creating the stream inline inside build() is a
+  // Flutter anti-pattern: every parent rebuild (e.g. theme toggle) hands the
+  // StreamBuilder a BRAND-NEW stream object, so Flutter cancels the old
+  // subscription and re-subscribes -> resets connection state to "waiting"
+  // -> spinner flash. Cache it once in initState instead.
+  late final Stream<List<NotificationModel>> _notificationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    _userId = auth.user?.id ?? '';
+    // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
+    _notificationsStream = FirestoreService.getNotificationsStream(_userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(tr(context, 'notifications_title')),
         actions: [
           TextButton(
             onPressed: () {
-              FirestoreService.markAllNotificationsRead(userId);
+              FirestoreService.markAllNotificationsRead(_userId);
             },
             child: Text(tr(context, 'notifications_mark_all_read'),
                 style: const TextStyle(color: Colors.white)),
@@ -28,7 +55,8 @@ class NotificationsScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<List<NotificationModel>>(
-        stream: FirestoreService.getNotificationsStream(userId),
+        // Cached in initState — see _notificationsStream field doc.
+        stream: _notificationsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
