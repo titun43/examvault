@@ -137,13 +137,23 @@ class ExamVaultApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeProvider.themeMode,
-            // Use the default ~200ms theme transition. Earlier this was set
-            // to Duration.zero to "make toggle instant", but that actually
-            // exposes a flash because every screen rebuilds synchronously on
-            // the same frame (no cross-fade to mask the rebuild cascade).
-            // The `color:` property below already pins the window background
-            // to the correct surface color, so there is no white frame, and
-            // the smooth Material cross-fade masks any in-flight rebuild.
+            // Disable the Material theme cross-fade animation. Flutter's
+            // default ~200ms AnimatedTheme interpolates between the old and
+            // new ThemeData, and during that interpolation the canvas/
+            // scaffold background passes through an intermediate grey/white
+            // value -> visible "flash" when toggling light/dark. Setting
+            // this to Duration.zero makes the swap instant on the next frame
+            // (no interpolation -> no flash).
+            //
+            // NOTE: the earlier "slow toggle" complaint was NOT caused by
+            // Duration.zero. It was caused by 9 screens creating Firestore
+            // streams inline in build() — every theme-change rebuild handed
+            // each StreamBuilder a brand-new stream, triggering cancel +
+            // re-subscribe -> spinner/shimmer flash. That is now fixed
+            // (streams cached as late final in initState across all 10
+            // screens), so Duration.zero here gives an INSTANT + FLASH-FREE
+            // toggle.
+            themeAnimationDuration: Duration.zero,
             // Use the dark surface color as the native window background so
             // there is never a white frame behind the app during rebuilds.
             color: themeProvider.isDarkMode
