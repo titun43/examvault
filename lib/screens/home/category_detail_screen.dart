@@ -31,6 +31,8 @@ import '../../utils/localized_content.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../../services/admob_service.dart';
+import '../../utils/ad_frequency_controller.dart';
 import '../auth/login_screen.dart';
 import '../tests/test_list_screen.dart';
 
@@ -74,6 +76,19 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
   void initState() {
     super.initState();
     _liveCategory = widget.category;
+
+    // Show interstitial ad on category open (with frequency control)
+    if (AdMobService.shouldShowAds && AdFrequencyController.shouldShowInterstitial()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            try {
+              AdMobService.showInterstitialAd();
+            } catch (_) {}
+          }
+        });
+      });
+    }
     // Subscribe to the category doc so premium/price changes made in the
     // admin panel reflect IMMEDIATELY — no need to navigate away and back.
     _categorySub = FirestoreService.getCategoryStream(_liveCategory.id).listen((cat) {

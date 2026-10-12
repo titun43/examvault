@@ -37,6 +37,7 @@ import '../../models/test_result_model.dart';
 import '../../models/question_model.dart';
 import '../../models/test_model.dart';
 import '../../services/admob_service.dart';
+import '../../utils/ad_frequency_controller.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_fonts.dart';
 import '../../utils/localized_content.dart';
@@ -870,8 +871,9 @@ class _PostTestAdTriggerState extends State<_PostTestAdTrigger> {
         // Guard: if the user already navigated away from ResultScreen
         if (!mounted) return;
 
-        // Guard: check premium status — premium users never see ads
+        // Guard: check premium status + frequency control
         if (!AdMobService.shouldShowAds) return;
+        if (!AdFrequencyController.shouldShowInterstitial()) return;
 
         // Guard: only show if the AdMob SDK initialized successfully AND
         // an interstitial is actually preloaded.

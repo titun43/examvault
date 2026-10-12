@@ -15,6 +15,9 @@ import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/streak_helper.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/banner_ad_widget.dart';
+import '../../services/admob_service.dart';
+import '../../utils/ad_frequency_controller.dart';
 import '../../widgets/weekly_streak_indicator.dart';
 import 'take_test_screen.dart';
 
@@ -112,6 +115,7 @@ class _DailyQuizScreenState extends State<DailyQuizScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('Daily Quiz')),
+      bottomNavigationBar: const BannerAdWidget(),
       body: StreamBuilder<List<TestModel>>(
         // Cached in initState — see _quizzesStream field doc.
         stream: _quizzesStream,

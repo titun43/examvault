@@ -123,6 +123,7 @@ import '../../theme/app_fonts.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../../widgets/banner_ad_widget.dart';
 import 'take_test_screen.dart';
 import '../auth/login_screen.dart';
 
@@ -466,6 +467,7 @@ class _TestListScreenState extends State<TestListScreen> {
         !isPremiumUser;
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       body: StreamBuilder<List<TestModel>>(
         // Cached in initState — see _testsStream field doc.
         stream: _testsStream,

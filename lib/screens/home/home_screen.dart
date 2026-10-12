@@ -32,6 +32,7 @@ import '../../utils/localized_content.dart';
 import '../../services/razorpay_service.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
+import '../../widgets/banner_ad_widget.dart';
 import 'category_detail_screen.dart';
 import '../auth/login_screen.dart';
 import '../current_affairs/current_affairs_screen.dart';
@@ -280,6 +281,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+      // Banner ad at bottom of home screen (hidden for premium users)
+      bottomNavigationBar: const BannerAdWidget(),
       body: RefreshIndicator(
         onRefresh: () async {
           // Streams auto-refresh; this is just for the pull-to-refresh UX.
