@@ -125,13 +125,13 @@ android {
             // account is approved and serving.
             // =====================================================================
             manifestPlaceholders = [
-                admobAppId: "ca-app-pub-3940256099942544~3347511713"
+                admobAppId: "ca-app-pub-1742730064755213~7890219994"
             ]
         }
         debug {
             // Test AdMob App ID (debug always tests with the sample App ID)
             manifestPlaceholders = [
-                admobAppId: "ca-app-pub-3940256099942544~3347511713"
+                admobAppId: "ca-app-pub-1742730064755213~7890219994"
             ]
         }
     }

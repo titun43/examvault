@@ -68,7 +68,7 @@ class AppConfig {
   // manifest carries the REAL App ID while the AdMob account is unapproved,
   // the native SDK crashes on release builds and CANNOT be caught in Dart.
   // This was the root cause of the "app crashing + ads not running" bug.
-  static const bool admobTestMode = true;
+  static const bool admobTestMode = false;
 
   // ===== ADMOB MASTER KILL SWITCH =====
   // Set to false to COMPLETELY disable AdMob: no SDK init, no banner ads,
