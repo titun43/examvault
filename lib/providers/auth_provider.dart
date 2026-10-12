@@ -97,10 +97,7 @@ class AuthProvider extends ChangeNotifier {
   /// check this and prompt the guest to sign in before purchase.
   bool get isGuest => _user == null && _authInitialized;
   bool get isPremium {
-    final premium = _user?.isPremium ?? false;
-    // Sync AdMob premium status whenever this getter is accessed
-    AdMobService.setPremiumUser(premium);
-    return premium;
+    return _user?.isPremium ?? false;
   }
   bool get isAdmin => _user?.isAdmin ?? false;
   /// True if the user can open this category — premium subscription OR exam-pack purchase.
@@ -220,6 +217,8 @@ class AuthProvider extends ChangeNotifier {
       }
     } finally {
       _isLoading = false;
+      // Sync AdMob premium status after user data is loaded
+      AdMobService.setPremiumUser(_user?.isPremium ?? false);
       notifyListeners();
     }
     // REAL-TIME SYNC: fetch the authoritative premium status from the Neon
@@ -277,6 +276,8 @@ class AuthProvider extends ChangeNotifier {
           // Premium affects ALL access decisions — clear everything so the
           // next check hits the server with the new premium state.
           AccessService.clearCache();
+          // Sync AdMob premium status
+          AdMobService.setPremiumUser(newUser.isPremium);
           // Keep the SharedPreferences premium cache in sync.
           if (newUser.isPremium) {
             PremiumCacheService.setPremium(userId: uid);
