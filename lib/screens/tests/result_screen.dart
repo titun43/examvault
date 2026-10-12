@@ -127,6 +127,17 @@ class _ResultScreenState extends State<ResultScreen> {
     } catch (_) {
       // Non-fatal: silent on share failure.
     }
+
+    // Show interstitial ad after sharing (with frequency control)
+    if (AdMobService.shouldShowAds && AdFrequencyController.shouldShowInterstitial()) {
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          try {
+            AdMobService.showInterstitialAd();
+          } catch (_) {}
+        }
+      });
+    }
   }
 
   void _retake() {

@@ -33,6 +33,7 @@ import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../../services/admob_service.dart';
 import '../../utils/ad_frequency_controller.dart';
+import '../../widgets/banner_ad_widget.dart';
 import '../auth/login_screen.dart';
 import '../tests/test_list_screen.dart';
 
@@ -504,8 +505,15 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: snapshot.data!.length,
+            itemCount: snapshot.data!.length + 1, // +1 for banner ad
             itemBuilder: (context, index) {
+              // Show banner ad after the last subject
+              if (index == snapshot.data!.length) {
+                return const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: BannerAdWidget(),
+                );
+              }
               final subject = snapshot.data![index];
               return _buildSubjectCard(context, subject);
             },

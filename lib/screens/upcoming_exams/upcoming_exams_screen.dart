@@ -14,6 +14,7 @@ import '../../services/category_preference_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/share_helper.dart';
 import '../../utils/localized_content.dart';
+import '../../widgets/banner_ad_widget.dart';
 import '../onboarding/category_selection_screen.dart';
 
 class UpcomingExamsScreen extends StatefulWidget {
@@ -142,10 +143,14 @@ class _UpcomingExamsScreenState extends State<UpcomingExamsScreen> {
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
-            itemCount: list.length,
+            itemCount: list.length + 1, // +1 for banner ad at top
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              return _UpcomingExamCard(exam: list[index]);
+              // Banner ad as the first item (after header)
+              if (index == 0) {
+                return const BannerAdWidget();
+              }
+              return _UpcomingExamCard(exam: list[index - 1]);
             },
           );
         },
