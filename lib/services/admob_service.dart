@@ -25,6 +25,22 @@ class AdMobService {
   /// NEVER created before the SDK is ready (which would crash natively).
   static bool get isInitialized => _initialized;
 
+  /// Premium user flag — set from AuthProvider when login state changes.
+  /// When true, NO ads are shown (banner, interstitial, rewarded).
+  static bool _isPremiumUser = false;
+
+  /// Call this from AuthProvider whenever the user's premium status changes.
+  static void setPremiumUser(bool isPremium) {
+    _isPremiumUser = isPremium;
+  }
+
+  /// Returns true if ads should be shown (not premium, AdMob enabled, initialized).
+  static bool get shouldShowAds {
+    if (_isPremiumUser) return false;
+    if (!AppConfig.admobEnabled) return false;
+    return _initialized;
+  }
+
   // ==================== INITIALIZE ====================
   static Future<void> initialize() async {
     if (_initialized) return;
@@ -100,6 +116,7 @@ class AdMobService {
   static void loadInterstitialAd() {
     if (!_initialized) return; // don't try if SDK isn't ready
     if (!AppConfig.admobEnabled) return; // master kill switch
+    if (_isPremiumUser) return; // premium users don't need ads loaded
     try {
       InterstitialAd.load(
         adUnitId: interstitialAdUnitId,
@@ -149,6 +166,7 @@ class AdMobService {
   static Future<bool> showInterstitialAd() async {
     if (!_initialized) return false;
     if (!AppConfig.admobEnabled) return false; // master kill switch
+    if (_isPremiumUser) return false; // premium users never see ads
     if (_interstitialAd == null) {
       loadInterstitialAd();
       return false;

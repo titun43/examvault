@@ -12,6 +12,7 @@ import '../services/firebase_service.dart';
 import '../services/premium_cache_service.dart';
 import '../services/exam_pack_cache_service.dart';
 import '../services/access_service.dart';
+import '../services/admob_service.dart';
 
 /// Converts raw Firebase auth exceptions into user-friendly messages.
 String _friendlyAuthError(Object e) {
@@ -95,7 +96,12 @@ class AuthProvider extends ChangeNotifier {
   /// so they can browse and take FREE tests. Premium / paid content must
   /// check this and prompt the guest to sign in before purchase.
   bool get isGuest => _user == null && _authInitialized;
-  bool get isPremium => _user?.isPremium ?? false;
+  bool get isPremium {
+    final premium = _user?.isPremium ?? false;
+    // Sync AdMob premium status whenever this getter is accessed
+    AdMobService.setPremiumUser(premium);
+    return premium;
+  }
   bool get isAdmin => _user?.isAdmin ?? false;
   /// True if the user can open this category — premium subscription OR exam-pack purchase.
   bool hasCategoryAccess(String categoryId) => _user?.hasCategoryAccess(categoryId) ?? false;
@@ -123,6 +129,7 @@ class AuthProvider extends ChangeNotifier {
         _userDocSub?.cancel();
         _userDocSub = null;
         _user = null;
+        AdMobService.setPremiumUser(false); // Reset on logout
         notifyListeners();
       }
     });

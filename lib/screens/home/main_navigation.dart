@@ -48,6 +48,61 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+  static const _updateChannel = MethodChannel('com.examvault.education/update');
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for app update 3 seconds after app loads
+    Future.delayed(const Duration(seconds: 3), _checkForUpdate);
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (!mounted) return;
+    try {
+      final result = await _updateChannel.invokeMethod('checkUpdate');
+      if (result == null) return;
+      final updateAvailable = result['updateAvailable'] == true;
+      if (updateAvailable && mounted) {
+        _showUpdateDialog();
+      }
+    } catch (e) {
+      // Silent fail — update check is non-critical
+    }
+  }
+
+  void _showUpdateDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.system_update, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Update Available'),
+          ],
+        ),
+        content: const Text(
+          'A new version of ExamVault is available. '
+          'Please update for the best experience and latest features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateChannel.invokeMethod('startUpdate');
+            },
+            child: const Text('Update Now'),
+          ),
+        ],
+      ),
+    );
+  }
 
   final List<Widget> _screens = [
     const HomeScreen(),

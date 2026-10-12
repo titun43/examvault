@@ -104,7 +104,7 @@ class AppConfig {
   //   3. A test build is run on a real device with adb logcat attached to
   //      confirm MobileAds.instance.initialize() + InterstitialAd.load() +
   //      .show() all complete without any native SIGSEGV
-  static const bool admobEnabled = false;
+  static const bool admobEnabled = true;
 
   // Test AdMob IDs (Google sample — for development only)
   static const String testAdmobAppId = 'ca-app-pub-3940256099942544~3347511713';
