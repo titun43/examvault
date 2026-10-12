@@ -496,13 +496,9 @@ class _TakeTestScreenState extends State<TakeTestScreen>
       _maybePromptResume();
 
       // Preload the interstitial ad AFTER the first frame with real content
-      // is rendered. Doing it in initState (previous code) could trigger a
-      // native SDK crash during the initial build — see the note in initState.
-      // addPostFrameCallback guarantees the current frame is fully painted
-      // before we touch the AdMob SDK, which is the safest moment to start a
-      // background ad load. Wrapped in try/catch so a non-fatal SDK error
-      // never bubbles up and kills the screen.
-      if (AdMobService.isInitialized) {
+      // is rendered. Only preload if user is NOT premium (premium users
+      // never see ads, so no need to waste bandwidth loading them).
+      if (AdMobService.shouldShowAds) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           try {
             AdMobService.loadInterstitialAd();

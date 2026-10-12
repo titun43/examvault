@@ -868,28 +868,25 @@ class _PostTestAdTriggerState extends State<_PostTestAdTrigger> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Future.delayed(const Duration(seconds: 2), () {
         // Guard: if the user already navigated away from ResultScreen
-        // (e.g. tapped "Home" or "Retake Test" within 2s), skip the ad
-        // — showing it on top of a different screen would be jarring.
         if (!mounted) return;
 
+        // Guard: check premium status — premium users never see ads
+        if (!AdMobService.shouldShowAds) return;
+
         // Guard: only show if the AdMob SDK initialized successfully AND
-        // an interstitial is actually preloaded. This prevents calling
-        // .show() on a null/stale ad reference.
+        // an interstitial is actually preloaded.
         if (!AdMobService.isInitialized) return;
         if (!AdMobService.isInterstitialReady) {
-          // No ad preloaded yet — kick off a preload so the NEXT test's
-          // ad is ready (the preload started in _loadQuestions may still
-          // be in flight on a slow network).
           try {
             AdMobService.loadInterstitialAd();
           } catch (_) {}
           return;
         }
 
+        // Show ad with extra crash protection
         try {
           AdMobService.showInterstitialAd();
         } catch (e) {
-          // Non-fatal: a failed show is logged but never crashes the app.
           print('showInterstitialAd (post-test) failed (non-fatal): $e');
         }
       });
