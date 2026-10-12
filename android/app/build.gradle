@@ -166,3 +166,12 @@ dependencies {
     implementation 'com.google.android.play:app-update:2.1.0'
     implementation 'com.google.android.play:app-update-ktx:2.1.0'
 }
+
+// Workaround for google_mobile_ads 3.x namespace issue with AGP 8+
+project(':google_mobile_ads') {
+    afterEvaluate {
+        if (android.namespace == null) {
+            android.namespace = 'io.flutter.plugins.googlemobileads'
+        }
+    }
+}
