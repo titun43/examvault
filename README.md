@@ -1,6 +1,6 @@
 # ExamVault — Flutter + Firebase Android App
 
-India's #1 MCQ Mock Test platform for Railway, SSC, UPSC, Banking, ADRE & State Exams.
+MCQ Mock Test platform for Indian competitive exams including Railway, SSC, UPSC, Banking, ADRE & State Exams.
 
 > **Package:** `com.examvault.education`
 > **Owner:** lkstudeoandcomputering@gmail.com

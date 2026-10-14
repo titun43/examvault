@@ -40,7 +40,7 @@ class ProfileScreen extends StatelessWidget {
       final info = await PackageInfo.fromPlatform();
       final storeUrl = 'https://play.google.com/store/apps/details?id=${info.packageName}';
       await Share.share(
-        'Check out ExamVault - India\'s #1 MCQ Mock Test app for Railway, SSC, UPSC, Banking & more!\n\n'
+        'Check out ExamVault - MCQ Mock Test app for Railway, SSC, UPSC, Banking & more!\n\n'
         'Download now: $storeUrl',
         subject: 'ExamVault - Mock Test App',
       );
