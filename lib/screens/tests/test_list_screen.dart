@@ -124,6 +124,8 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/payment_progress_dialog.dart';
 import '../../widgets/payment_success_dialog.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../services/admob_service.dart';
+import '../../utils/ad_frequency_controller.dart';
 import 'take_test_screen.dart';
 import '../auth/login_screen.dart';
 
@@ -218,6 +220,20 @@ class _TestListScreenState extends State<TestListScreen> {
       _fetchSubjectPackStatus(widget.subject!.id);
     }
     _loadLatestResults();
+
+    // Show interstitial ad when opening test list (with frequency control)
+    // Added in v1.57.0+90 — more aggressive ad placement per developer request
+    if (AdMobService.shouldShowAds && AdFrequencyController.shouldShowInterstitial()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            try {
+              AdMobService.showInterstitialAd();
+            } catch (_) {}
+          }
+        });
+      });
+    }
   }
 
   /// Fetches the user's latest test-result for every test (one Firestore

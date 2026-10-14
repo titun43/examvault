@@ -1,9 +1,9 @@
 // =============================================================================
 // ExamVault - Ad Frequency Controller
 // Controls how often interstitial ads are shown so users don't get annoyed.
-// Rules:
-//   - Minimum 3 actions between interstitial ads
-//   - Maximum 1 interstitial per 60 seconds
+// Rules (v1.57.0+90 — more aggressive per developer request):
+//   - Minimum 2 actions between interstitial ads (was 3)
+//   - Minimum 30 seconds between interstitial ads (was 60)
 //   - Premium users never see ads (checked in AdMobService)
 // =============================================================================
 
@@ -12,14 +12,14 @@ class AdFrequencyController {
 
   static int _actionsSinceLastAd = 0;
   static DateTime? _lastAdShownTime;
-  static const int _minActionsBetweenAds = 3;
-  static const Duration _minTimeBetweenAds = Duration(seconds: 60);
+  static const int _minActionsBetweenAds = 2;
+  static const Duration _minTimeBetweenAds = Duration(seconds: 30);
 
   /// Call this when a user performs an action that COULD trigger an ad.
   /// Returns true if an ad should be shown (enough actions + time passed).
   static bool shouldShowInterstitial() {
     _actionsSinceLastAd++;
-    
+
     // Not enough actions since last ad
     if (_actionsSinceLastAd < _minActionsBetweenAds) {
       return false;

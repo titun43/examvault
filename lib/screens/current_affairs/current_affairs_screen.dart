@@ -9,6 +9,8 @@ import '../../theme/app_theme.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/current_affair_model.dart';
 import '../../services/firestore_service.dart';
+import '../../services/admob_service.dart';
+import '../../utils/ad_frequency_controller.dart';
 import '../../utils/localized_content.dart';
 import '../../utils/share_helper.dart';
 
@@ -40,6 +42,19 @@ class _CurrentAffairsScreenState extends State<CurrentAffairsScreen> {
     super.initState();
     // Cache the stream ONCE so theme toggles don't re-fetch from Firestore.
     _affairsStream = FirestoreService.getCurrentAffairsStream(limit: 50);
+
+    // Show interstitial ad on Current Affairs screen open (v1.57.0+90)
+    if (AdMobService.shouldShowAds && AdFrequencyController.shouldShowInterstitial()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            try {
+              AdMobService.showInterstitialAd();
+            } catch (_) {}
+          }
+        });
+      });
+    }
   }
 
   @override
