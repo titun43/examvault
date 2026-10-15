@@ -165,6 +165,10 @@ dependencies {
     // In-App Update
     implementation 'com.google.android.play:app-update:2.1.0'
     implementation 'com.google.android.play:app-update-ktx:2.1.0'
+
+    // Google Play Billing Library 8+ — required by Play Console policy from Aug 31, 2026.
+    // Forces all transitive dependencies (e.g. from ads SDKs) to use billing 8+ instead of older versions.
+    implementation 'com.android.billingclient:billing:8.1.0'
 }
 
 // Workaround for google_mobile_ads 3.x namespace issue with AGP 8+
