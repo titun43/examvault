@@ -81,12 +81,11 @@ class GovernmentSourcesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tr = context.loc;
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(tr.t('govSources')),
+        title: Text(tr(context, 'govSources')),
       ),
       body: Column(
         children: [
@@ -96,29 +95,29 @@ class GovernmentSourcesScreen extends StatelessWidget {
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.warning.withOpacity(0.1),
+              color: AppTheme.warningColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.warning.withOpacity(0.4)),
+              border: Border.all(color: AppTheme.warningColor.withOpacity(0.4)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline, color: AppColors.warning, size: 22),
+                Icon(Icons.info_outline, color: AppTheme.warningColor, size: 22),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        tr.t('disclaimerTitle'),
+                        tr(context, 'disclaimerTitle'),
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.warning,
+                          color: AppTheme.warningColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        tr.t('disclaimerBody'),
+                        tr(context, 'disclaimerBody'),
                         style: theme.textTheme.bodySmall,
                       ),
                     ],
@@ -134,7 +133,7 @@ class GovernmentSourcesScreen extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                tr.t('officialSources'),
+                tr(context, 'officialSources'),
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -159,11 +158,11 @@ class GovernmentSourcesScreen extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppTheme.primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.verified,
-                          color: AppColors.primary, size: 22),
+                          color: AppTheme.primaryColor, size: 22),
                     ),
                     title: Text(
                       source['name']!,
@@ -177,7 +176,7 @@ class GovernmentSourcesScreen extends StatelessWidget {
                       ),
                     ),
                     trailing: const Icon(Icons.open_in_new,
-                        color: AppColors.primary, size: 20),
+                        color: AppTheme.primaryColor, size: 20),
                     onTap: () => _launchUrl(source['url']!),
                   ),
                 );
@@ -189,7 +188,7 @@ class GovernmentSourcesScreen extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              tr.t('sourcesFooterNote'),
+              tr(context, 'sourcesFooterNote'),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
