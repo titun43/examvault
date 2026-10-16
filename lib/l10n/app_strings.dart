@@ -259,6 +259,11 @@ class AppStrings {
     'about': 'About',
     'appVersion': 'App Version',
     'privacyPolicy': 'Privacy Policy',
+    'govSources': 'Government Sources',
+    'officialSources': 'Official Sources',
+    'disclaimerTitle': 'Disclaimer',
+    'disclaimerBody': 'ExamVault is an independent educational practice app and is NOT affiliated with, endorsed by, or connected to any government entity, examination authority, or any official body. All exam names (SSC, UPSC, APSC, ADRE, Railway, Banking) are trademarks of their respective owners. Questions in this app are practice questions created independently and do not represent actual exam content.',
+    'sourcesFooterNote': 'Tap any source above to visit the official website. Always verify exam information from official sources.',
     'termsConditions': 'Terms & Conditions',
     'refundPolicy': 'Refund Policy',
 
@@ -773,6 +778,11 @@ class AppStrings {
     'about': 'বিষয়ে',
     'appVersion': 'এপ্ সংস্কৰণ',
     'privacyPolicy': 'গোপনীয়তা নীতি',
+    'govSources': 'চৰকাৰী উৎস',
+    'officialSources': 'আধিকাৰিক উৎসসমূহ',
+    'disclaimerTitle': 'দাব়ীকৰণ',
+    'disclaimerBody': 'ExamVault একটি স্বতন্ত্ৰ শৈক্ষিক অনুশীলন এপ্ আৰু কোনো চৰকাৰী সংস্থা, পৰীক্ষা কৰ্তৃপক্ষ বা আধিকাৰিক সংস্থাৰ সৈতে সংযুক্ত নহয়। সকলো পৰীক্ষাৰ নাম (SSC, UPSC, APSC, ADRE, Railway, Banking) তেওঁলোকৰ নিজ নিজ মালিকৰ ট্ৰেডমাৰ্ক। এই এপ্-ৰ প্ৰশ্নসমূহ স্বতন্ত্ৰভাৱে তৈয়াৰ কৰা অনুশীলন প্ৰশ্ন আৰু প্ৰকৃত পৰীক্ষাৰ বিষয়বস্তু নহয়।',
+    'sourcesFooterNote': 'আধিকাৰিক ৱেবছাইট দৰ্শন কৰিবলৈ ওপৰৰ যিকোনো উৎস টিপক। সদায় আধিকাৰিক উৎসৰ পৰা পৰীক্ষাৰ তথ্য যাচাই কৰক।',
     'termsConditions': 'চৰ্তাৱলী',
     'refundPolicy': 'ৰিফাণ্ড নীতি',
 

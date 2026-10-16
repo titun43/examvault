@@ -25,6 +25,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../config/app_config.dart';
 import '../auth/login_screen.dart';
+import '../government_sources_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -568,6 +569,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: tr(context, 'privacyPolicy'),
                   onTap: () =>
                       _launchUrl(AppConfig.privacyPolicyUrl, 'Privacy Policy'),
+                ),
+                _Divider(),
+                _AboutTile(
+                  icon: Icons.verified_rounded,
+                  iconColor: AppTheme.accentColor,
+                  title: tr(context, 'govSources'),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const GovernmentSourcesScreen()),
+                    );
+                  },
                 ),
                 _Divider(),
                 _AboutTile(
