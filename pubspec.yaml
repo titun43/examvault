@@ -1,7 +1,7 @@
 name: examvault
 description: ExamVault - independent educational practice app with mock tests for Indian competitive exams (SSC, UPSC, APSC, ADRE, Railway, Banking). Not affiliated with any government entity.
 publish_to: 'none'
-version: 1.62.1+97
+version: 1.62.2+98
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -96,12 +96,13 @@ dependencies:
   font_awesome_flutter: 10.6.0
 
   # ==================== IN-APP UPDATE ====================
-  # Native Play Core library already declared in android/app/build.gradle:
-  #   - com.google.android.play:app-update:2.1.0
-  #   - com.google.android.play:app-update-ktx:2.1.0
-  # This Flutter package wraps that. Used by AppUpdateService to check for
-  # Play Store updates and prompt the user with a flexible/immediate flow.
-  in_app_update: ^4.2.3
+  # NOTE: in_app_update Flutter package (4.x) has Gradle cache + namespace
+  # issues with our AGP 8 setup. Instead, we use the NATIVE AppUpdateManager
+  # (com.google.android.play:app-update:2.1.0, already in build.gradle)
+  # via a MethodChannel — see:
+  #   - android/app/src/main/kotlin/.../MainActivity.kt (native side)
+  #   - lib/services/app_update_service.dart (Flutter side)
+  # This avoids the broken Flutter package entirely.
 
 dev_dependencies:
   flutter_test:

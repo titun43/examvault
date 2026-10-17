@@ -179,14 +179,3 @@ project(':google_mobile_ads') {
         }
     }
 }
-
-// Workaround for in_app_update 4.x namespace issue with AGP 8+
-// Same root cause as google_mobile_ads — Flutter plugin predates AGP 8's
-// mandatory namespace requirement. We patch it post-evaluation.
-project(':in_app_update') {
-    afterEvaluate {
-        if (android.namespace == null) {
-            android.namespace = 'de.fittox.app_update'
-        }
-    }
-}

@@ -39,7 +39,6 @@ import '../l10n/app_localizations.dart';
 import '../widgets/app_open_banner_dialog.dart';
 import 'home/main_navigation.dart';
 import '../services/category_preference_service.dart';
-import '../services/app_update_service.dart';
 import 'onboarding/category_selection_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -100,12 +99,8 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
     _navigated = true;
 
-    // === Check for app update (in-app update) ===
-    // Non-blocking — runs in parallel with navigation. If an update is
-    // available, a dialog will be shown on top of the destination screen.
-    // Force update (if configured) will block the user from using the app
-    // until they update.
-    AppUpdateService().checkForUpdate(context: context);
+    // Note: In-app update check is performed by MainNavigation's initState
+    // (via native MethodChannel). No need to check here — it would duplicate.
 
     // Admins no longer have an in-app dashboard — they use the separate
     // web admin panel at github.com/titun43/examvault-admin. Anyone signed
