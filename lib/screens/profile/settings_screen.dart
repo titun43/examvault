@@ -26,6 +26,7 @@ import '../../services/auth_service.dart';
 import '../../config/app_config.dart';
 import '../auth/login_screen.dart';
 import '../government_sources_screen.dart';
+import '../../services/app_update_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -598,6 +599,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: tr(context, 'refundPolicy'),
                   onTap: () =>
                       _launchUrl(AppConfig.refundPolicyUrl, 'Refund Policy'),
+                ),
+                _Divider(),
+                _AboutTile(
+                  icon: Icons.system_update_rounded,
+                  iconColor: AppTheme.primaryColor,
+                  title: tr(context, 'checkForUpdates'),
+                  onTap: () async {
+                    // Manual check — show a snackbar feedback
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Checking for updates...'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    await AppUpdateService().manualCheck(context);
+                  },
                 ),
               ],
             ),
