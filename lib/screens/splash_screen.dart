@@ -224,6 +224,36 @@ class _SplashScreenState extends State<SplashScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
+              // === Prominent Disclaimer Banner (Misleading Claims policy fix) ===
+              // Per Play Store policy (Oct 16, 2026): app must clearly state
+              // it's not affiliated with any government entity.
+              FadeInUp(
+                duration: const Duration(milliseconds: 800),
+                delay: const Duration(milliseconds: 1200),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: Colors.white.withOpacity(0.25)),
+                  ),
+                  child: Builder(
+                    builder: (context) => L10nText(
+                      'splashDisclaimer',
+                      style: AppFonts.style(
+                        size: 11,
+                        weight: FontWeight.w400,
+                        color: Colors.white.withOpacity(0.85),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
