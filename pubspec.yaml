@@ -1,7 +1,7 @@
 name: examvault
 description: ExamVault - independent educational practice app with mock tests for Indian competitive exams (SSC, UPSC, APSC, ADRE, Railway, Banking). Not affiliated with any government entity.
 publish_to: 'none'
-version: 1.62.2+98
+version: 1.62.3+99
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
